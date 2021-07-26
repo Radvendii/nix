@@ -122,6 +122,17 @@ if [[ $(uname) == Linux ]] && [[ -L /proc/self/ns/user ]] && unshare --user true
     _canUseSandbox=1
 fi
 
+isDaemonNewer () {
+  [[ -n "${NIX_DAEMON_PACKAGE:-}" ]] || return 0
+  local requiredVersion="$1"
+  local daemonVersion=$($NIX_DAEMON_PACKAGE/bin/nix-daemon --version | cut -d' ' -f3)
+  return [[ $(nix eval --expr "builtins.compareVersions ''$daemonVersion'' ''2.4''") -ge 0 ]]
+}
+
+requireDaemonNewerThan () {
+  isDaemonNewer "$1" || exit 99
+}
+
 canUseSandbox() {
     if [[ ! $_canUseSandbox ]]; then
         echo "Sandboxing not supported, skipping this test..."
