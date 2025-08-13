@@ -406,7 +406,10 @@ private:
     /**
      * Allocation cache for GC'd Value objects.
      */
-    std::shared_ptr<void *> valueAllocCache;
+    // std::shared_ptr<void *> valueAllocCache;
+public:
+    std::vector<Value> values;
+private:
 
     /**
      * Allocation cache for size-1 Env objects.

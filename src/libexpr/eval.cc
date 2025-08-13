@@ -345,7 +345,8 @@ EvalState::EvalState(
     , trylevel(0)
     , regexCache(makeRegexCache())
 #if NIX_USE_BOEHMGC
-    , valueAllocCache(std::allocate_shared<void *>(traceable_allocator<void *>(), nullptr))
+    // , values(std::allocate_shared<void *>(traceable_allocator<void *>(), nullptr))
+    // , valueAllocCache(std::allocate_shared<void *>(traceable_allocator<void *>(), nullptr))
     , env1AllocCache(std::allocate_shared<void *>(traceable_allocator<void *>(), nullptr))
     , baseEnvP(std::allocate_shared<Env *>(traceable_allocator<Env *>(), &allocEnv(BASE_ENV_SIZE)))
     , baseEnv(**baseEnvP)
