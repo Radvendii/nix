@@ -26,6 +26,8 @@
 
 namespace nix {
 
+typedef uint32_t ValueRef;
+
 /**
  * We put a limit on primop arity because it lets us use a fixed size array on
  * the stack. 8 is already an impractical number of arguments. Use an attrset
@@ -798,7 +800,7 @@ public:
     /**
      * Allocation primitives.
      */
-    inline Value * allocValue();
+    inline ValueRef allocValue();
     inline Env & allocEnv(size_t size);
 
     Bindings * allocBindings(size_t capacity);
