@@ -47,6 +47,23 @@ using json = nlohmann::json;
 
 namespace nix {
 
+unsigned long nrUninitialized = 0;
+unsigned long nrInt = 0;
+unsigned long nrBool = 0;
+unsigned long nrNull = 0;
+unsigned long nrFloat = 0;
+unsigned long nrExternal = 0;
+unsigned long nrPrimOp = 0;
+unsigned long nrAttrs = 0;
+unsigned long nrListSmall = 0;
+unsigned long nrPrimOpApp = 0;
+unsigned long nrApp = 0;
+unsigned long nrThunk = 0;
+unsigned long nrLambda = 0;
+unsigned long nrListN = 0;
+unsigned long nrString = 0;
+unsigned long nrPath = 0;
+
 static char * allocString(size_t size)
 {
     char * t;
@@ -543,6 +560,7 @@ void Value::mkPrimOp(PrimOp * p)
 {
     p->check();
     setStorage(p);
+    nrPrimOp++;
 }
 
 Value * EvalState::addPrimOp(PrimOp && primOp)
@@ -2942,6 +2960,26 @@ void EvalState::printStatistics()
     topObj["values"] = {
         {"number", nrValues},
         {"bytes", bValues},
+
+        {"tUninitialized", nrUninitialized},
+        {"tInt", nrInt},
+        {"tBool", nrBool},
+        {"tNull", nrNull},
+        {"tFloat", nrFloat},
+        {"tExternal", nrExternal},
+        {"tPrimOp", nrPrimOp},
+        {"tAttrs", nrAttrs},
+        {"tListSmall", nrListSmall},
+        {"tPrimOpApp", nrPrimOpApp},
+        {"tApp", nrApp},
+        {"tThunk", nrThunk},
+        {"tLambda", nrLambda},
+        {"tListN", nrListN},
+        {"tString", nrString},
+        {"tPath", nrPath},
+        {"total", nrInt + nrBool + nrNull + nrFloat + nrExternal + nrPrimOp + nrAttrs + nrListSmall + nrPrimOpApp + nrApp + nrThunk + nrLambda + nrListN + nrString + nrPath},
+        {"total_small", nrInt + nrBool + nrNull + nrFloat + nrExternal + nrAttrs + nrListSmall + nrPrimOpApp + nrApp},
+        {"total_big", nrPrimOp + nrThunk + nrLambda + nrListN + nrString + nrPath},
     };
     topObj["symbols"] = {
         {"number", symbols.size()},

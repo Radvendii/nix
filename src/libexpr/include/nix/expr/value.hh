@@ -16,6 +16,23 @@
 
 namespace nix {
 
+extern unsigned long nrUninitialized;
+extern unsigned long nrInt;
+extern unsigned long nrBool;
+extern unsigned long nrNull;
+extern unsigned long nrFloat;
+extern unsigned long nrExternal;
+extern unsigned long nrPrimOp;
+extern unsigned long nrAttrs;
+extern unsigned long nrListSmall;
+extern unsigned long nrPrimOpApp;
+extern unsigned long nrApp;
+extern unsigned long nrThunk;
+extern unsigned long nrLambda;
+extern unsigned long nrListN;
+extern unsigned long nrString;
+extern unsigned long nrPath;
+
 struct Value;
 class BindingsBuilder;
 
@@ -953,16 +970,19 @@ public:
     inline void mkInt(NixInt n) noexcept
     {
         setStorage(NixInt{n});
+        nrInt++;
     }
 
     inline void mkBool(bool b) noexcept
     {
         setStorage(b);
+        nrBool++;
     }
 
     inline void mkString(const char * s, const char ** context = 0) noexcept
     {
         setStorage(StringWithContext{.c_str = s, .context = context});
+        nrString++;
     }
 
     void mkString(std::string_view s);
@@ -977,43 +997,55 @@ public:
     inline void mkPath(SourceAccessor * accessor, const char * path) noexcept
     {
         setStorage(Path{.accessor = accessor, .path = path});
+        nrPath++;
     }
 
     inline void mkNull() noexcept
     {
         setStorage(Null{});
+        nrNull++;
     }
 
     inline void mkAttrs(Bindings * a) noexcept
     {
         setStorage(a);
+        nrAttrs++;
     }
 
     Value & mkAttrs(BindingsBuilder & bindings);
 
     void mkList(const ListBuilder & builder) noexcept
     {
-        if (builder.size == 1)
+        if (builder.size == 1) {
             setStorage(std::array<Value *, 2>{builder.inlineElems[0], nullptr});
-        else if (builder.size == 2)
+            nrListSmall++;
+        }
+        else if (builder.size == 2) {
             setStorage(std::array<Value *, 2>{builder.inlineElems[0], builder.inlineElems[1]});
-        else
+            nrListSmall++;
+        }
+        else {
             setStorage(List{.size = builder.size, .elems = builder.elems});
+            nrListN++;
+        }
     }
 
     inline void mkThunk(Env * e, Expr * ex) noexcept
     {
         setStorage(ClosureThunk{.env = e, .expr = ex});
+        nrThunk++;
     }
 
     inline void mkApp(Value * l, Value * r) noexcept
     {
         setStorage(FunctionApplicationThunk{.left = l, .right = r});
+        nrApp++;
     }
 
     inline void mkLambda(Env * e, ExprLambda * f) noexcept
     {
         setStorage(Lambda{.env = e, .fun = f});
+        nrLambda++;
     }
 
     inline void mkBlackhole();
@@ -1023,6 +1055,7 @@ public:
     inline void mkPrimOpApp(Value * l, Value * r) noexcept
     {
         setStorage(PrimOpApplicationThunk{.left = l, .right = r});
+        nrPrimOpApp++;
     }
 
     /**
@@ -1033,11 +1066,13 @@ public:
     inline void mkExternal(ExternalValueBase * e) noexcept
     {
         setStorage(e);
+        nrExternal++;
     }
 
     inline void mkFloat(NixFloat n) noexcept
     {
         setStorage(n);
+        nrFloat++;
     }
 
     bool isList() const noexcept
