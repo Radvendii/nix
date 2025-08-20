@@ -27,6 +27,7 @@
 namespace nix {
 
 typedef uint32_t ValueRef;
+constexpr ValueRef ValueRefNull = std::numeric_limits<ValueRef>::max();
 
 /**
  * We put a limit on primop arity because it lets us use a fixed size array on
@@ -404,15 +405,13 @@ private:
      */
     std::shared_ptr<RegexCache> regexCache;
 
-#if NIX_USE_BOEHMGC
     /**
-     * Allocation cache for GC'd Value objects.
+     * Vector containing all allocated values
      */
-    // std::shared_ptr<void *> valueAllocCache;
-public:
     std::vector<Value> values;
-private:
 
+
+#if NIX_USE_BOEHMGC
     /**
      * Allocation cache for size-1 Env objects.
      */
@@ -428,6 +427,22 @@ public:
         const EvalSettings & settings,
         std::shared_ptr<Store> buildStore = nullptr);
     ~EvalState();
+
+    Value * VRtoVP(ValueRef ref) {
+        if (ref == ValueRefNull)
+            return nullptr;
+        return &values[ref];
+    }
+
+    Value & VRtoV(ValueRef ref) {
+        if (ref == ValueRefNull)
+            throw std::logic_error("Trying to dereference ValueRefNull!");
+        return values[ref];
+    }
+
+    ValueRef VPtoVR(Value *v) {
+        return v ? v - &values.front() : ValueRefNull;
+    }
 
     LookupPath getLookupPath()
     {
