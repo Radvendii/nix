@@ -43,11 +43,11 @@ TEST_F(nix_api_store_test, nix_api_init_getFlake_exists)
 
     nix_err err = nix_expr_eval_from_string(ctx, state, "builtins.getFlake", ".", value);
 
-    nix_state_free(state);
-
     assert_ctx_ok();
     ASSERT_EQ(NIX_OK, err);
     ASSERT_EQ(NIX_TYPE_FUNCTION, nix_get_type(ctx, value));
+
+    nix_state_free(state);
 }
 
 TEST_F(nix_api_store_test, nix_api_flake_reference_not_absolute_no_basedir_fail)
