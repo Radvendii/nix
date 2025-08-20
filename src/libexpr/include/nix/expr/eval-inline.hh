@@ -26,11 +26,11 @@ inline void * allocBytes(size_t n)
 }
 
 [[gnu::always_inline]]
-ValueRef EvalState::allocValue()
+Value * EvalState::allocValue()
 {
-    values.emplace_back();
     nrValues++;
-    return values.size() - 1;
+    return &values.emplace_back();
+    // return values.size() - 1;
 // #if NIX_USE_BOEHMGC
 //     /* We use the boehm batch allocator to speed up allocations of Values (of which there are many).
 //        GC_malloc_many returns a linked list of objects of the given size, where the first word
