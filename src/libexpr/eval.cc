@@ -345,7 +345,7 @@ EvalState::EvalState(
     , trylevel(0)
     , regexCache(makeRegexCache())
 #if NIX_USE_BOEHMGC
-    , values(100000)
+    // , values(100000)
     // , valueAllocCache(std::allocate_shared<void *>(traceable_allocator<void *>(), nullptr))
     , env1AllocCache(std::allocate_shared<void *>(traceable_allocator<void *>(), nullptr))
     , baseEnvP(std::allocate_shared<Env *>(traceable_allocator<Env *>(), &allocEnv(BASE_ENV_SIZE)))
@@ -355,6 +355,7 @@ EvalState::EvalState(
 #endif
     , staticBaseEnv{std::make_shared<StaticEnv>(nullptr, nullptr)}
 {
+    values.reserve(100000);
     corepkgsFS->setPathDisplay("<nix", ">");
     internalFS->setPathDisplay("«nix-internal»", "");
 
