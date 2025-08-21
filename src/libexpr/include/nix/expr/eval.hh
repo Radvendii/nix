@@ -429,6 +429,8 @@ public:
     ~EvalState();
 
     Value * VRtoVP(ValueRef ref) {
+        // XXX [speed]: debug statement is temporary
+        std::cout << "VRtoVP called with value: " << ref << "\n";
         if (ref == ValueRefNull)
             return nullptr;
         return &values[ref];
@@ -441,7 +443,12 @@ public:
     }
 
     ValueRef VPtoVR(Value *v) {
-        return v ? v - &values.front() : ValueRefNull;
+        ValueRef ref = v ? v - &values.front() : ValueRefNull;
+        // XXX [speed]: debug statement is temporary
+        std::cout << "VPtoVR called with ref: " << ref << "\n";
+        if (ref > values.size())
+            std::cout << "ref out of bounds!" << "\n";
+        return ref;
     }
 
     LookupPath getLookupPath()

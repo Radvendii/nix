@@ -29,6 +29,9 @@ inline void * allocBytes(size_t n)
 Value * EvalState::allocValue()
 {
     nrValues++;
+    // XXX [speed]: just for now while we debug
+    if (values.size() >= 99000)
+        std::cout << "PROBLEM: Too many values being allocated!\n";
     return &values.emplace_back();
     // return values.size() - 1;
 // #if NIX_USE_BOEHMGC
