@@ -5,12 +5,12 @@
 
 #include "nix/main/plugin.hh"
 
-nix_err nix_init_plugins(nix_c_context * context)
-{
-    if (context)
-        context->last_err_code = NIX_OK;
-    try {
-        nix::initPlugins();
-    }
-    NIXC_CATCH_ERRS
-}
+// nix_err nix_init_plugins(nix_c_context * context)
+// {
+//     if (context)
+//         context->last_err_code = NIX_OK;
+//     try {
+//         nix::initPlugins();
+//     }
+//     NIXC_CATCH_ERRS
+// }
