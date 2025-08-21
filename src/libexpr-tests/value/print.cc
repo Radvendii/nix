@@ -83,7 +83,7 @@ TEST_F(ValuePrintingTests, tList)
     list.elems[0] = &vOne;
     list.elems[1] = &vTwo;
     Value vList;
-    vList.mkList(list);
+    vList.mkList(state, list);
 
     test(vList, "[ 1 2 «nullptr» ]");
 }
@@ -99,7 +99,7 @@ TEST_F(ValuePrintingTests, vThunk)
 TEST_F(ValuePrintingTests, vApp)
 {
     Value vApp;
-    vApp.mkApp(nullptr, nullptr);
+    vApp.mkApp(state, nullptr, nullptr);
 
     test(vApp, "«thunk»");
 }
@@ -140,7 +140,7 @@ TEST_F(ValuePrintingTests, vPrimOpApp)
     vPrimOp.mkPrimOp(&primOp);
 
     Value vPrimOpApp;
-    vPrimOpApp.mkPrimOpApp(&vPrimOp, nullptr);
+    vPrimOpApp.mkPrimOpApp(state, &vPrimOp, nullptr);
 
     test(vPrimOpApp, "«partially applied primop puppy»");
 }
@@ -253,7 +253,7 @@ TEST_F(ValuePrintingTests, depthList)
     list.elems[1] = &vTwo;
     list.elems[2] = &vNested;
     Value vList;
-    vList.mkList(list);
+    vList.mkList(state, list);
 
     test(vList, "[ 1 2 { ... } ]", PrintOptions{.maxDepth = 1});
     test(vList, "[ 1 2 { nested = { ... }; one = 1; two = 2; } ]", PrintOptions{.maxDepth = 2});
@@ -415,7 +415,7 @@ TEST_F(ValuePrintingTests, ansiColorsError)
     Value message;
     message.mkString("uh oh!");
     Value vError;
-    vError.mkApp(&throw_, &message);
+    vError.mkApp(state, &throw_, &message);
 
     test(
         vError,
@@ -432,7 +432,7 @@ TEST_F(ValuePrintingTests, ansiColorsDerivationError)
     Value message;
     message.mkString("uh oh!");
     Value vError;
-    vError.mkApp(&throw_, &message);
+    vError.mkApp(state, &throw_, &message);
 
     Value vDerivation;
     vDerivation.mkString("derivation");
@@ -486,7 +486,7 @@ TEST_F(ValuePrintingTests, ansiColorsList)
     list.elems[0] = &vOne;
     list.elems[1] = &vTwo;
     Value vList;
-    vList.mkList(list);
+    vList.mkList(state, list);
 
     test(
         vList,
@@ -530,7 +530,7 @@ TEST_F(ValuePrintingTests, ansiColorsPrimOpApp)
     vPrimOp.mkPrimOp(&primOp);
 
     Value v;
-    v.mkPrimOpApp(&vPrimOp, nullptr);
+    v.mkPrimOpApp(state, &vPrimOp, nullptr);
 
     test(v, ANSI_BLUE "«partially applied primop puppy»" ANSI_NORMAL, PrintOptions{.ansiColors = true});
 }
@@ -579,7 +579,7 @@ TEST_F(ValuePrintingTests, ansiColorsListRepeated)
     list.elems[0] = &vEmpty;
     list.elems[1] = &vEmpty;
     Value vList;
-    vList.mkList(list);
+    vList.mkList(state, list);
 
     test(vList, "[ { } " ANSI_MAGENTA "«repeated»" ANSI_NORMAL " ]", PrintOptions{.ansiColors = true});
 }
@@ -595,7 +595,7 @@ TEST_F(ValuePrintingTests, listRepeated)
     list.elems[0] = &vEmpty;
     list.elems[1] = &vEmpty;
     Value vList;
-    vList.mkList(list);
+    vList.mkList(state, list);
 
     test(vList, "[ { } «repeated» ]", PrintOptions{});
     test(vList, "[ { } { } ]", PrintOptions{.trackRepeated = false});
@@ -648,7 +648,7 @@ TEST_F(ValuePrintingTests, ansiColorsListElided)
         list.elems[0] = &vOne;
         list.elems[1] = &vTwo;
         Value vList;
-        vList.mkList(list);
+        vList.mkList(state, list);
 
         test(
             vList,
@@ -665,7 +665,7 @@ TEST_F(ValuePrintingTests, ansiColorsListElided)
         list.elems[1] = &vTwo;
         list.elems[2] = &vThree;
         Value vList;
-        vList.mkList(list);
+        vList.mkList(state, list);
 
         test(
             vList,

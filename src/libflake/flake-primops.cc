@@ -125,7 +125,7 @@ static void prim_flakeRefToString(EvalState & state, const PosIdx pos, Value ** 
                     "flake reference attribute sets may only contain integers, Booleans, "
                     "and strings, but attribute '%s' is %s",
                     state.symbols[attr.name],
-                    showType(*attr.value))
+                    showType(state, *attr.value))
                 .debugThrow();
         }
     }

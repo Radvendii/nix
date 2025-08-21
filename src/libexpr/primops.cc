@@ -226,7 +226,7 @@ void derivationToValue(
         mkOutputString(state, attrs, storePath, o);
         (list[i] = state.allocValue())->mkString(o.first);
     }
-    attrs.alloc(state.sOutputs).mkList(list);
+    attrs.alloc(state.sOutputs).mkList(state, list);
 
     auto w = state.allocValue();
     w->mkAttrs(attrs);
@@ -242,7 +242,7 @@ void derivationToValue(
 
     state.forceFunction(
         **state.vImportedDrvToDerivation, pos, "while evaluating imported-drv-to-derivation.nix.gen.hh");
-    v.mkApp(*state.vImportedDrvToDerivation, w);
+    v.mkApp(state, *state.vImportedDrvToDerivation, w);
     state.forceAttrs(v, pos, "while calling imported-drv-to-derivation.nix.gen.hh");
 }
 
@@ -426,7 +426,7 @@ void prim_importNative(EvalState & state, const PosIdx pos, Value ** args, Value
 void prim_exec(EvalState & state, const PosIdx pos, Value ** args, Value & v)
 {
     state.forceList(*args[0], pos, "while evaluating the first argument passed to builtins.exec");
-    auto elems = args[0]->listView();
+    auto elems = args[0]->listView(state);
     auto count = args[0]->listSize();
     if (count == 0)
         state.error<EvalError>("at least one argument to 'exec' required").atPos(pos).debugThrow();
@@ -680,7 +680,7 @@ struct CompareValues
             if (v1->type() == nInt && v2->type() == nFloat)
                 return v1->integer().value < v2->fpoint();
             if (v1->type() != v2->type())
-                state.error<EvalError>("cannot compare %s with %s", showType(*v1), showType(*v2)).debugThrow();
+                state.error<EvalError>("cannot compare %s with %s", showType(state, *v1), showType(state, *v2)).debugThrow();
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch-enum"
@@ -703,14 +703,14 @@ struct CompareValues
                         return false;
                     } else if (i == v1->listSize()) {
                         return true;
-                    } else if (!state.eqValues(*v1->listView()[i], *v2->listView()[i], pos, errorCtx)) {
-                        return (*this)(v1->listView()[i], v2->listView()[i], "while comparing two list elements");
+                    } else if (!state.eqValues(*v1->listView(state)[i], *v2->listView(state)[i], pos, errorCtx)) {
+                        return (*this)(v1->listView(state)[i], v2->listView(state)[i], "while comparing two list elements");
                     }
                 }
             default:
                 state
                     .error<EvalError>(
-                        "cannot compare %s with %s; values of that type are incomparable", showType(*v1), showType(*v2))
+                        "cannot compare %s with %s; values of that type are incomparable", showType(state, *v1), showType(state, *v2))
                     .debugThrow();
 #pragma GCC diagnostic pop
             }
@@ -738,7 +738,7 @@ static void prim_genericClosure(EvalState & state, const PosIdx pos, Value ** ar
         "while evaluating the 'startSet' attribute passed as argument to builtins.genericClosure");
 
     ValueList workSet;
-    for (auto elem : startSet->value->listView())
+    for (auto elem : startSet->value->listView(state))
         workSet.push_back(elem);
 
     if (startSet->value->listSize() == 0) {
@@ -788,7 +788,7 @@ static void prim_genericClosure(EvalState & state, const PosIdx pos, Value ** ar
             "while evaluating the return value of the `operator` passed to builtins.genericClosure");
 
         /* Add the values returned by the operator to the work set. */
-        for (auto elem : newElements.listView()) {
+        for (auto elem : newElements.listView(state)) {
             state.forceValue(*elem, noPos); // "while evaluating one one of the elements returned by the `operator`
                                             // passed to builtins.genericClosure");
             workSet.push_back(elem);
@@ -799,7 +799,7 @@ static void prim_genericClosure(EvalState & state, const PosIdx pos, Value ** ar
     auto list = state.buildList(res.size());
     for (const auto & [n, i] : enumerate(res))
         list[n] = i;
-    v.mkList(list);
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_genericClosure(
@@ -950,7 +950,7 @@ static RegisterPrimOp primop_addErrorContext(
 static void prim_ceil(EvalState & state, const PosIdx pos, Value ** args, Value & v)
 {
     auto value = state.forceFloat(
-        *args[0], args[0]->determinePos(pos), "while evaluating the first argument passed to builtins.ceil");
+        *args[0], args[0]->determinePos(state, pos), "while evaluating the first argument passed to builtins.ceil");
     auto ceilValue = ceil(value);
     bool isInt = args[0]->type() == nInt;
     constexpr NixFloat int_min = std::numeric_limits<NixInt::Inner>::min(); // power of 2, so that no rounding occurs
@@ -1005,7 +1005,7 @@ static RegisterPrimOp primop_ceil({
 static void prim_floor(EvalState & state, const PosIdx pos, Value ** args, Value & v)
 {
     auto value = state.forceFloat(
-        *args[0], args[0]->determinePos(pos), "while evaluating the first argument passed to builtins.floor");
+        *args[0], args[0]->determinePos(state, pos), "while evaluating the first argument passed to builtins.floor");
     auto floorValue = floor(value);
     bool isInt = args[0]->type() == nInt;
     constexpr NixFloat int_min = std::numeric_limits<NixInt::Inner>::min(); // power of 2, so that no rounding occurs
@@ -1364,7 +1364,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
     /* Check whether attributes should be passed as a JSON file. */
     using nlohmann::json;
     std::optional<StructuredAttrs> jsonObject;
-    auto pos = v.determinePos(noPos);
+    auto pos = v.determinePos(state, noPos);
     auto attr = attrs->find(state.sStructuredAttrs);
     if (attr != attrs->end()
         && state.forceBool(
@@ -1414,7 +1414,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
                     ingestionMethod = ContentAddressMethod::parse(s);
                 } catch (UsageError &) {
                     state.error<EvalError>("invalid value '%s' for 'outputHashMode' attribute", s)
-                        .atPos(v)
+                        .atPos(state, v)
                         .debugThrow();
                 }
             if (ingestionMethod == ContentAddressMethod::Raw::Text)
@@ -1427,18 +1427,18 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
             outputs.clear();
             for (auto & j : ss) {
                 if (outputs.find(j) != outputs.end())
-                    state.error<EvalError>("duplicate derivation output '%1%'", j).atPos(v).debugThrow();
+                    state.error<EvalError>("duplicate derivation output '%1%'", j).atPos(state, v).debugThrow();
                 /* !!! Check whether j is a valid attribute
                    name. */
                 /* Derivations cannot be named ‘drvPath’, because
                    we already have an attribute ‘drvPath’ in
                    the resulting set (see state.sDrvPath). */
                 if (j == "drvPath")
-                    state.error<EvalError>("invalid derivation output name 'drvPath'").atPos(v).debugThrow();
+                    state.error<EvalError>("invalid derivation output name 'drvPath'").atPos(state, v).debugThrow();
                 outputs.insert(j);
             }
             if (outputs.empty())
-                state.error<EvalError>("derivation cannot have an empty set of outputs").atPos(v).debugThrow();
+                state.error<EvalError>("derivation cannot have an empty set of outputs").atPos(state, v).debugThrow();
         };
 
         try {
@@ -1466,7 +1466,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
                command-line arguments to the builder. */
             else if (i->name == state.sArgs) {
                 state.forceList(*i->value, pos, context_below);
-                for (auto elem : i->value->listView()) {
+                for (auto elem : i->value->listView(state)) {
                     auto s = state
                                  .coerceToString(
                                      pos, *elem, context, "while evaluating an element of the argument list", true)
@@ -1500,7 +1500,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
                         /* Require ‘outputs’ to be a list of strings. */
                         state.forceList(*i->value, pos, context_below);
                         Strings ss;
-                        for (auto elem : i->value->listView())
+                        for (auto elem : i->value->listView(state))
                             ss.emplace_back(state.forceStringNoCtx(*elem, pos, context_below));
                         handleOutputs(ss);
                     }
@@ -1601,10 +1601,10 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
 
     /* Do we have all required attributes? */
     if (drv.builder == "")
-        state.error<EvalError>("required attribute 'builder' missing").atPos(v).debugThrow();
+        state.error<EvalError>("required attribute 'builder' missing").atPos(state, v).debugThrow();
 
     if (drv.platform == "")
-        state.error<EvalError>("required attribute 'system' missing").atPos(v).debugThrow();
+        state.error<EvalError>("required attribute 'system' missing").atPos(state, v).debugThrow();
 
     /* Check whether the derivation name is valid. */
     if (isDerivation(drvName)
@@ -1614,7 +1614,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
             .error<EvalError>(
                 "derivation names are allowed to end in '%s' only if they produce a single derivation file",
                 drvExtension)
-            .atPos(v)
+            .atPos(state, v)
             .debugThrow();
     }
 
@@ -1625,7 +1625,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
            already content addressed. */
         if (outputs.size() != 1 || *(outputs.begin()) != "out")
             state.error<EvalError>("multiple outputs are not supported in fixed-output derivations")
-                .atPos(v)
+                .atPos(state, v)
                 .debugThrow();
 
         auto h = newHashAllowEmpty(*outputHash, outputHashAlgo);
@@ -1646,7 +1646,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
 
     else if (contentAddressed || isImpure) {
         if (contentAddressed && isImpure)
-            state.error<EvalError>("derivation cannot be both content-addressed and impure").atPos(v).debugThrow();
+            state.error<EvalError>("derivation cannot be both content-addressed and impure").atPos(state, v).debugThrow();
 
         auto ha = outputHashAlgo.value_or(HashAlgorithm::SHA256);
         auto method = ingestionMethod.value_or(ContentAddressMethod::Raw::NixArchive);
@@ -1688,7 +1688,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
             for (auto & i : outputs) {
                 auto h = get(hashModulo.hashes, i);
                 if (!h)
-                    state.error<AssertionError>("derivation produced no hash for output '%s'", i).atPos(v).debugThrow();
+                    state.error<AssertionError>("derivation produced no hash for output '%s'", i).atPos(state, v).debugThrow();
                 auto outPath = state.store->makeOutputPath(i, *h, drvName);
                 drv.env[i] = state.store->printStorePath(outPath);
                 drv.outputs.insert_or_assign(
@@ -2001,7 +2001,7 @@ static void prim_findFile(EvalState & state, const PosIdx pos, Value ** args, Va
 
     LookupPath lookupPath;
 
-    for (auto v2 : args[0]->listView()) {
+    for (auto v2 : args[0]->listView(state)) {
         state.forceAttrs(*v2, pos, "while evaluating an element of the list passed to builtins.findFile");
 
         std::string prefix;
@@ -2260,7 +2260,7 @@ static void prim_readDir(EvalState & state, const PosIdx pos, Value ** args, Val
             epath->mkPath(path / name);
             if (!readFileType)
                 readFileType = &state.getBuiltin("readFileType");
-            attr.mkApp(readFileType, epath);
+            attr.mkApp(state, readFileType, epath);
         } else {
             // This branch of the conditional is much more likely.
             // Here we just stringize the directory entry type.
@@ -2868,7 +2868,7 @@ static void prim_attrNames(EvalState & state, const PosIdx pos, Value ** args, V
 
     std::sort(list.begin(), list.end(), [](Value * v1, Value * v2) { return strcmp(v1->c_str(), v2->c_str()) < 0; });
 
-    v.mkList(list);
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_attrNames({
@@ -2901,7 +2901,7 @@ static void prim_attrValues(EvalState & state, const PosIdx pos, Value ** args, 
     for (auto & v : list)
         v = ((Attr *) v)->value;
 
-    v.mkList(list);
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_attrValues({
@@ -2998,8 +2998,8 @@ static struct LazyPosAccessors
     {
         Value * posV = state.allocValue();
         posV->mkInt(pos.id);
-        line.mkApp(&lineOfPos, posV);
-        column.mkApp(&columnOfPos, posV);
+        line.mkApp(state, &lineOfPos, posV);
+        column.mkApp(state, &columnOfPos, posV);
     }
 } makeLazyPosAccessors;
 
@@ -3054,7 +3054,7 @@ static void prim_removeAttrs(EvalState & state, const PosIdx pos, Value ** args,
     // 64: large enough to fit the attributes of a derivation
     boost::container::small_vector<Attr, 64> names;
     names.reserve(args[1]->listSize());
-    for (auto elem : args[1]->listView()) {
+    for (auto elem : args[1]->listView(state)) {
         state.forceStringNoCtx(
             *elem, pos, "while evaluating the values of the second argument passed to builtins.removeAttrs");
         names.emplace_back(state.symbols.create(elem->string_view()), nullptr);
@@ -3096,7 +3096,7 @@ static void prim_listToAttrs(EvalState & state, const PosIdx pos, Value ** args,
     state.forceList(*args[0], pos, "while evaluating the argument passed to builtins.listToAttrs");
 
     // Step 1. Sort the name-value attrsets in place using the memory we allocate for the result
-    auto listView = args[0]->listView();
+    auto listView = args[0]->listView(state);
     size_t listSize = listView.size();
     auto & bindings = *state.allocBindings(listSize);
     using ElemPtr = decltype(&bindings[0].value);
@@ -3259,7 +3259,7 @@ static void prim_catAttrs(EvalState & state, const PosIdx pos, Value ** args, Va
     SmallValueVector<nonRecursiveStackReservation> res(args[1]->listSize());
     size_t found = 0;
 
-    for (auto v2 : args[1]->listView()) {
+    for (auto v2 : args[1]->listView(state)) {
         state.forceAttrs(
             *v2, pos, "while evaluating an element in the list passed as second argument to builtins.catAttrs");
         if (auto i = v2->attrs()->get(attrName))
@@ -3269,7 +3269,7 @@ static void prim_catAttrs(EvalState & state, const PosIdx pos, Value ** args, Va
     auto list = state.buildList(found);
     for (size_t n = 0; n < found; ++n)
         list[n] = res[n];
-    v.mkList(list);
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_catAttrs({
@@ -3343,8 +3343,8 @@ static void prim_mapAttrs(EvalState & state, const PosIdx pos, Value ** args, Va
     for (auto & i : *args[1]->attrs()) {
         Value * vName = Value::toPtr(state.symbols[i.name]);
         Value * vFun2 = state.allocValue();
-        vFun2->mkApp(args[0], vName);
-        attrs.alloc(i.name).mkApp(vFun2, i.value);
+        vFun2->mkApp(state, args[0], vName);
+        attrs.alloc(i.name).mkApp(state, vFun2, i.value);
     }
 
     v.mkAttrs(attrs.alreadySorted());
@@ -3385,7 +3385,7 @@ static void prim_zipAttrsWith(EvalState & state, const PosIdx pos, Value ** args
 
     state.forceFunction(*args[0], pos, "while evaluating the first argument passed to builtins.zipAttrsWith");
     state.forceList(*args[1], pos, "while evaluating the second argument passed to builtins.zipAttrsWith");
-    const auto listItems = args[1]->listView();
+    /* XXX [speed] const */ auto listItems = args[1]->listView(state);
 
     for (auto & vElem : listItems) {
         state.forceAttrs(
@@ -3409,11 +3409,11 @@ static void prim_zipAttrsWith(EvalState & state, const PosIdx pos, Value ** args
     for (auto & [sym, elem] : attrsSeen) {
         auto name = Value::toPtr(state.symbols[sym]);
         auto call1 = state.allocValue();
-        call1->mkApp(args[0], name);
+        call1->mkApp(state, args[0], name);
         auto call2 = state.allocValue();
         auto arg = state.allocValue();
-        arg->mkList(*elem.list);
-        call2->mkApp(call1, arg);
+        arg->mkList(state, *elem.list);
+        call2->mkApp(state, call1, arg);
         attrs.insert(sym, call2);
     }
 
@@ -3482,8 +3482,8 @@ static void prim_elemAt(EvalState & state, const PosIdx pos, Value ** args, Valu
         state.error<EvalError>("'builtins.elemAt' called with index %d on a list of size %d", n, args[0]->listSize())
             .atPos(pos)
             .debugThrow();
-    state.forceValue(*args[0]->listView()[n], pos);
-    v = *args[0]->listView()[n];
+    state.forceValue(*args[0]->listView(state)[n], pos);
+    v = *args[0]->listView(state)[n];
 }
 
 static RegisterPrimOp primop_elemAt({
@@ -3502,8 +3502,8 @@ static void prim_head(EvalState & state, const PosIdx pos, Value ** args, Value 
     state.forceList(*args[0], pos, "while evaluating the first argument passed to 'builtins.head'");
     if (args[0]->listSize() == 0)
         state.error<EvalError>("'builtins.head' called on an empty list").atPos(pos).debugThrow();
-    state.forceValue(*args[0]->listView()[0], pos);
-    v = *args[0]->listView()[0];
+    state.forceValue(*args[0]->listView(state)[0], pos);
+    v = *args[0]->listView(state)[0];
 }
 
 static RegisterPrimOp primop_head({
@@ -3528,8 +3528,8 @@ static void prim_tail(EvalState & state, const PosIdx pos, Value ** args, Value 
 
     auto list = state.buildList(args[0]->listSize() - 1);
     for (const auto & [n, v] : enumerate(list))
-        v = args[0]->listView()[n + 1];
-    v.mkList(list);
+        v = args[0]->listView(state)[n + 1];
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_tail({
@@ -3562,8 +3562,8 @@ static void prim_map(EvalState & state, const PosIdx pos, Value ** args, Value &
 
     auto list = state.buildList(args[1]->listSize());
     for (const auto & [n, v] : enumerate(list))
-        (v = state.allocValue())->mkApp(args[0], args[1]->listView()[n]);
-    v.mkList(list);
+        (v = state.allocValue())->mkApp(state, args[0], args[1]->listView(state)[n]);
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_map({
@@ -3603,10 +3603,10 @@ static void prim_filter(EvalState & state, const PosIdx pos, Value ** args, Valu
     bool same = true;
     for (size_t n = 0; n < len; ++n) {
         Value res;
-        state.callFunction(*args[0], *args[1]->listView()[n], res, noPos);
+        state.callFunction(*args[0], *args[1]->listView(state)[n], res, noPos);
         if (state.forceBool(
                 res, pos, "while evaluating the return value of the filtering function passed to builtins.filter"))
-            vs[k++] = args[1]->listView()[n];
+            vs[k++] = args[1]->listView(state)[n];
         else
             same = false;
     }
@@ -3617,7 +3617,7 @@ static void prim_filter(EvalState & state, const PosIdx pos, Value ** args, Valu
         auto list = state.buildList(k);
         for (const auto & [n, v] : enumerate(list))
             v = vs[n];
-        v.mkList(list);
+        v.mkList(state, list);
     }
 }
 
@@ -3636,7 +3636,7 @@ static void prim_elem(EvalState & state, const PosIdx pos, Value ** args, Value 
 {
     bool res = false;
     state.forceList(*args[1], pos, "while evaluating the second argument passed to builtins.elem");
-    for (auto elem : args[1]->listView())
+    for (auto elem : args[1]->listView(state))
         if (state.eqValues(*args[0], *elem, pos, "while searching for the presence of the given element in the list")) {
             res = true;
             break;
@@ -3658,7 +3658,7 @@ static RegisterPrimOp primop_elem({
 static void prim_concatLists(EvalState & state, const PosIdx pos, Value ** args, Value & v)
 {
     state.forceList(*args[0], pos, "while evaluating the first argument passed to builtins.concatLists");
-    auto listView = args[0]->listView();
+    auto listView = args[0]->listView(state);
     state.concatLists(
         v,
         args[0]->listSize(),
@@ -3702,7 +3702,7 @@ static void prim_foldlStrict(EvalState & state, const PosIdx pos, Value ** args,
     if (args[2]->listSize()) {
         Value * vCur = args[1];
 
-        auto listView = args[2]->listView();
+        auto listView = args[2]->listView(state);
         for (auto [n, elem] : enumerate(listView)) {
             Value * vs[]{vCur, elem};
             vCur = n == args[2]->listSize() - 1 ? &v : state.allocValue();
@@ -3746,7 +3746,7 @@ static void anyOrAll(bool any, EvalState & state, const PosIdx pos, Value ** arg
                                     : "while evaluating the return value of the function passed to builtins.all";
 
     Value vTmp;
-    for (auto elem : args[1]->listView()) {
+    for (auto elem : args[1]->listView(state)) {
         state.callFunction(*args[0], *elem, vTmp, pos);
         bool res = state.forceBool(vTmp, pos, errorCtx);
         if (res == any) {
@@ -3805,9 +3805,9 @@ static void prim_genList(EvalState & state, const PosIdx pos, Value ** args, Val
     for (const auto & [n, v] : enumerate(list)) {
         auto arg = state.allocValue();
         arg->mkInt(n);
-        (v = state.allocValue())->mkApp(args[0], arg);
+        (v = state.allocValue())->mkApp(state, args[0], arg);
     }
-    v.mkList(list);
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_genList({
@@ -3842,7 +3842,7 @@ static void prim_sort(EvalState & state, const PosIdx pos, Value ** args, Value 
 
     auto list = state.buildList(len);
     for (const auto & [n, v] : enumerate(list))
-        state.forceValue(*(v = args[1]->listView()[n]), pos);
+        state.forceValue(*(v = args[1]->listView(state)[n]), pos);
 
     auto comparator = [&](Value * a, Value * b) {
         /* Optimization: if the comparator is lessThan, bypass
@@ -3870,7 +3870,7 @@ static void prim_sort(EvalState & state, const PosIdx pos, Value ** args, Value 
        violated - output is always a reordering of the input. */
     peeksort(list.begin(), list.end(), comparator);
 
-    v.mkList(list);
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_sort({
@@ -3930,7 +3930,7 @@ static void prim_partition(EvalState & state, const PosIdx pos, Value ** args, V
     ValueVector right, wrong;
 
     for (size_t n = 0; n < len; ++n) {
-        auto vElem = args[1]->listView()[n];
+        auto vElem = args[1]->listView(state)[n];
         state.forceValue(*vElem, pos);
         Value res;
         state.callFunction(*args[0], *vElem, res, pos);
@@ -3947,13 +3947,13 @@ static void prim_partition(EvalState & state, const PosIdx pos, Value ** args, V
     auto rlist = state.buildList(rsize);
     if (rsize)
         memcpy(rlist.elems, right.data(), sizeof(Value *) * rsize);
-    attrs.alloc(state.sRight).mkList(rlist);
+    attrs.alloc(state.sRight).mkList(state, rlist);
 
     auto wsize = wrong.size();
     auto wlist = state.buildList(wsize);
     if (wsize)
         memcpy(wlist.elems, wrong.data(), sizeof(Value *) * wsize);
-    attrs.alloc(state.sWrong).mkList(wlist);
+    attrs.alloc(state.sWrong).mkList(state, wlist);
 
     v.mkAttrs(attrs);
 }
@@ -3988,7 +3988,7 @@ static void prim_groupBy(EvalState & state, const PosIdx pos, Value ** args, Val
 
     ValueVectorMap attrs;
 
-    for (auto vElem : args[1]->listView()) {
+    for (auto vElem : args[1]->listView(state)) {
         Value res;
         state.callFunction(*args[0], *vElem, res, pos);
         auto name = state.forceStringNoCtx(
@@ -4004,7 +4004,7 @@ static void prim_groupBy(EvalState & state, const PosIdx pos, Value ** args, Val
         auto size = i.second.size();
         auto list = state.buildList(size);
         memcpy(list.elems, i.second.data(), sizeof(Value *) * size);
-        attrs2.alloc(i.first).mkList(list);
+        attrs2.alloc(i.first).mkList(state, list);
     }
 
     v.mkAttrs(attrs2.alreadySorted());
@@ -4045,11 +4045,11 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, Value ** args, V
     size_t len = 0;
 
     for (size_t n = 0; n < nrLists; ++n) {
-        Value * vElem = args[1]->listView()[n];
+        Value * vElem = args[1]->listView(state)[n];
         state.callFunction(*args[0], *vElem, lists[n], pos);
         state.forceList(
             lists[n],
-            lists[n].determinePos(args[0]->determinePos(pos)),
+            lists[n].determinePos(state, args[0]->determinePos(state, pos)),
             "while evaluating the return value of the function passed to builtins.concatMap");
         len += lists[n].listSize();
     }
@@ -4057,13 +4057,13 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, Value ** args, V
     auto list = state.buildList(len);
     auto out = list.elems;
     for (size_t n = 0, pos = 0; n < nrLists; ++n) {
-        auto listView = lists[n].listView();
+        auto listView = lists[n].listView(state);
         auto l = listView.size();
         if (l)
             memcpy(out + pos, listView.data(), l * sizeof(Value *));
         pos += l;
     }
-    v.mkList(list);
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_concatMap({
@@ -4583,7 +4583,7 @@ void prim_match(EvalState & state, const PosIdx pos, Value ** args, Value & v)
                 v2 = &state.vNull;
             else
                 v2 = mkString(state, match[i + 1]);
-        v.mkList(list);
+        v.mkList(state, list);
 
     } catch (std::regex_error & e) {
         if (e.code() == std::regex_constants::error_space) {
@@ -4654,7 +4654,7 @@ void prim_split(EvalState & state, const PosIdx pos, Value ** args, Value & v)
 
         if (len == 0) {
             list[0] = args[1];
-            v.mkList(list);
+            v.mkList(state, list);
             return;
         }
 
@@ -4677,7 +4677,7 @@ void prim_split(EvalState & state, const PosIdx pos, Value ** args, Value & v)
                     v2 = mkString(state, match[si + 1]);
             }
 
-            (list[idx++] = state.allocValue())->mkList(list2);
+            (list[idx++] = state.allocValue())->mkList(state, list2);
 
             // Add a string for non-matched suffix characters.
             if (idx == 2 * len)
@@ -4686,7 +4686,7 @@ void prim_split(EvalState & state, const PosIdx pos, Value ** args, Value & v)
 
         assert(idx == 2 * len + 1);
 
-        v.mkList(list);
+        v.mkList(state, list);
 
     } catch (std::regex_error & e) {
         if (e.code() == std::regex_constants::error_space) {
@@ -4752,7 +4752,7 @@ static void prim_concatStringsSep(EvalState & state, const PosIdx pos, Value ** 
     res.reserve((args[1]->listSize() + 32) * sep.size());
     bool first = true;
 
-    for (auto elem : args[1]->listView()) {
+    for (auto elem : args[1]->listView(state)) {
         if (first)
             first = false;
         else
@@ -4789,12 +4789,12 @@ static void prim_replaceStrings(EvalState & state, const PosIdx pos, Value ** ar
 
     std::vector<std::string_view> from;
     from.reserve(args[0]->listSize());
-    for (auto elem : args[0]->listView())
+    for (auto elem : args[0]->listView(state))
         from.emplace_back(state.forceString(
             *elem, pos, "while evaluating one of the strings to replace passed to builtins.replaceStrings"));
 
     std::unordered_map<size_t, std::string_view> cache;
-    auto to = args[1]->listView();
+    auto to = args[1]->listView(state);
 
     NixStringContext context;
     auto s = state.forceString(
@@ -4929,7 +4929,7 @@ static void prim_splitVersion(EvalState & state, const PosIdx pos, Value ** args
     auto list = state.buildList(components.size());
     for (const auto & [n, component] : enumerate(components))
         (list[n] = state.allocValue())->mkString(std::move(component));
-    v.mkList(list);
+    v.mkList(state, list);
 }
 
 static RegisterPrimOp primop_splitVersion({
@@ -5198,7 +5198,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
         attrs.alloc("prefix").mkString(i.prefix.s);
         (list[n] = allocValue())->mkAttrs(attrs);
     }
-    v.mkList(list);
+    v.mkList(*this, list);
     addConstant(
         "__nixPath",
         v,

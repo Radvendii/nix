@@ -75,7 +75,7 @@ json printValueAsJSON(
     case nList: {
         out = json::array();
         int i = 0;
-        for (auto elem : v.listView()) {
+        for (auto elem : v.listView(state)) {
             try {
                 out.push_back(printValueAsJSON(state, strict, *elem, pos, context, copyToStore));
             } catch (Error & e) {
@@ -97,7 +97,7 @@ json printValueAsJSON(
 
     case nThunk:
     case nFunction:
-        state.error<TypeError>("cannot convert %1% to JSON", showType(v)).atPos(v.determinePos(pos)).debugThrow();
+        state.error<TypeError>("cannot convert %1% to JSON", showType(state, v)).atPos(v.determinePos(state, pos)).debugThrow();
     }
     return out;
 }

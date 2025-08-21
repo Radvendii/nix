@@ -96,7 +96,7 @@ DerivedPathsWithInfo InstallableFlake::toDerivedPaths()
             throw Error(
                 "expected flake output attribute '%s' to be a derivation or path but found %s: %s",
                 attrPath,
-                showType(v),
+                showType(*this->state, v),
                 ValuePrinter(*this->state, v, errorPrintOptions));
         }
     }

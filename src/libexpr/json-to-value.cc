@@ -84,7 +84,7 @@ class JSONSax : nlohmann::json_sax<json>
             auto list = state.buildList(values.size());
             for (const auto & [n, v2] : enumerate(list))
                 v2 = values[n];
-            parent->value(state).mkList(list);
+            parent->value(state).mkList(state, list);
             return std::move(parent);
         }
 

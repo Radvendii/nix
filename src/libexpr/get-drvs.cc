@@ -115,7 +115,7 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
             state->forceList(*i->value, i->pos, "while evaluating the 'outputs' attribute of a derivation");
 
             /* For each output... */
-            for (auto elem : i->value->listView()) {
+            for (auto elem : i->value->listView(*state)) {
                 std::string output(
                     state->forceStringNoCtx(*elem, i->pos, "while evaluating the name of an output of a derivation"));
 
@@ -166,7 +166,7 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
         if (!outTI->isList())
             throw errMsg;
         Outputs result;
-        for (auto elem : outTI->listView()) {
+        for (auto elem : outTI->listView(*state)) {
             if (elem->type() != nString)
                 throw errMsg;
             auto out = outputs.find(elem->c_str());
@@ -214,9 +214,9 @@ StringSet PackageInfo::queryMetaNames()
 
 bool PackageInfo::checkMeta(Value & v)
 {
-    state->forceValue(v, v.determinePos(noPos));
+    state->forceValue(v, v.determinePos(*state, noPos));
     if (v.type() == nList) {
-        for (auto elem : v.listView())
+        for (auto elem : v.listView(*state))
             if (!checkMeta(*elem))
                 return false;
         return true;
@@ -329,7 +329,7 @@ static bool getDerivation(
     bool ignoreAssertionFailures)
 {
     try {
-        state.forceValue(v, v.determinePos(noPos));
+        state.forceValue(v, v.determinePos(state, noPos));
         if (!state.isDerivation(v))
             return true;
 
@@ -427,7 +427,7 @@ static void getDerivations(
     }
 
     else if (v.type() == nList) {
-        auto listView = v.listView();
+        auto listView = v.listView(state);
         for (auto [n, elem] : enumerate(listView)) {
             std::string pathPrefix2 = addToPath(pathPrefix, fmt("%d", n));
             if (getDerivation(state, *elem, pathPrefix2, drvs, done, ignoreAssertionFailures))

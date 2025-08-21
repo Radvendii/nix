@@ -26,9 +26,6 @@
 
 namespace nix {
 
-typedef uint32_t ValueRef;
-constexpr ValueRef ValueRefNull = std::numeric_limits<ValueRef>::max();
-
 /**
  * We put a limit on primop arity because it lets us use a fixed size array on
  * the stack. 8 is already an impractical number of arguments. Use an attrset
@@ -1017,7 +1014,7 @@ struct DebugTraceStacker
  * integer" vs "integer".
  */
 std::string_view showType(ValueType type, bool withArticle = true);
-std::string showType(const Value & v);
+std::string showType(EvalState & state, const Value & v);
 
 /**
  * If `path` refers to a directory, then append "/default.nix".

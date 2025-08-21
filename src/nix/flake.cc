@@ -171,7 +171,7 @@ static void enumerateOutputs(
     Value & vFlake,
     std::function<void(std::string_view name, Value & vProvide, const PosIdx pos)> callback)
 {
-    auto pos = vFlake.determinePos(noPos);
+    auto pos = vFlake.determinePos(state, noPos);
     state.forceAttrs(vFlake, pos, "while evaluating a flake to get its outputs");
 
     auto aOutputs = vFlake.attrs()->get(state.symbols.create("outputs"));
@@ -468,7 +468,7 @@ struct CmdFlakeCheck : FlakeCommand
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking overlay '%s'", attrPath));
                 state->forceValue(v, pos);
                 if (!v.isLambda()) {
-                    throw Error("overlay is not a function, but %s instead", showType(v));
+                    throw Error("overlay is not a function, but %s instead", showType(*state, v));
                 }
                 if (v.lambda().fun->hasFormals() || !argHasName(v.lambda().fun->arg, "final"))
                     throw Error("overlay does not take an argument named 'final'");

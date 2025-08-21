@@ -80,7 +80,7 @@ bool createUserEnv(
 
             references.insert(*j.second);
         }
-        attrs.alloc(state.sOutputs).mkList(outputsList);
+        attrs.alloc(state.sOutputs).mkList(state, outputsList);
 
         // Copy the meta attributes.
         auto meta = state.buildBindings(metaNames.size());
@@ -100,14 +100,14 @@ bool createUserEnv(
     }
 
     Value manifest;
-    manifest.mkList(list);
+    manifest.mkList(state, list);
 
     /* Also write a copy of the list of user environment elements to
        the store; we need it for future modifications of the
        environment. */
     auto manifestFile = ({
         std::ostringstream str;
-        printAmbiguous(manifest, state.symbols, str, nullptr, std::numeric_limits<int>::max());
+        printAmbiguous(state, manifest, state.symbols, str, nullptr, std::numeric_limits<int>::max());
         StringSource source{toView(str)};
         state.store->addToStoreFromDump(
             source,
@@ -135,11 +135,11 @@ bool createUserEnv(
     args.mkAttrs(attrs);
 
     Value topLevel;
-    topLevel.mkApp(&envBuilder, &args);
+    topLevel.mkApp(state, &envBuilder, &args);
 
     /* Evaluate it. */
     debug("evaluating user environment builder");
-    state.forceValue(topLevel, topLevel.determinePos(noPos));
+    state.forceValue(topLevel, topLevel.determinePos(state, noPos));
     NixStringContext context;
     auto & aDrvPath(*topLevel.attrs()->find(state.sDrvPath));
     auto topLevelDrv = state.coerceToStorePath(aDrvPath.pos, *aDrvPath.value, context, "");

@@ -140,7 +140,7 @@ static void fetchTree(
                         "argument '%s' to '%s' is %s while a string, Boolean or integer is expected",
                         state.symbols[attr.name],
                         fetcher,
-                        showType(*attr.value))
+                        showType(state, *attr.value))
                     .debugThrow();
         }
 

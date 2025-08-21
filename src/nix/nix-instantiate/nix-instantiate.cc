@@ -46,7 +46,7 @@ void processExpr(
 
     for (auto & i : attrPaths) {
         Value & v(*findAlongAttrPath(state, i, autoArgs, vRoot).first);
-        state.forceValue(v, v.determinePos(noPos));
+        state.forceValue(v, v.determinePos(state, noPos));
 
         NixStringContext context;
         if (evalOnly) {
@@ -62,13 +62,13 @@ void processExpr(
             else if (output == okXML)
                 printValueAsXML(state, strict, location, vRes, std::cout, context, noPos);
             else if (output == okJSON) {
-                printValueAsJSON(state, strict, vRes, v.determinePos(noPos), std::cout, context);
+                printValueAsJSON(state, strict, vRes, v.determinePos(state, noPos), std::cout, context);
                 std::cout << std::endl;
             } else {
                 if (strict)
                     state.forceValueDeep(vRes);
                 std::set<const void *> seen;
-                printAmbiguous(vRes, state.symbols, std::cout, &seen, std::numeric_limits<int>::max());
+                printAmbiguous(state, vRes, state.symbols, std::cout, &seen, std::numeric_limits<int>::max());
                 std::cout << std::endl;
             }
         } else {

@@ -135,7 +135,7 @@ static void getAllExprs(EvalState & state, const SourcePath & path, StringSet & 
             vArg->mkPath(path2);
             if (seen.size() == maxAttrs)
                 throw Error("too many Nix expressions in directory '%1%'", path);
-            attrs.alloc(attrName).mkApp(&state.getBuiltin("import"), vArg);
+            attrs.alloc(attrName).mkApp(state, &state.getBuiltin("import"), vArg);
         } else if (st.type == SourceAccessor::tDirectory)
             /* `path2' is a directory (with no default.nix in it);
                recurse into it. */
@@ -400,7 +400,7 @@ static void queryInstSources(
             Expr * eFun = state.parseExprFromString(i, state.rootPath("."));
             Value vFun, vTmp;
             state.eval(eFun, vFun);
-            vTmp.mkApp(&vFun, &vArg);
+            vTmp.mkApp(state, &vFun, &vArg);
             getDerivations(state, vTmp, "", *instSource.autoArgs, elems, true);
         }
 
@@ -1245,7 +1245,7 @@ static void opQuery(Globals & globals, Strings opFlags, Strings opArgs)
                             } else if (v->type() == nList) {
                                 attrs2["type"] = "strings";
                                 XMLOpenElement m(xml, "meta", attrs2);
-                                for (auto elem : v->listView()) {
+                                for (auto elem : v->listView(*globals.state)) {
                                     if (elem->type() != nString)
                                         continue;
                                     XMLAttrs attrs3;

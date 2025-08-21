@@ -67,7 +67,7 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
                     .error<TypeError>(
                         "the expression selected by the selection path '%1%' should be a set but is %2%",
                         attrPath,
-                        showType(*v))
+                        showType(state, *v))
                     .debugThrow();
             if (attr.empty())
                 throw Error("empty attribute name in selection path '%1%'", attrPath);
@@ -93,12 +93,12 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
                     .error<TypeError>(
                         "the expression selected by the selection path '%1%' should be a list but is %2%",
                         attrPath,
-                        showType(*v))
+                        showType(state, *v))
                     .debugThrow();
             if (*attrIndex >= v->listSize())
                 throw AttrPathNotFound("list index %1% in selection path '%2%' is out of range", *attrIndex, attrPath);
 
-            v = v->listView()[*attrIndex];
+            v = v->listView(state)[*attrIndex];
             pos = noPos;
         }
     }

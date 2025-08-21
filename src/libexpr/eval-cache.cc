@@ -538,7 +538,7 @@ std::string AttrCursor::getString()
     auto & v = forceValue();
 
     if (v.type() != nString && v.type() != nPath)
-        root->state.error<TypeError>("'%s' is not a string but %s", getAttrPathStr(), showType(v)).debugThrow();
+        root->state.error<TypeError>("'%s' is not a string but %s", getAttrPathStr(), showType(root->state, v)).debugThrow();
 
     return v.type() == nString ? v.c_str() : v.path().to_string();
 }
@@ -583,7 +583,7 @@ string_t AttrCursor::getStringWithContext()
     } else if (v.type() == nPath)
         return {v.path().to_string(), {}};
     else
-        root->state.error<TypeError>("'%s' is not a string but %s", getAttrPathStr(), showType(v)).debugThrow();
+        root->state.error<TypeError>("'%s' is not a string but %s", getAttrPathStr(), showType(root->state, v)).debugThrow();
 }
 
 bool AttrCursor::getBool()
@@ -651,7 +651,7 @@ std::vector<std::string> AttrCursor::getListOfStrings()
 
     std::vector<std::string> res;
 
-    for (auto elem : v.listView())
+    for (auto elem : v.listView(root->state))
         res.push_back(
             std::string(root->state.forceStringNoCtx(*elem, noPos, "while evaluating an attribute for caching")));
 

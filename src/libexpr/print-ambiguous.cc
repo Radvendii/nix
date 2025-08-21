@@ -7,7 +7,7 @@ namespace nix {
 
 // See: https://github.com/NixOS/nix/issues/9730
 void printAmbiguous(
-    Value & v, const SymbolTable & symbols, std::ostream & str, std::set<const void *> * seen, int depth)
+    EvalState & state, Value & v, const SymbolTable & symbols, std::ostream & str, std::set<const void *> * seen, int depth)
 {
     checkInterrupt();
 
@@ -38,7 +38,7 @@ void printAmbiguous(
             str << "{ ";
             for (auto & i : v.attrs()->lexicographicOrder(symbols)) {
                 str << symbols[i->name] << " = ";
-                printAmbiguous(*i->value, symbols, str, seen, depth - 1);
+                printAmbiguous(state, *i->value, symbols, str, seen, depth - 1);
                 str << "; ";
             }
             str << "}";
@@ -52,9 +52,9 @@ void printAmbiguous(
             str << "«repeated»";
         else {
             str << "[ ";
-            for (auto v2 : v.listView()) {
+            for (auto v2 : v.listView(state)) {
                 if (v2)
-                    printAmbiguous(*v2, symbols, str, seen, depth - 1);
+                    printAmbiguous(state, *v2, symbols, str, seen, depth - 1);
                 else
                     str << "(nullptr)";
                 str << " ";

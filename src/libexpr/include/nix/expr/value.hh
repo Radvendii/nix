@@ -34,6 +34,11 @@ extern unsigned long nrString;
 extern unsigned long nrPath;
 
 struct Value;
+// XXX [speed]: these might not be needed when we're done
+typedef uint32_t ValueRef;
+inline void * allocBytes(size_t n);
+constexpr ValueRef ValueRefNull = std::numeric_limits<ValueRef>::max();
+// XXX [speed]
 class BindingsBuilder;
 
 typedef enum {
@@ -244,7 +249,7 @@ struct ValueBase
 
     struct FunctionApplicationThunk
     {
-        Value *left, *right;
+        ValueRef left, right;
     };
 
     /**
@@ -254,7 +259,7 @@ struct ValueBase
      */
     struct PrimOpApplicationThunk
     {
-        Value *left, *right;
+        ValueRef left, right;
     };
 
     struct Lambda
@@ -263,12 +268,12 @@ struct ValueBase
         ExprLambda * fun;
     };
 
-    using SmallList = std::array<Value *, 2>;
+    using SmallList = std::array<ValueRef, 2>;
 
     struct List
     {
         size_t size;
-        Value * const * elems;
+        ValueRef const * elems;
     };
 };
 
@@ -383,41 +388,42 @@ class ListView
     using List = detail::ValueBase::List;
 
     std::variant<SmallList, List> raw;
+    // XXX [speed]: added in stage 1. should probably be removed in stage 2
+    Value * const * _data;
+    EvalState & es;
 
 public:
-    ListView(SmallList list)
+    ListView(EvalState & es, SmallList list)
         : raw(list)
+        , _data(nullptr)
+        , es(es)
     {
     }
 
-    ListView(List list)
+    ListView(EvalState & es, List list)
         : raw(list)
+        , _data(nullptr)
+        , es(es)
     {
     }
 
-    Value * const * data() const & noexcept
-    {
-        return std::visit(
-            overloaded{
-                [](const SmallList & list) { return list.data(); }, [](const List & list) { return list.elems; }},
-            raw);
-    }
+    Value * const * data() & /* XXX [speed] const */ noexcept;
 
     std::size_t size() const noexcept
     {
         return std::visit(
             overloaded{
-                [](const SmallList & list) -> std::size_t { return list.back() == nullptr ? 1 : 2; },
+                [](const SmallList & list) -> std::size_t { return list.back() == ValueRefNull ? 1 : 2; },
                 [](const List & list) -> std::size_t { return list.size; }},
             raw);
     }
 
-    Value * operator[](std::size_t i) const noexcept
+    Value * operator[](std::size_t i) /* XXX [speed] const */ noexcept
     {
         return data()[i];
     }
 
-    SpanType span() const &
+    SpanType span() /* XXX [speed] const */ &
     {
         return SpanType(data(), size());
     }
@@ -534,12 +540,12 @@ public:
 
     using const_iterator = iterator;
 
-    iterator begin() const &
+    iterator begin()  /* XXX [speed] const */ &
     {
         return data();
     }
 
-    iterator end() const &
+    iterator end() /* XXX [speed] const */ &
     {
         return data() + size();
     }
@@ -554,7 +560,7 @@ static_assert(std::random_access_iterator<ListView::iterator>);
 
 struct Value : public ValueStorage<sizeof(void *)>
 {
-    friend std::string showType(const Value & v);
+    friend std::string showType(EvalState & state, const Value & v);
 
     template<InternalType... discriminator>
     bool isa() const noexcept
@@ -721,21 +727,7 @@ public:
 
     Value & mkAttrs(BindingsBuilder & bindings);
 
-    void mkList(const ListBuilder & builder) noexcept
-    {
-        if (builder.size == 1) {
-            setStorage(std::array<Value *, 2>{builder.inlineElems[0], nullptr});
-            nrListSmall++;
-        }
-        else if (builder.size == 2) {
-            setStorage(std::array<Value *, 2>{builder.inlineElems[0], builder.inlineElems[1]});
-            nrListSmall++;
-        }
-        else {
-            setStorage(List{.size = builder.size, .elems = builder.elems});
-            nrListN++;
-        }
-    }
+    void mkList(EvalState & es, const ListBuilder & builder) noexcept;
 
     inline void mkThunk(Env * e, Expr * ex) noexcept
     {
@@ -743,11 +735,7 @@ public:
         nrThunk++;
     }
 
-    inline void mkApp(Value * l, Value * r) noexcept
-    {
-        setStorage(FunctionApplicationThunk{.left = l, .right = r});
-        nrApp++;
-    }
+    /* inline */ void mkApp(EvalState & es, Value * l, Value * r) noexcept;
 
     inline void mkLambda(Env * e, ExprLambda * f) noexcept
     {
@@ -759,16 +747,12 @@ public:
 
     void mkPrimOp(PrimOp * p);
 
-    inline void mkPrimOpApp(Value * l, Value * r) noexcept
-    {
-        setStorage(PrimOpApplicationThunk{.left = l, .right = r});
-        nrPrimOpApp++;
-    }
+    /* inline */ void mkPrimOpApp(EvalState & es, Value * l, Value * r) noexcept;
 
     /**
      * For a `tPrimOpApp` value, get the original `PrimOp` value.
      */
-    const PrimOp * primOpAppPrimOp() const;
+    const PrimOp * primOpAppPrimOp(EvalState & es) const;
 
     inline void mkExternal(ExternalValueBase * e) noexcept
     {
@@ -787,17 +771,17 @@ public:
         return isa<tListSmall, tListN>();
     }
 
-    ListView listView() const noexcept
+    ListView listView(EvalState & es) const noexcept
     {
-        return isa<tListSmall>() ? ListView(getStorage<SmallList>()) : ListView(getStorage<List>());
+        return isa<tListSmall>() ? ListView(es, getStorage<SmallList>()) : ListView(es, getStorage<List>());
     }
 
     size_t listSize() const noexcept
     {
-        return isa<tListSmall>() ? (getStorage<SmallList>()[1] == nullptr ? 1 : 2) : getStorage<List>().size;
+        return isa<tListSmall>() ? (getStorage<SmallList>()[1] == ValueRefNull ? 1 : 2) : getStorage<List>().size;
     }
 
-    PosIdx determinePos(const PosIdx pos) const;
+    PosIdx determinePos(EvalState & es, const PosIdx pos) const;
 
     /**
      * Check whether forcing this value requires a trivial amount of

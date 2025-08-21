@@ -147,7 +147,7 @@ std::string_view showType(ValueType type, bool withArticle)
     unreachable();
 }
 
-std::string showType(const Value & v)
+std::string showType(EvalState & state, const Value & v)
 {
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
@@ -158,7 +158,7 @@ std::string showType(const Value & v)
     case tPrimOp:
         return fmt("the built-in function '%s'", std::string(v.primOp()->name));
     case tPrimOpApp:
-        return fmt("the partially applied built-in function '%s'", v.primOpAppPrimOp()->name);
+        return fmt("the partially applied built-in function '%s'", v.primOpAppPrimOp(state)->name);
     case tExternal:
         return v.external()->showType();
     case tThunk:
@@ -171,7 +171,7 @@ std::string showType(const Value & v)
 #pragma GCC diagnostic pop
 }
 
-PosIdx Value::determinePos(const PosIdx pos) const
+PosIdx Value::determinePos(EvalState & es, const PosIdx pos) const
 {
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
@@ -182,7 +182,7 @@ PosIdx Value::determinePos(const PosIdx pos) const
     case tLambda:
         return lambda().fun->pos;
     case tApp:
-        return app().left->determinePos(pos);
+        return es.VRtoVP(app().left)->determinePos(es, pos);
     default:
         return pos;
     }
@@ -365,7 +365,7 @@ EvalState::EvalState(
 
     static_assert(sizeof(Env) <= 16, "environment must be <= 16 bytes");
 
-    vEmptyList.mkList(buildList(0));
+    vEmptyList.mkList(*this, buildList(0));
     vNull.mkNull();
     vTrue.mkBool(true);
     vFalse.mkBool(false);
@@ -544,11 +544,11 @@ std::ostream & operator<<(std::ostream & output, const PrimOp & primOp)
     return output;
 }
 
-const PrimOp * Value::primOpAppPrimOp() const
+const PrimOp * Value::primOpAppPrimOp(EvalState & es) const
 {
-    Value * left = primOpApp().left;
+    Value * left = es.VRtoVP(primOpApp().left);
     while (left && !left->isPrimOp()) {
-        left = left->primOpApp().left;
+        left = es.VRtoVP(left->primOpApp().left);
     }
 
     if (!left)
@@ -574,7 +574,7 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
         auto vPrimOp = allocValue();
         vPrimOp->mkPrimOp(new PrimOp(primOp));
         Value v;
-        v.mkApp(vPrimOp, vPrimOp);
+        v.mkApp(*this, vPrimOp, vPrimOp);
         return addConstant(
             primOp.name,
             v,
@@ -934,6 +934,75 @@ void Value::mkPath(const SourcePath & path)
     mkPath(&*path.accessor, makeImmutableString(path.path.abs()));
 }
 
+// XXX [speed]: return these to value.hh
+void Value::mkList(EvalState & es, const ListBuilder & builder) noexcept
+{
+    if (builder.size == 1) {
+        auto vr0 = es.VPtoVR(builder.inlineElems[0]);
+        setStorage(std::array<ValueRef, 2>{vr0, ValueRefNull});
+        nrListSmall++;
+    }
+    else if (builder.size == 2) {
+        auto vr0 = es.VPtoVR(builder.inlineElems[0]);
+        auto vr1 = es.VPtoVR(builder.inlineElems[1]);
+        setStorage(std::array<ValueRef, 2>{vr0, vr1});
+        nrListSmall++;
+    }
+    else {
+        // XXX [speed]: added allocation
+        ValueRef *vrs = (ValueRef *) allocBytes(builder.size * sizeof(ValueRef));
+        for (size_t i = 0; i < builder.size; i++) {
+            vrs[i] = es.VPtoVR(builder.elems[i]);
+        }
+        setStorage(List{.size = builder.size, .elems = vrs});
+        nrListN++;
+    }
+}
+
+// inline
+void Value::mkApp(EvalState & es, Value * l, Value * r) noexcept
+{
+    auto lr = es.VPtoVR(l);
+    auto rr = es.VPtoVR(r);
+    setStorage(FunctionApplicationThunk{.left = lr, .right = rr});
+    nrApp++;
+}
+
+// inline
+void Value::mkPrimOpApp(EvalState & es, Value * l, Value * r) noexcept
+{
+    auto lr = es.VPtoVR(l);
+    auto rr = es.VPtoVR(r);
+    setStorage(PrimOpApplicationThunk{.left = lr, .right = rr});
+    nrPrimOpApp++;
+}
+
+// XXX [speed]: this function should probably go back to how it was originally in stage 2
+Value * const * ListView::data() & noexcept
+{
+    // memoized for correctness, not just avoiding needless allocation
+    if (_data) return _data;
+    return _data = std::visit(
+        overloaded{
+            [this](const SmallList & list) {
+                // XXX [speed]: added allocation
+                Value ** vps = (Value **) allocBytes(2 * sizeof(Value *));
+                vps[0] = es.VRtoVP(list.data()[0]);
+                vps[1] = es.VRtoVP(list.data()[1]);
+                return vps;
+            },
+            [this](const List & list) {
+                // XXX [speed]: added allocation
+                Value ** vps = (Value **) allocBytes(list.size * sizeof(Value *));
+                for (size_t i = 0; i < list.size; i++) {
+                    vps[i] = es.VRtoVP(list.elems[i]);
+                }
+                return vps;
+            }},
+        raw);
+}
+// XXX [speed]
+
 inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
 {
     for (auto l = var.level; l; --l, env = env->up)
@@ -1187,7 +1256,7 @@ inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::stri
         e->eval(*this, env, v);
         if (v.type() != nBool)
             error<TypeError>(
-                "expected a Boolean but found %1%: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .withFrame(env, *e)
                 .debugThrow();
@@ -1204,7 +1273,7 @@ inline void EvalState::evalAttrs(Env & env, Expr * e, Value & v, const PosIdx po
         e->eval(*this, env, v);
         if (v.type() != nAttrs)
             error<TypeError>(
-                "expected a set but found %1%: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .withFrame(env, *e)
                 .debugThrow();
     } catch (Error & e) {
@@ -1294,7 +1363,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
             Value * vOverrides = (*bindings.bindings)[overrides->second.displ].value;
             state.forceAttrs(
                 *vOverrides,
-                [&]() { return vOverrides->determinePos(noPos); },
+                [&]() { return vOverrides->determinePos(state, noPos); },
                 "while evaluating the `__overrides` attribute");
             bindings.grow(state.allocBindings(bindings.capacity() + vOverrides->attrs()->size()));
             for (auto & i : *vOverrides->attrs()) {
@@ -1376,7 +1445,7 @@ void ExprList::eval(EvalState & state, Env & env, Value & v)
     auto list = state.buildList(elems.size());
     for (const auto & [n, v2] : enumerate(list))
         v2 = elems[n]->maybeThunk(state, env);
-    v.mkList(list);
+    v.mkList(state, list);
 }
 
 Value * ExprList::maybeThunk(EvalState & state, Env & env)
@@ -1544,7 +1613,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
         for (auto arg : args) {
             auto fun2 = allocValue();
             *fun2 = vRes;
-            vRes.mkPrimOpApp(fun2, arg);
+            vRes.mkPrimOpApp(*this, fun2, arg);
         }
     };
 
@@ -1675,7 +1744,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
                     primOpCalls[fn->name]++;
 
                 try {
-                    fn->fun(*this, vCur.determinePos(noPos), args.data(), vCur);
+                    fn->fun(*this, vCur.determinePos(*this, noPos), args.data(), vCur);
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
@@ -1692,7 +1761,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
             Value * primOp = &vCur;
             while (primOp->isPrimOpApp()) {
                 argsDone++;
-                primOp = primOp->primOpApp().left;
+                primOp = VRtoVP(primOp->primOpApp().left);
             }
             assert(primOp->isPrimOp());
             auto arity = primOp->primOp()->arity;
@@ -1708,8 +1777,8 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
 
                 Value * vArgs[maxPrimOpArity];
                 auto n = argsDone;
-                for (Value * arg = &vCur; arg->isPrimOpApp(); arg = arg->primOpApp().left)
-                    vArgs[--n] = arg->primOpApp().right;
+                for (Value * arg = &vCur; arg->isPrimOpApp(); arg = VRtoVP(arg->primOpApp().left))
+                    vArgs[--n] = VRtoVP(arg->primOpApp().right);
 
                 for (size_t i = 0; i < argsLeft; ++i)
                     vArgs[argsDone + i] = args[i];
@@ -1725,7 +1794,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
                     // 2. Create a fake env (arg1, arg2, etc.) and a fake expr (arg1: arg2: etc: builtins.name arg1 arg2
                     // etc)
                     //    so the debugger allows to inspect the wrong parameters passed to the builtin.
-                    fn->fun(*this, vCur.determinePos(noPos), vArgs, vCur);
+                    fn->fun(*this, vCur.determinePos(*this, noPos), vArgs, vCur);
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
@@ -1754,7 +1823,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
         else
             error<TypeError>(
                 "attempt to call something which is not a function but %1%: %2%",
-                showType(vCur),
+                showType(*this, vCur),
                 ValuePrinter(*this, vCur, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
@@ -1793,7 +1862,7 @@ void EvalState::incrFunctionCall(ExprLambda * fun)
 
 void EvalState::autoCallFunction(const Bindings & args, Value & fun, Value & res)
 {
-    auto pos = fun.determinePos(noPos);
+    auto pos = fun.determinePos(*this, noPos);
 
     forceValue(fun, pos);
 
@@ -2006,13 +2075,13 @@ void EvalState::concatLists(
     auto list = buildList(len);
     auto out = list.elems;
     for (size_t n = 0, pos = 0; n < nrLists; ++n) {
-        auto listView = lists[n]->listView();
+        auto listView = lists[n]->listView(*this);
         auto l = listView.size();
         if (l)
             memcpy(out + pos, listView.data(), l * sizeof(Value *));
         pos += l;
     }
-    v.mkList(list);
+    v.mkList(*this, list);
 }
 
 void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
@@ -2079,7 +2148,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
                 nf = n.value;
                 nf += vTmp.fpoint();
             } else
-                state.error<EvalError>("cannot add %1% to an integer", showType(vTmp))
+                state.error<EvalError>("cannot add %1% to an integer", showType(state, vTmp))
                     .atPos(i_pos)
                     .withFrame(env, *this)
                     .debugThrow();
@@ -2089,7 +2158,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
             } else if (vTmp.type() == nFloat) {
                 nf += vTmp.fpoint();
             } else
-                state.error<EvalError>("cannot add %1% to a float", showType(vTmp))
+                state.error<EvalError>("cannot add %1% to a float", showType(state, vTmp))
                     .atPos(i_pos)
                     .withFrame(env, *this)
                     .debugThrow();
@@ -2135,7 +2204,7 @@ void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] Env & env, Value & 
 
 [[gnu::noinline]] [[noreturn]] void ExprBlackHole::throwInfiniteRecursionError(EvalState & state, Value & v)
 {
-    state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(v.determinePos(noPos)).debugThrow();
+    state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(v.determinePos(state, noPos)).debugThrow();
 }
 
 // always force this to be separate, otherwise forceValue may inline it and take
@@ -2164,7 +2233,7 @@ void EvalState::forceValueDeep(Value & v)
         if (!seen.insert(&v).second)
             return;
 
-        forceValue(v, v.determinePos(noPos));
+        forceValue(v, v.determinePos(*this, noPos));
 
         if (v.type() == nAttrs) {
             for (auto & i : *v.attrs())
@@ -2187,7 +2256,7 @@ void EvalState::forceValueDeep(Value & v)
         }
 
         else if (v.isList()) {
-            for (auto v2 : v.listView())
+            for (auto v2 : v.listView(*this))
                 recurse(*v2);
         }
     };
@@ -2201,7 +2270,7 @@ NixInt EvalState::forceInt(Value & v, const PosIdx pos, std::string_view errorCt
         forceValue(v, pos);
         if (v.type() != nInt)
             error<TypeError>(
-                "expected an integer but found %1%: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected an integer but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return v.integer();
@@ -2221,7 +2290,7 @@ NixFloat EvalState::forceFloat(Value & v, const PosIdx pos, std::string_view err
             return v.integer().value;
         else if (v.type() != nFloat)
             error<TypeError>(
-                "expected a float but found %1%: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a float but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return v.fpoint();
@@ -2237,7 +2306,7 @@ bool EvalState::forceBool(Value & v, const PosIdx pos, std::string_view errorCtx
         forceValue(v, pos);
         if (v.type() != nBool)
             error<TypeError>(
-                "expected a Boolean but found %1%: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return v.boolean();
@@ -2269,7 +2338,7 @@ void EvalState::forceFunction(Value & v, const PosIdx pos, std::string_view erro
         forceValue(v, pos);
         if (v.type() != nFunction && !isFunctor(v))
             error<TypeError>(
-                "expected a function but found %1%: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a function but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
     } catch (Error & e) {
@@ -2284,7 +2353,7 @@ std::string_view EvalState::forceString(Value & v, const PosIdx pos, std::string
         forceValue(v, pos);
         if (v.type() != nString)
             error<TypeError>(
-                "expected a string but found %1%: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a string but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return v.string_view();
@@ -2390,7 +2459,7 @@ BackedStringView EvalState::coerceToString(
         auto i = v.attrs()->find(sOutPath);
         if (i == v.attrs()->end()) {
             error<TypeError>(
-                "cannot coerce %1% to a string: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+                "cannot coerce %1% to a string: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .withTrace(pos, errorCtx)
                 .debugThrow();
         }
@@ -2422,7 +2491,7 @@ BackedStringView EvalState::coerceToString(
 
         if (v.isList()) {
             std::string result;
-            auto listView = v.listView();
+            auto listView = v.listView(*this);
             for (auto [n, v2] : enumerate(listView)) {
                 try {
                     result += *coerceToString(
@@ -2446,7 +2515,7 @@ BackedStringView EvalState::coerceToString(
         }
     }
 
-    error<TypeError>("cannot coerce %1% to a string: %2%", showType(v), ValuePrinter(*this, v, errorPrintOptions))
+    error<TypeError>("cannot coerce %1% to a string: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
         .withTrace(pos, errorCtx)
         .debugThrow();
 }
@@ -2597,9 +2666,9 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         } else {
             error<AssertionError>(
                 "%s with value '%s' is not equal to %s with value '%s'",
-                showType(v1),
+                showType(*this, v1),
                 ValuePrinter(*this, v1, errorPrintOptions),
-                showType(v2),
+                showType(*this, v2),
                 ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
@@ -2608,9 +2677,9 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
     if (v1.type() != v2.type()) {
         error<AssertionError>(
             "%s of value '%s' is not equal to %s of value '%s'",
-            showType(v1),
+            showType(*this, v1),
             ValuePrinter(*this, v1, errorPrintOptions),
-            showType(v2),
+            showType(*this, v2),
             ValuePrinter(*this, v2, errorPrintOptions))
             .debugThrow();
     }
@@ -2674,7 +2743,7 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         }
         for (size_t n = 0; n < v1.listSize(); ++n) {
             try {
-                assertEqValues(*v1.listView()[n], *v2.listView()[n], pos, errorCtx);
+                assertEqValues(*v1.listView(*this)[n], *v2.listView(*this)[n], pos, errorCtx);
             } catch (Error & e) {
                 e.addTrace(positions[pos], "while comparing list element %d", n);
                 throw;
@@ -2780,7 +2849,7 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         // Also note that this probably ran after `eqValues`, which implements
         // the same logic more efficiently (without having to unwind stacks),
         // so maybe `assertEqValues` and `eqValues` are out of sync. Check it for solutions.
-        error<EvalError>("assertEqValues: cannot compare %1% with %2%", showType(v1), showType(v2))
+        error<EvalError>("assertEqValues: cannot compare %1% with %2%", showType(*this, v1), showType(*this, v2))
             .withTrace(pos, errorCtx)
             .panic();
     }
@@ -2830,7 +2899,7 @@ bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_v
         if (v1.listSize() != v2.listSize())
             return false;
         for (size_t n = 0; n < v1.listSize(); ++n)
-            if (!eqValues(*v1.listView()[n], *v2.listView()[n], pos, errorCtx))
+            if (!eqValues(*v1.listView(*this)[n], *v2.listView(*this)[n], pos, errorCtx))
                 return false;
         return true;
 
@@ -2870,7 +2939,7 @@ bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_v
     case nThunk: // Must not be left by forceValue
         assert(false);
     default: // Note that we pass compiler flags that should make `default:` unreachable.
-        error<EvalError>("eqValues: cannot compare %1% with %2%", showType(v1), showType(v2))
+        error<EvalError>("eqValues: cannot compare %1% with %2%", showType(*this, v1), showType(*this, v2))
             .withTrace(pos, errorCtx)
             .panic();
     }

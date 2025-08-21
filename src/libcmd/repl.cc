@@ -522,7 +522,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
     else if (command == ":t") {
         Value v;
         evalString(arg, v);
-        logger->cout(showType(v));
+        logger->cout(showType(*state, v));
     }
 
     else if (command == ":u") {
@@ -818,7 +818,7 @@ void NixRepl::addAttrsToScope(Value & attrs)
 {
     state->forceAttrs(
         attrs,
-        [&]() { return attrs.determinePos(noPos); },
+        [&]() { return attrs.determinePos(*state, noPos); },
         "while evaluating an attribute set to be merged in the global scope");
     if (displ + attrs.attrs()->size() >= envSize)
         throw Error("environment full; cannot add more variables");
@@ -885,7 +885,7 @@ void NixRepl::evalString(std::string s, Value & v)
             throw;
     }
     e->eval(*state, *env, v);
-    state->forceValue(v, v.determinePos(noPos));
+    state->forceValue(v, v.determinePos(*state, noPos));
 }
 
 void NixRepl::runNix(Path program, const Strings & args, const std::optional<std::string> & input)

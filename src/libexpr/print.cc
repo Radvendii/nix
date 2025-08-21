@@ -319,7 +319,7 @@ private:
         }
 
         // It is ok to force the item(s) here, because they will be printed anyway.
-        state.forceValue(*item, item->determinePos(noPos));
+        state.forceValue(*item, item->determinePos(state, noPos));
 
         // Pretty-print single-item attrsets only if they contain nested
         // structures.
@@ -397,7 +397,7 @@ private:
         }
 
         // It is ok to force the item(s) here, because they will be printed anyway.
-        state.forceValue(*item, item->determinePos(noPos));
+        state.forceValue(*item, item->determinePos(state, noPos));
 
         // Pretty-print single-item lists only if they contain nested
         // structures.
@@ -415,7 +415,7 @@ private:
         if (depth < options.maxDepth) {
             increaseIndent();
             output << "[";
-            auto listItems = v.listView();
+            auto listItems = v.listView(state);
             auto prettyPrint = shouldPrettyPrintList(listItems.span());
 
             size_t currentListItemsPrinted = 0;
@@ -469,7 +469,7 @@ private:
                 output << "primop";
         } else if (v.isPrimOpApp()) {
             output << "partially applied ";
-            auto primOp = v.primOpAppPrimOp();
+            auto primOp = v.primOpAppPrimOp(state);
             if (primOp)
                 output << *primOp;
             else
@@ -538,7 +538,7 @@ private:
 
         try {
             if (options.force) {
-                state.forceValue(v, v.determinePos(noPos));
+                state.forceValue(v, v.determinePos(state, noPos));
             }
 
             switch (v.type()) {

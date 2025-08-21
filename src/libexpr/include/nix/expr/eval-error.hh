@@ -90,7 +90,7 @@ public:
 
     [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & atPos(PosIdx pos);
 
-    [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & atPos(Value & value, PosIdx fallback = noPos);
+    [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & atPos(EvalState & state, Value & value, PosIdx fallback = noPos);
 
     [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & withTrace(PosIdx pos, const std::string_view text);
 

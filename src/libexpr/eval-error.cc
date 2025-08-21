@@ -19,9 +19,9 @@ EvalErrorBuilder<T> & EvalErrorBuilder<T>::atPos(PosIdx pos)
 }
 
 template<class T>
-EvalErrorBuilder<T> & EvalErrorBuilder<T>::atPos(Value & value, PosIdx fallback)
+EvalErrorBuilder<T> & EvalErrorBuilder<T>::atPos(EvalState &state, Value & value, PosIdx fallback)
 {
-    return atPos(value.determinePos(fallback));
+    return atPos(value.determinePos(state, fallback));
 }
 
 template<class T>
