@@ -36,7 +36,7 @@ void processExpr(
     Expr * e)
 {
     if (parseOnly) {
-        e->show(state.symbols, std::cout);
+        e->show(state, state.symbols, std::cout);
         std::cout << "\n";
         return;
     }

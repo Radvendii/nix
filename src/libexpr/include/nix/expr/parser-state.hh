@@ -82,6 +82,9 @@ struct LexerState
 struct ParserState
 {
     const LexerState & lexerState;
+    // XXX [speed]: this already has several fields from EvalState. Should we
+    // roll those into this, or should we only take from EalState what we need?
+    EvalState & evalState;
     SymbolTable & symbols;
     PosTable & positions;
     Expr * result;
@@ -104,7 +107,7 @@ struct ParserState
 inline void ParserState::dupAttr(const AttrPath & attrPath, const PosIdx pos, const PosIdx prevPos)
 {
     throw ParseError(
-        {.msg = HintFmt("attribute '%1%' already defined at %2%", showAttrPath(symbols, attrPath), positions[prevPos]),
+        {.msg = HintFmt("attribute '%1%' already defined at %2%", showAttrPath(evalState, symbols, attrPath), positions[prevPos]),
          .pos = positions[pos]});
 }
 
@@ -245,7 +248,7 @@ inline Expr *
 ParserState::stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, std::variant<Expr *, StringToken>>> && es)
 {
     if (es.empty())
-        return new ExprString("");
+        return new ExprString(evalState, "");
 
     /* Figure out the minimum indentation.  Note that by design
        whitespace-only final lines are not taken into account.  (So
@@ -327,7 +330,7 @@ ParserState::stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, st
 
         // Ignore empty strings for a minor optimisation and AST simplification
         if (s2 != "") {
-            es2->emplace_back(i->first, new ExprString(std::move(s2)));
+            es2->emplace_back(i->first, new ExprString(evalState, std::move(s2)));
         }
     };
     for (; i != es.end(); ++i, --n) {
@@ -337,7 +340,7 @@ ParserState::stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, st
     // If there is nothing at all, return the empty string directly.
     // This also ensures that equivalent empty strings result in the same ast, which is helpful when testing formatters.
     if (es2->size() == 0) {
-        auto * const result = new ExprString("");
+        auto * const result = new ExprString(evalState, "");
         delete es2;
         return result;
     }

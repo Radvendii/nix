@@ -1002,6 +1002,47 @@ Value * const * ListView::data() & noexcept
             }},
         raw);
 }
+
+ExprInt::ExprInt(EvalState & state, NixInt n)
+{
+    auto vp = state.allocValue();
+    vp->mkInt(n);
+    v = state.VPtoVR(vp);
+    // these values used to be stored directly in the Expr, so we've added 4 bytes for a ValueRef
+    nrBytesAdded += 4;
+};
+
+ExprInt::ExprInt(EvalState & state, NixInt::Inner n)
+{
+    auto vp = state.allocValue();
+    vp->mkInt(n);
+    v = state.VPtoVR(vp);
+    nrBytesAdded += 4;
+};
+ExprFloat::ExprFloat(EvalState & state, NixFloat nf)
+{
+    auto vp = state.allocValue();
+    vp->mkFloat(nf);
+    v = state.VPtoVR(vp);
+    nrBytesAdded += 4;
+};
+ExprString::ExprString(EvalState & state, std::string && s)
+    : s(std::move(s))
+{
+    auto vp = state.allocValue();
+    vp->mkString(this->s.data());
+    v = state.VPtoVR(vp);
+    nrBytesAdded += 4;
+};
+ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string s)
+    : accessor(accessor)
+    , s(std::move(s))
+{
+    auto vp = state.allocValue();
+    vp->mkPath(&*accessor, this->s.c_str());
+    v = state.VPtoVR(vp);
+    nrBytesAdded += 4;
+}
 // XXX [speed]
 
 inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
@@ -1166,25 +1207,25 @@ Value * ExprVar::maybeThunk(EvalState & state, Env & env)
 Value * ExprString::maybeThunk(EvalState & state, Env & env)
 {
     state.nrAvoided++;
-    return &v;
+    return &state.VRtoV(v);
 }
 
 Value * ExprInt::maybeThunk(EvalState & state, Env & env)
 {
     state.nrAvoided++;
-    return &v;
+    return &state.VRtoV(v);
 }
 
 Value * ExprFloat::maybeThunk(EvalState & state, Env & env)
 {
     state.nrAvoided++;
-    return &v;
+    return &state.VRtoV(v);
 }
 
 Value * ExprPath::maybeThunk(EvalState & state, Env & env)
 {
     state.nrAvoided++;
-    return &v;
+    return &state.VRtoV(v);
 }
 
 void EvalState::evalFile(const SourcePath & path, Value & v, bool mustBeTrivial)
@@ -1290,22 +1331,22 @@ void Expr::eval(EvalState & state, Env & env, Value & v)
 
 void ExprInt::eval(EvalState & state, Env & env, Value & v)
 {
-    v = this->v;
+    v = state.VRtoV(this->v);
 }
 
 void ExprFloat::eval(EvalState & state, Env & env, Value & v)
 {
-    v = this->v;
+    v = state.VRtoV(this->v);
 }
 
 void ExprString::eval(EvalState & state, Env & env, Value & v)
 {
-    v = this->v;
+    v = state.VRtoV(this->v);
 }
 
 void ExprPath::eval(EvalState & state, Env & env, Value & v)
 {
-    v = this->v;
+    v = state.VRtoV(this->v);
 }
 
 Env * ExprAttrs::buildInheritFromEnv(EvalState & state, Env & up)
@@ -1478,7 +1519,7 @@ static std::string showAttrPath(EvalState & state, Env & env, const AttrPath & a
         } catch (Error & e) {
             assert(!i.symbol);
             out << "\"${";
-            i.expr->show(state.symbols, out);
+            i.expr->show(state, state.symbols, out);
             out << "}\"";
         }
     }
@@ -1933,7 +1974,7 @@ void ExprAssert::eval(EvalState & state, Env & env, Value & v)
 {
     if (!state.evalBool(env, cond, pos, "in the condition of the assert statement")) {
         std::ostringstream out;
-        cond->show(state.symbols, out);
+        cond->show(state, state.symbols, out);
         auto exprStr = toView(out);
 
         if (auto eq = dynamic_cast<ExprOpEq *>(cond)) {
@@ -3307,7 +3348,7 @@ Expr * EvalState::parse(
     }
 
     auto result = parseExprFromBuf(
-        text, length, origin, basePath, symbols, settings, positions, *docComments, rootFS, exprSymbols);
+        text, length, origin, basePath, symbols, settings, *this, positions, *docComments, rootFS, exprSymbols);
 
     result->bindVars(*this, staticEnv);
 

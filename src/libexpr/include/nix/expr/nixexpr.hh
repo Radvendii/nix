@@ -78,7 +78,7 @@ struct AttrName
 
 typedef std::vector<AttrName> AttrPath;
 
-std::string showAttrPath(const SymbolTable & symbols, const AttrPath & attrPath);
+std::string showAttrPath(EvalState & state, const SymbolTable & symbols, const AttrPath & attrPath);
 
 /* Abstract syntax of Nix expressions. */
 
@@ -97,7 +97,7 @@ struct Expr
     }
 
     virtual ~Expr() {};
-    virtual void show(const SymbolTable & symbols, std::ostream & str) const;
+    virtual void show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const;
     virtual void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     virtual void eval(EvalState & state, Env & env, Value & v);
     virtual Value * maybeThunk(EvalState & state, Env & env);
@@ -114,24 +114,18 @@ struct Expr
     virtual void warnIfCursedOr(const SymbolTable & symbols, const PosTable & positions) {};
 };
 
-#define COMMON_METHODS                                                         \
-    void show(const SymbolTable & symbols, std::ostream & str) const override; \
-    void eval(EvalState & state, Env & env, Value & v) override;               \
+#define COMMON_METHODS                                                                            \
+    void show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const override; \
+    void eval(EvalState & state, Env & env, Value & v) override;                                  \
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override;
 
 struct ExprInt : Expr
 {
-    Value v;
+    ValueRef v;
 
-    ExprInt(NixInt n)
-    {
-        v.mkInt(n);
-    };
+    ExprInt(EvalState & state, NixInt n);
 
-    ExprInt(NixInt::Inner n)
-    {
-        v.mkInt(n);
-    };
+    ExprInt(EvalState & state, NixInt::Inner n);
 
     Value * maybeThunk(EvalState & state, Env & env) override;
     COMMON_METHODS
@@ -139,12 +133,9 @@ struct ExprInt : Expr
 
 struct ExprFloat : Expr
 {
-    Value v;
+    ValueRef v;
 
-    ExprFloat(NixFloat nf)
-    {
-        v.mkFloat(nf);
-    };
+    ExprFloat(EvalState & state, NixFloat nf);
 
     Value * maybeThunk(EvalState & state, Env & env) override;
     COMMON_METHODS
@@ -153,13 +144,9 @@ struct ExprFloat : Expr
 struct ExprString : Expr
 {
     std::string s;
-    Value v;
+    ValueRef v;
 
-    ExprString(std::string && s)
-        : s(std::move(s))
-    {
-        v.mkString(this->s.data());
-    };
+    ExprString(EvalState & state, std::string && s);
 
     Value * maybeThunk(EvalState & state, Env & env) override;
     COMMON_METHODS
@@ -169,14 +156,9 @@ struct ExprPath : Expr
 {
     ref<SourceAccessor> accessor;
     std::string s;
-    Value v;
+    ValueRef v;
 
-    ExprPath(ref<SourceAccessor> accessor, std::string s)
-        : accessor(accessor)
-        , s(std::move(s))
-    {
-        v.mkPath(&*accessor, this->s.c_str());
-    }
+    ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string s);
 
     Value * maybeThunk(EvalState & state, Env & env) override;
     COMMON_METHODS
@@ -365,7 +347,7 @@ struct ExprAttrs : Expr
 
     std::shared_ptr<const StaticEnv> bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     Env * buildInheritFromEnv(EvalState & state, Env & up);
-    void showBindings(const SymbolTable & symbols, std::ostream & str) const;
+    void showBindings(EvalState & state, const SymbolTable & symbols, std::ostream & str) const;
 };
 
 struct ExprList : Expr
@@ -565,36 +547,36 @@ struct ExprOpNot : Expr
     COMMON_METHODS
 };
 
-#define MakeBinOp(name, s)                                                                   \
-    struct name : Expr                                                                       \
-    {                                                                                        \
-        PosIdx pos;                                                                          \
-        Expr *e1, *e2;                                                                       \
-        name(Expr * e1, Expr * e2)                                                           \
-            : e1(e1)                                                                         \
-            , e2(e2) {};                                                                     \
-        name(const PosIdx & pos, Expr * e1, Expr * e2)                                       \
-            : pos(pos)                                                                       \
-            , e1(e1)                                                                         \
-            , e2(e2) {};                                                                     \
-        void show(const SymbolTable & symbols, std::ostream & str) const override            \
-        {                                                                                    \
-            str << "(";                                                                      \
-            e1->show(symbols, str);                                                          \
-            str << " " s " ";                                                                \
-            e2->show(symbols, str);                                                          \
-            str << ")";                                                                      \
-        }                                                                                    \
-        void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override \
-        {                                                                                    \
-            e1->bindVars(es, env);                                                           \
-            e2->bindVars(es, env);                                                           \
-        }                                                                                    \
-        void eval(EvalState & state, Env & env, Value & v) override;                         \
-        PosIdx getPos() const override                                                       \
-        {                                                                                    \
-            return pos;                                                                      \
-        }                                                                                    \
+#define MakeBinOp(name, s)                                                                           \
+    struct name : Expr                                                                               \
+    {                                                                                                \
+        PosIdx pos;                                                                                  \
+        Expr *e1, *e2;                                                                               \
+        name(Expr * e1, Expr * e2)                                                                   \
+            : e1(e1)                                                                                 \
+            , e2(e2) {};                                                                             \
+        name(const PosIdx & pos, Expr * e1, Expr * e2)                                               \
+            : pos(pos)                                                                               \
+            , e1(e1)                                                                                 \
+            , e2(e2) {};                                                                             \
+        void show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const override \
+        {                                                                                            \
+            str << "(";                                                                              \
+            e1->show(state, symbols, str);                                                           \
+            str << " " s " ";                                                                        \
+            e2->show(state, symbols, str);                                                           \
+            str << ")";                                                                              \
+        }                                                                                            \
+        void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override         \
+        {                                                                                            \
+            e1->bindVars(es, env);                                                                   \
+            e2->bindVars(es, env);                                                                   \
+        }                                                                                            \
+        void eval(EvalState & state, Env & env, Value & v) override;                                 \
+        PosIdx getPos() const override                                                               \
+        {                                                                                            \
+            return pos;                                                                              \
+        }                                                                                            \
     };
 
 MakeBinOp(ExprOpEq, "==") MakeBinOp(ExprOpNEq, "!=") MakeBinOp(ExprOpAnd, "&&") MakeBinOp(ExprOpOr, "||")
@@ -635,7 +617,7 @@ struct ExprPos : Expr
 /* only used to mark thunks as black holes. */
 struct ExprBlackHole : Expr
 {
-    void show(const SymbolTable & symbols, std::ostream & str) const override {}
+    void show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const override {}
 
     void eval(EvalState & state, Env & env, Value & v) override;
 
