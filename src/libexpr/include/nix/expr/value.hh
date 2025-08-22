@@ -16,6 +16,9 @@
 
 namespace nix {
 
+// XXX [speed]: keeping track of how many of each type of Value we make, so we
+// can see how impactful different refactors would be.
+// NOTE: if something gets set and then reset (looking at you tThunk) it will count for both
 extern unsigned long nrUninitialized;
 extern unsigned long nrInt;
 extern unsigned long nrBool;
@@ -32,6 +35,8 @@ extern unsigned long nrLambda;
 extern unsigned long nrListN;
 extern unsigned long nrString;
 extern unsigned long nrPath;
+// XXX [speed]: how many bytes we have added during the speed refactor.
+extern unsigned long nrBytesAdded;
 
 struct Value;
 // XXX [speed]: these might not be needed when we're done

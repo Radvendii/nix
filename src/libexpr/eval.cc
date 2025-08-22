@@ -63,6 +63,7 @@ unsigned long nrLambda = 0;
 unsigned long nrListN = 0;
 unsigned long nrString = 0;
 unsigned long nrPath = 0;
+unsigned long nrBytesAdded = 0;
 
 static char * allocString(size_t size)
 {
@@ -3017,6 +3018,7 @@ void EvalState::printStatistics()
 #  endif
 #endif
     };
+    topObj["bytesAdded"] = nrBytesAdded;
     topObj["envs"] = {
         {"number", nrEnvs},
         {"elements", nrValuesInEnvs},
