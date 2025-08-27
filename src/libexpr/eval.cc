@@ -136,10 +136,8 @@ Symbol::Symbol(const Key & key)
     if (size == 0) {
         vp->mkString("", nullptr);
     } else {
-        // place the string after the SymbolData in memory
-        auto str = (char *)(data + 1);
-        memcpy(str, key.str.data(), size);
-        str[size] = '\0';
+        memcpy(data->c_str, key.str.data(), size);
+        data->c_str[size] = '\0';
         // XXX [speed]: there should either be a tSymbol Value type that fits in 8 bytes, or at least a contextless string type that does
         vp->mkString(str, nullptr);
     }

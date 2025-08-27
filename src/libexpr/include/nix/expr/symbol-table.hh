@@ -17,28 +17,15 @@ namespace nix {
  * would like to also deduplicate these Values, and to do so we must store a a
  * reference to the Value for this Symbol here. When we need to create another
  * Value for it, we can find the one that already exists and use that instead.
- *
- * C++ does not have flexible array members, so we can't express this using its
- * members, but the string is a char array that gets stored at the end, after
- * all the other members of SymbolData.
- *
- * WARNING: This means SymbolData is not a fixed size, and cannot be created on
- *          the stack or stored in an array.
  */
  // XXX [speed]: do we actually need size? Can't we construct a string_view with just a c string pointer? is it super slow?
 class SymbolData {
     ValueRef v;
     uint32_t size;
-    // Here's where I'd put a FAM
-    // If I had one!
-    // char c_str[];
+    // variable length string allocated after the SymbolData in memory
+    char c_str[0];
 
 public:
-    char * c_str() const noexcept
-    {
-        // return a string pointer to the end of the struct, where we keep our string data
-        return (char *)(this + 1);
-    }
     friend class Symbol;
     friend class SymbolTable;
 };
@@ -174,12 +161,12 @@ class Symbol {
     [[gnu::always_inline]]
     const char * c_str() const noexcept
     {
-        return data->c_str();
+        return data->c_str;
     }
 
     [[gnu::always_inline]] operator std::string_view() const noexcept
     {
-        return {data->c_str(), data->size};
+        return {data->c_str, data->size};
     }
 
     bool operator==(std::string_view s2) const noexcept
