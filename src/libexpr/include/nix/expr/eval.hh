@@ -218,6 +218,12 @@ class EvalState : public std::enable_shared_from_this<EvalState>
 public:
     const fetchers::Settings & fetchSettings;
     const EvalSettings & settings;
+
+    /**
+     * Vector containing all allocated values
+     */
+    std::vector<Value> values;
+
     SymbolTable symbols;
     PosTable positions;
 
@@ -401,12 +407,6 @@ private:
      * Cache used by prim_match().
      */
     std::shared_ptr<RegexCache> regexCache;
-
-    /**
-     * Vector containing all allocated values
-     */
-    std::vector<Value> values;
-
 
 #if NIX_USE_BOEHMGC
     /**

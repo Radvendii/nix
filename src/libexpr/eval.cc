@@ -108,9 +108,53 @@ std::string printValue(EvalState & state, Value & v)
     return out.str();
 }
 
-Value * Value::toPtr(SymbolStr str) noexcept
+/* XXX [speed] [[gnu::always_inline]] */
+const Value * SymbolStr::valuePtr(EvalState & es) const noexcept
 {
-    return const_cast<Value *>(str.valuePtr());
+    return es.VRtoVP(data->v);
+}
+
+SymbolStr::SymbolStr(const Key & key)
+{
+    auto size = key.str.size();
+    // XXX [speed]: check if this is still a limitation
+    if (size >= std::numeric_limits<uint32_t>::max()) {
+        throw Error("Size of symbol exceeds 4GiB and cannot be stored");
+    }
+    // XXX [speed]: check if this still makes sense
+    // for multi-threaded implementations: lock store and allocator here
+    auto vp = key.es.allocValue();
+    auto v = key.es.VPtoVR(vp);
+
+    // allocate enough bytes at the end of the SymbolData for our string
+    auto str_alloc_bytes = size > 0 ? size + 1 : 0;
+    auto data = (SymbolData *)key.alloc.allocate(sizeof(SymbolData) + str_alloc_bytes);
+
+    data->v = v;
+    data->size = size;
+    if (size == 0) {
+        vp->mkString("", nullptr);
+    } else {
+        // place the string after the SymbolData in memory
+        auto str = (char *)(data + 1);
+        memcpy(str, key.str.data(), size);
+        str[size] = '\0';
+        // XXX [speed]: there should either be a tSymbol Value type that fits in 8 bytes, or at least a contextless string type that does
+        vp->mkString(str, nullptr);
+    }
+    this->data = data;
+}
+
+SymbolStr SymbolTable::operator[](Symbol ref) const
+{
+    // to get from our Value to the SymbolData we look behind the start of the
+    // string by the length of one SymbolData
+    return SymbolStr((SymbolData *) es.VRtoV(ref).c_str() - 1);
+}
+
+Value * Value::toPtr(EvalState & es, SymbolStr sym) noexcept
+{
+    return const_cast<Value *>(sym.valuePtr(es));
 }
 
 void Value::print(EvalState & state, std::ostream & str, PrintOptions options)
@@ -220,6 +264,8 @@ EvalState::EvalState(
     std::shared_ptr<Store> buildStore)
     : fetchSettings{fetchSettings}
     , settings{settings}
+    , values()
+    , symbols(*this)
     , sWith(symbols.create("<with>"))
     , sOutPath(symbols.create("outPath"))
     , sDrvPath(symbols.create("drvPath"))
@@ -935,7 +981,7 @@ void Value::mkPath(const SourcePath & path)
     mkPath(&*path.accessor, makeImmutableString(path.path.abs()));
 }
 
-// XXX [speed]: return these to value.hh
+// XXX [speed]: return these to their homes
 void Value::mkList(EvalState & es, const ListBuilder & builder) noexcept
 {
     if (builder.size == 1) {

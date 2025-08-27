@@ -3,7 +3,6 @@
 
 #include <memory_resource>
 #include "nix/expr/value.hh"
-#include "nix/util/chunked-vector.hh"
 #include "nix/util/error.hh"
 
 #include <boost/version.hpp>
@@ -11,174 +10,126 @@
 
 namespace nix {
 
-class SymbolValue : protected Value
-{
-    friend class SymbolStr;
-    friend class SymbolTable;
+// XXX [speed]: The names of these classes are inherited from an earlier time when they had a different structure and function. TODO: rename them so they make more sense now.
 
-    uint32_t size_;
-    uint32_t idx;
-
-    SymbolValue() = default;
+/**
+ * SymbolData is the deduplicated data associated with a Symbol. The primary
+ * thing this stores is the string underlying it, but sometimes (e.g. via
+ * builtins.attrNames), we construct Values pointing at those strings. We
+ * would like to also deduplicate these Values, and to do so we must store a a
+ * reference to the Value for this Symbol here. When we need to create another
+ * Value for it, we can find the one that already exists and use that instead.
+ *
+ * C++ does not have flexible array members, so we can't express this using its
+ * members, but the string is a char array that gets stored at the end, after
+ * all the other members of SymbolData.
+ *
+ * WARNING: This means SymbolData is not a fixed size, and cannot be stored in
+ *          an array.
+ */
+ // XXX [speed]: do we actually need size? Can't we construct a string_view with just a c string pointer? is it super slow?
+class SymbolData {
+    ValueRef v;
+    uint32_t size;
+    // Here's where I'd put a FAM
+    // If I had one!
+    // char c_str[];
 
 public:
-    operator std::string_view() const noexcept
+    char * c_str() const noexcept
     {
-        return {c_str(), size_};
+        // return a string pointer to the end of the struct, where we keep our string data
+        return (char *)(this + 1);
     }
+    friend class SymbolStr;
+    friend class SymbolTable;
 };
 
 /**
- * Symbols have the property that they can be compared efficiently
+ * A Symbol points to the canonical Value of a SymbolStr. The type is literally
+ * a subtype of ValueRefs, but only the ones that point at Symbols. We use
+ * Symbols so we can refer to SymbolData by a smaller value (4 bytes, rather
+ * than the 8 of SymbolStr). The tradeoff is that we need an EvalState around to
+ * access anything, so the use of Symbols is typically to construct a SymbolStr
+ * that directly refers to the data.
+ *
+ * Once we have the Value pointed to by the Symbol, we can follow it to the
+ * string, which is itself a known offset from the beginning of the SymbolData.
+ *
+ * Symbols can also be compared directly for equality, since the Values they
+ * point to have been deduplicated.
+ */
+typedef ValueRef Symbol;
+
+/**
+ * SymbolStrs have the property that they can be compared efficiently
  * (using an equality test), because the symbol table stores only one
  * copy of each string.
+ *
+ * We also define several convenience operators so that SymbolStrs can be used
+ * as though they were the underlying string in many contexts.
+ *
+ * SymbolStrs are stored in the SymbolTable, which performs deduplication.
  */
-class Symbol
-{
-    friend class SymbolStr;
+class SymbolStr {
+
     friend class SymbolTable;
 
-private:
-    uint32_t id;
+    SymbolData *data;
 
-    explicit Symbol(uint32_t id) noexcept
-        : id(id)
+    public:
+    explicit SymbolStr(SymbolData *data) noexcept
+        : data(data)
     {
     }
 
-public:
-    Symbol() noexcept
-        : id(0)
+    // Fast equality comparison of pointers, courtesy of deduplicated data.
+    bool operator==(const SymbolStr other) const noexcept
     {
+        return data == other.data;
     }
 
-    [[gnu::always_inline]]
-    explicit operator bool() const noexcept
-    {
-        return id > 0;
-    }
+    /* Deduplication machinery */
 
-    auto operator<=>(const Symbol other) const noexcept
-    {
-        return id <=> other.id;
-    }
-
-    bool operator==(const Symbol other) const noexcept
-    {
-        return id == other.id;
-    }
-
-    friend class std::hash<Symbol>;
-};
-
-/**
- * This class mainly exists to give us an operator<< for ostreams. We could also
- * return plain strings from SymbolTable, but then we'd have to wrap every
- * instance of a symbol that is fmt()ed, which is inconvenient and error-prone.
- */
-class SymbolStr
-{
-    friend class SymbolTable;
-
-    constexpr static size_t chunkSize{8192};
-    using SymbolValueStore = ChunkedVector<SymbolValue, chunkSize>;
-
-    const SymbolValue * s;
-
+    private:
+    /**
+     * This is a not-yet-created SymbolData. It contains all the information
+     * needed to create one, should we need to. But before we do we use that
+     * information to look in the unordered_flat_map and see if it's there
+     * already.
+     */
     struct Key
     {
         using HashType = boost::hash<std::string_view>;
 
-        SymbolValueStore & store;
-        std::string_view s;
+        // used for creating new Values
+        EvalState & es;
+        std::string_view str;
+        // [XXX] speed: is this used so we don't have to re-calculate the hash many times? Why doesn't unordered_flat_set do this for us?
         std::size_t hash;
         std::pmr::polymorphic_allocator<char> & alloc;
 
-        Key(SymbolValueStore & store, std::string_view s, std::pmr::polymorphic_allocator<char> & stringAlloc)
-            : store(store)
-            , s(s)
-            , hash(HashType{}(s))
+        Key(EvalState & es, std::string_view str, std::pmr::polymorphic_allocator<char> & stringAlloc)
+            : es(es)
+            , str(str)
+            , hash(HashType{}(str))
             , alloc(stringAlloc)
         {
         }
     };
 
-public:
-    SymbolStr(const SymbolValue & s) noexcept
-        : s(&s)
-    {
-    }
-
-    SymbolStr(const Key & key)
-    {
-        auto size = key.s.size();
-        if (size >= std::numeric_limits<uint32_t>::max()) {
-            throw Error("Size of symbol exceeds 4GiB and cannot be stored");
-        }
-        // for multi-threaded implementations: lock store and allocator here
-        const auto & [v, idx] = key.store.add(SymbolValue{});
-        if (size == 0) {
-            v.mkString("", nullptr);
-        } else {
-            auto s = key.alloc.allocate(size + 1);
-            memcpy(s, key.s.data(), size);
-            s[size] = '\0';
-            v.mkString(s, nullptr);
-        }
-        v.size_ = size;
-        v.idx = idx;
-        this->s = &v;
-    }
-
-    bool operator==(std::string_view s2) const noexcept
-    {
-        return *s == s2;
-    }
-
-    [[gnu::always_inline]]
-    const char * c_str() const noexcept
-    {
-        return s->c_str();
-    }
-
-    [[gnu::always_inline]] operator std::string_view() const noexcept
-    {
-        return *s;
-    }
-
-    friend std::ostream & operator<<(std::ostream & os, const SymbolStr & symbol);
-
-    [[gnu::always_inline]]
-    bool empty() const noexcept
-    {
-        return s->size_ == 0;
-    }
-
-    [[gnu::always_inline]]
-    size_t size() const noexcept
-    {
-        return s->size_;
-    }
-
-    [[gnu::always_inline]]
-    const Value * valuePtr() const noexcept
-    {
-        return s;
-    }
-
-    explicit operator Symbol() const noexcept
-    {
-        return Symbol{s->idx + 1};
-    }
-
+    /**
+     * The Hash and Equal interfaces allow Symbol to be entered into the
+     * unordered_hash_set, and use Symbol::Key to look them up
+     */
     struct Hash
     {
         using is_transparent = void;
         using is_avalanching = std::true_type;
 
-        std::size_t operator()(SymbolStr str) const
+        std::size_t operator()(SymbolStr sym) const
         {
-            return Key::HashType{}(*str.s);
+            return Key::HashType{}(sym);
         }
 
         std::size_t operator()(const Key & key) const noexcept
@@ -194,12 +145,12 @@ public:
         bool operator()(SymbolStr a, SymbolStr b) const noexcept
         {
             // strings are unique, so that a pointer comparison is OK
-            return a.s == b.s;
+            return a.data == b.data;
         }
 
         bool operator()(SymbolStr a, const Key & b) const noexcept
         {
-            return a == b.s;
+            return a == b.str;
         }
 
         [[gnu::always_inline]]
@@ -208,30 +159,83 @@ public:
             return operator()(b, a);
         }
     };
+
+
+    public:
+    /**
+     * This is where we do the allocating and assinging of a new Value and
+     * SymbolData based on the Key. It's called when we're inserting into the
+     * unordered_hash_set, and the Key doesn't match any of the already-existing
+     * SymbolStrs.
+     */
+    SymbolStr(const Key & key);
+
+    /* End of deduplication machinery */
+
+    /* Convenience string conversions */
+
+    [[gnu::always_inline]]
+    const char * c_str() const noexcept
+    {
+        return data->c_str();
+    }
+
+    [[gnu::always_inline]] operator std::string_view() const noexcept
+    {
+        return {data->c_str(), data->size};
+    }
+
+    bool operator==(std::string_view s2) const noexcept
+    {
+        std::string_view this_str = *this;
+        return this_str == s2;
+    }
+
+    friend std::ostream & operator<<(std::ostream & os, const SymbolStr & symbol);
+
+    [[gnu::always_inline]]
+    bool empty() const noexcept
+    {
+        return data->size == 0;
+    }
+
+    [[gnu::always_inline]]
+    size_t size() const noexcept
+    {
+        return data->size;
+    }
+
+    /* End of convenience string conversions */
+
+    /* Get the Value associated with the Symbol */
+    /* XXX [speed] [[gnu::always_inline]] */
+    const Value * valuePtr(EvalState & es) const noexcept;
 };
 
-/**
- * Symbol table used by the parser and evaluator to represent and look
- * up identifiers and attributes efficiently.
- */
-class SymbolTable
-{
-private:
+class SymbolTable {
     /**
-     * SymbolTable is an append only data structure.
-     * During its lifetime the monotonic buffer holds all strings and nodes, if the symbol set is node based.
+     * SymbolTable is an append only data structure. During its lifetime the
+     * monotonic buffer holds all SymbolDatas, including all strings.
      */
     std::pmr::monotonic_buffer_resource buffer;
     std::pmr::polymorphic_allocator<char> stringAlloc{&buffer};
-    SymbolStr::SymbolValueStore store{16};
 
-    /**
-     * Transparent lookup of string view for a pointer to a ChunkedVector entry -> return offset into the store.
-     * ChunkedVector references are never invalidated.
+    // Used for creating Values
+    EvalState & es;
+
+    constexpr static size_t chunkSize{8192};
+    /*
+     * Hash set which allows deduplication of SymbolData. We first see if a
+     * string is already in here before creating a new one.
      */
-    boost::unordered_flat_set<SymbolStr, SymbolStr::Hash, SymbolStr::Equal> symbols{SymbolStr::chunkSize};
+    boost::unordered_flat_set<SymbolStr, SymbolStr::Hash, SymbolStr::Equal> symbols{chunkSize};
 
 public:
+
+    SymbolTable(EvalState & es)
+        : es(es)
+    {
+    }
 
     /**
      * Converts a string into a symbol.
@@ -241,8 +245,11 @@ public:
         // Most symbols are looked up more than once, so we trade off insertion performance
         // for lookup performance.
         // FIXME: make this thread-safe.
-        return Symbol(*symbols.insert(SymbolStr::Key{store, s, stringAlloc}).first);
+        return symbols.insert(SymbolStr::Key{es, s, stringAlloc}).first->data->v;
     }
+
+    // XXX [speed]: these don't actually need a SymbolTable, just an EvalState
+    SymbolStr operator[](Symbol ref) const;
 
     std::vector<SymbolStr> resolve(const std::vector<Symbol> & symbols) const
     {
@@ -253,36 +260,21 @@ public:
         return result;
     }
 
-    SymbolStr operator[](Symbol s) const
-    {
-        uint32_t idx = s.id - uint32_t(1);
-        if (idx >= store.size())
-            unreachable();
-        return store[idx];
-    }
+    size_t totalSize() const;
 
     [[gnu::always_inline]]
     size_t size() const noexcept
     {
-        return store.size();
+        return symbols.size();
     }
-
-    size_t totalSize() const;
 
     template<typename T>
     void dump(T callback) const
     {
-        store.forEach(callback);
+        for (auto & sym : symbols) {
+            callback(sym);
+        }
     }
-};
 
+};
 } // namespace nix
-
-template<>
-struct std::hash<nix::Symbol>
-{
-    std::size_t operator()(const nix::Symbol & s) const noexcept
-    {
-        return std::hash<decltype(s.id)>{}(s.id);
-    }
-};

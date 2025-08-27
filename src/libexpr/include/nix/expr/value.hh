@@ -90,7 +90,7 @@ struct Expr;
 struct ExprLambda;
 struct ExprBlackHole;
 struct PrimOp;
-class Symbol;
+typedef ValueRef Symbol;
 class SymbolStr;
 class PosIdx;
 struct Pos;
@@ -588,7 +588,7 @@ public:
     /**
      * Never modify the backing `Value` object!
      */
-    static Value * toPtr(SymbolStr str) noexcept;
+    static Value * toPtr(EvalState & es, SymbolStr str) noexcept;
 
     void print(EvalState & state, std::ostream & str, PrintOptions options = PrintOptions{});
 
