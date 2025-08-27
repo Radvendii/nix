@@ -20,10 +20,10 @@ struct Attr
        both of them are uint32 wrappers, they are next to each other
        to make sure that Attr has no padding on 64 bit machines. that
        way we keep Attr size at two words with no wasted space. */
-    Symbol name;
+    SymbolRef name;
     PosIdx pos;
     Value * value = nullptr;
-    Attr(Symbol name, Value * value, PosIdx pos = noPos)
+    Attr(SymbolRef name, Value * value, PosIdx pos = noPos)
         : name(name)
         , pos(pos)
         , value(value) {};
@@ -86,7 +86,7 @@ public:
         attrs[size_++] = attr;
     }
 
-    const_iterator find(Symbol name) const
+    const_iterator find(SymbolRef name) const
     {
         Attr key(name, 0);
         const_iterator i = std::lower_bound(begin(), end(), key);
@@ -95,7 +95,7 @@ public:
         return end();
     }
 
-    const Attr * get(Symbol name) const
+    const Attr * get(SymbolRef name) const
     {
         Attr key(name, 0);
         const_iterator i = std::lower_bound(begin(), end(), key);
@@ -181,7 +181,7 @@ public:
     {
     }
 
-    void insert(Symbol name, Value * value, PosIdx pos = noPos)
+    void insert(SymbolRef name, Value * value, PosIdx pos = noPos)
     {
         insert(Attr(name, value, pos));
     }
@@ -196,7 +196,7 @@ public:
         bindings->push_back(attr);
     }
 
-    Value & alloc(Symbol name, PosIdx pos = noPos);
+    Value & alloc(SymbolRef name, PosIdx pos = noPos);
 
     Value & alloc(std::string_view name, PosIdx pos = noPos);
 

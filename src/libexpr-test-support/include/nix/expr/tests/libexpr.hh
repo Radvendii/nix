@@ -51,7 +51,7 @@ protected:
         return e->maybeThunk(state, state.baseEnv);
     }
 
-    Symbol createSymbol(const char * value)
+    SymbolRef createSymbol(const char * value)
     {
         return state.symbols.create(value);
     }

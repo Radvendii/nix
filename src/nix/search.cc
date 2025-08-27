@@ -90,10 +90,10 @@ struct CmdSearch : InstallableValueCommand, MixJSON
 
         uint64_t results = 0;
 
-        std::function<void(eval_cache::AttrCursor & cursor, const std::vector<Symbol> & attrPath, bool initialRecurse)>
+        std::function<void(eval_cache::AttrCursor & cursor, const std::vector<SymbolRef> & attrPath, bool initialRecurse)>
             visit;
 
-        visit = [&](eval_cache::AttrCursor & cursor, const std::vector<Symbol> & attrPath, bool initialRecurse) {
+        visit = [&](eval_cache::AttrCursor & cursor, const std::vector<SymbolRef> & attrPath, bool initialRecurse) {
             auto attrPathS = state->symbols.resolve(attrPath);
 
             Activity act(*logger, lvlInfo, actUnknown, fmt("evaluating '%s'", concatStringsSep(".", attrPathS)));

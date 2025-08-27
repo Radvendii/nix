@@ -16,9 +16,9 @@ class AttrCursor;
 struct CachedEvalError : EvalError
 {
     const ref<AttrCursor> cursor;
-    const Symbol attr;
+    const SymbolRef attr;
 
-    CachedEvalError(ref<AttrCursor> cursor, Symbol attr);
+    CachedEvalError(ref<AttrCursor> cursor, SymbolRef attr);
 
     /**
      * Evaluate this attribute, which should result in a regular
@@ -78,11 +78,11 @@ struct int_t
 };
 
 typedef uint64_t AttrId;
-typedef std::pair<AttrId, Symbol> AttrKey;
+typedef std::pair<AttrId, SymbolRef> AttrKey;
 typedef std::pair<std::string, NixStringContext> string_t;
 
 typedef std::variant<
-    std::vector<Symbol>,
+    std::vector<SymbolRef>,
     string_t,
     placeholder_t,
     missing_t,
@@ -99,7 +99,7 @@ class AttrCursor : public std::enable_shared_from_this<AttrCursor>
     friend struct CachedEvalError;
 
     ref<EvalCache> root;
-    using Parent = std::optional<std::pair<ref<AttrCursor>, Symbol>>;
+    using Parent = std::optional<std::pair<ref<AttrCursor>, SymbolRef>>;
     Parent parent;
     RootValue _value;
     std::optional<std::pair<AttrId, AttrValue>> cachedValue;
@@ -124,21 +124,21 @@ public:
         Value * value = nullptr,
         std::optional<std::pair<AttrId, AttrValue>> && cachedValue = {});
 
-    std::vector<Symbol> getAttrPath() const;
+    std::vector<SymbolRef> getAttrPath() const;
 
-    std::vector<Symbol> getAttrPath(Symbol name) const;
+    std::vector<SymbolRef> getAttrPath(SymbolRef name) const;
 
     std::string getAttrPathStr() const;
 
-    std::string getAttrPathStr(Symbol name) const;
+    std::string getAttrPathStr(SymbolRef name) const;
 
-    Suggestions getSuggestionsForAttr(Symbol name);
+    Suggestions getSuggestionsForAttr(SymbolRef name);
 
-    std::shared_ptr<AttrCursor> maybeGetAttr(Symbol name);
+    std::shared_ptr<AttrCursor> maybeGetAttr(SymbolRef name);
 
     std::shared_ptr<AttrCursor> maybeGetAttr(std::string_view name);
 
-    ref<AttrCursor> getAttr(Symbol name);
+    ref<AttrCursor> getAttr(SymbolRef name);
 
     ref<AttrCursor> getAttr(std::string_view name);
 
@@ -146,7 +146,7 @@ public:
      * Get an attribute along a chain of attrsets. Note that this does
      * not auto-call functors or functions.
      */
-    OrSuggestions<ref<AttrCursor>> findAlongAttrPath(const std::vector<Symbol> & attrPath);
+    OrSuggestions<ref<AttrCursor>> findAlongAttrPath(const std::vector<SymbolRef> & attrPath);
 
     std::string getString();
 
@@ -158,7 +158,7 @@ public:
 
     std::vector<std::string> getListOfStrings();
 
-    std::vector<Symbol> getAttrs();
+    std::vector<SymbolRef> getAttrs();
 
     bool isDerivation();
 

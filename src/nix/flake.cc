@@ -377,7 +377,7 @@ struct CmdFlakeCheck : FlakeCommand
 
         auto resolve = [&](PosIdx p) { return state->positions[p]; };
 
-        auto argHasName = [&](Symbol arg, std::string_view expected) {
+        auto argHasName = [&](SymbolRef arg, std::string_view expected) {
             std::string_view name = state->symbols[arg];
             return name == expected || name == "_" || (hasPrefix(name, "_") && name.substr(1) == expected);
         };
@@ -1131,7 +1131,7 @@ struct CmdFlakeShow : FlakeCommand, MixJSON
         auto flake = std::make_shared<LockedFlake>(lockFlake());
         auto localSystem = std::string(settings.thisSystem.get());
 
-        std::function<bool(eval_cache::AttrCursor & visitor, const std::vector<Symbol> & attrPath, const Symbol & attr)>
+        std::function<bool(eval_cache::AttrCursor & visitor, const std::vector<SymbolRef> & attrPath, const SymbolRef & attr)>
             hasContent;
 
         // For frameworks it's important that structures are as lazy as possible
@@ -1141,7 +1141,7 @@ struct CmdFlakeShow : FlakeCommand, MixJSON
         // However, these attributes with empty values are not useful to the user
         // so we omit them.
         hasContent =
-            [&](eval_cache::AttrCursor & visitor, const std::vector<Symbol> & attrPath, const Symbol & attr) -> bool {
+            [&](eval_cache::AttrCursor & visitor, const std::vector<SymbolRef> & attrPath, const SymbolRef & attr) -> bool {
             auto attrPath2(attrPath);
             attrPath2.push_back(attr);
             auto attrPathS = state->symbols.resolve(attrPath2);
@@ -1184,13 +1184,13 @@ struct CmdFlakeShow : FlakeCommand, MixJSON
 
         std::function<nlohmann::json(
             eval_cache::AttrCursor & visitor,
-            const std::vector<Symbol> & attrPath,
+            const std::vector<SymbolRef> & attrPath,
             const std::string & headerPrefix,
             const std::string & nextPrefix)>
             visit;
 
         visit = [&](eval_cache::AttrCursor & visitor,
-                    const std::vector<Symbol> & attrPath,
+                    const std::vector<SymbolRef> & attrPath,
                     const std::string & headerPrefix,
                     const std::string & nextPrefix) -> nlohmann::json {
             auto j = nlohmann::json::object();
@@ -1203,7 +1203,7 @@ struct CmdFlakeShow : FlakeCommand, MixJSON
                 auto recurse = [&]() {
                     if (!json)
                         logger->cout("%s", headerPrefix);
-                    std::vector<Symbol> attrs;
+                    std::vector<SymbolRef> attrs;
                     for (const auto & attr : visitor.getAttrs()) {
                         if (hasContent(visitor, attrPath, attr))
                             attrs.push_back(attr);

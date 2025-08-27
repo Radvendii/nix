@@ -3122,7 +3122,7 @@ static void prim_listToAttrs(EvalState & state, const PosIdx pos, Value ** args,
     });
 
     // Step 2. Unpack the bindings in place and skip name-value pairs with duplicate names
-    Symbol prev;
+    SymbolRef prev;
     for (size_t n = 0; n < listSize; n++) {
         auto attr = bindings[n];
         if (prev == attr.name) {
@@ -3381,7 +3381,7 @@ static void prim_zipAttrsWith(EvalState & state, const PosIdx pos, Value ** args
         std::optional<ListBuilder> list;
     };
 
-    std::map<Symbol, Item, std::less<Symbol>, traceable_allocator<std::pair<const Symbol, Item>>> attrsSeen;
+    std::map<SymbolRef, Item, std::less<SymbolRef>, traceable_allocator<std::pair<const SymbolRef, Item>>> attrsSeen;
 
     state.forceFunction(*args[0], pos, "while evaluating the first argument passed to builtins.zipAttrsWith");
     state.forceList(*args[1], pos, "while evaluating the second argument passed to builtins.zipAttrsWith");

@@ -68,9 +68,9 @@ struct DocComment
  */
 struct AttrName
 {
-    Symbol symbol;
+    SymbolRef symbol;
     Expr * expr = nullptr;
-    AttrName(Symbol s)
+    AttrName(SymbolRef s)
         : symbol(s) {};
     AttrName(Expr * e)
         : expr(e) {};
@@ -86,7 +86,7 @@ struct Expr
 {
     struct AstSymbols
     {
-        Symbol sub, lessThan, mul, div, or_, findFile, nixPath, body;
+        SymbolRef sub, lessThan, mul, div, or_, findFile, nixPath, body;
     };
 
     static unsigned long nrExprs;
@@ -101,7 +101,7 @@ struct Expr
     virtual void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     virtual void eval(EvalState & state, Env & env, Value & v);
     virtual Value * maybeThunk(EvalState & state, Env & env);
-    virtual void setName(Symbol name);
+    virtual void setName(SymbolRef name);
     virtual void setDocComment(DocComment docComment) {};
 
     virtual PosIdx getPos() const
@@ -170,7 +170,7 @@ typedef uint32_t Displacement;
 struct ExprVar : Expr
 {
     PosIdx pos;
-    Symbol name;
+    SymbolRef name;
 
     /* Whether the variable comes from an environment (e.g. a rec, let
        or function argument) or from a "with".
@@ -188,9 +188,9 @@ struct ExprVar : Expr
     Level level = 0;
     Displacement displ = 0;
 
-    ExprVar(Symbol name)
+    ExprVar(SymbolRef name)
         : name(name) {};
-    ExprVar(const PosIdx & pos, Symbol name)
+    ExprVar(const PosIdx & pos, SymbolRef name)
         : pos(pos)
         , name(name) {};
     Value * maybeThunk(EvalState & state, Env & env) override;
@@ -232,7 +232,7 @@ struct ExprSelect : Expr
         , def(def)
         , attrPath(std::move(attrPath)) {};
 
-    ExprSelect(const PosIdx & pos, Expr * e, Symbol name)
+    ExprSelect(const PosIdx & pos, Expr * e, SymbolRef name)
         : pos(pos)
         , e(e)
         , def(0)
@@ -254,7 +254,7 @@ struct ExprSelect : Expr
      * @note This does *not* evaluate the final attribute, and does not fail if that's the only attribute that does not
      * exist.
      */
-    Symbol evalExceptFinalSelect(EvalState & state, Env & env, Value & attrs);
+    SymbolRef evalExceptFinalSelect(EvalState & state, Env & env, Value & attrs);
 
     COMMON_METHODS
 };
@@ -316,7 +316,7 @@ struct ExprAttrs : Expr
         }
     };
 
-    typedef std::map<Symbol, AttrDef> AttrDefs;
+    typedef std::map<SymbolRef, AttrDef> AttrDefs;
     AttrDefs attrs;
     std::unique_ptr<std::vector<Expr *>> inheritFromExprs;
 
@@ -366,7 +366,7 @@ struct ExprList : Expr
 struct Formal
 {
     PosIdx pos;
-    Symbol name;
+    SymbolRef name;
     Expr * def;
 };
 
@@ -379,10 +379,10 @@ struct Formals
     Formals_ formals;
     bool ellipsis;
 
-    bool has(Symbol arg) const
+    bool has(SymbolRef arg) const
     {
         auto it = std::lower_bound(
-            formals.begin(), formals.end(), arg, [](const Formal & f, const Symbol & sym) { return f.name < sym; });
+            formals.begin(), formals.end(), arg, [](const Formal & f, const SymbolRef & sym) { return f.name < sym; });
         return it != formals.end() && it->name == arg;
     }
 
@@ -400,13 +400,13 @@ struct Formals
 struct ExprLambda : Expr
 {
     PosIdx pos;
-    Symbol name;
-    Symbol arg;
+    SymbolRef name;
+    SymbolRef arg;
     Formals * formals;
     Expr * body;
     DocComment docComment;
 
-    ExprLambda(PosIdx pos, Symbol arg, Formals * formals, Expr * body)
+    ExprLambda(PosIdx pos, SymbolRef arg, Formals * formals, Expr * body)
         : pos(pos)
         , arg(arg)
         , formals(formals)
@@ -419,7 +419,7 @@ struct ExprLambda : Expr
     {
     }
 
-    void setName(Symbol name) override;
+    void setName(SymbolRef name) override;
     std::string showNamePos(const EvalState & state) const;
 
     inline bool hasFormals() const
@@ -637,7 +637,7 @@ struct StaticEnv
     std::shared_ptr<const StaticEnv> up;
 
     // Note: these must be in sorted order.
-    typedef std::vector<std::pair<Symbol, Displacement>> Vars;
+    typedef std::vector<std::pair<SymbolRef, Displacement>> Vars;
     Vars vars;
 
     StaticEnv(ExprWith * isWith, std::shared_ptr<const StaticEnv> up, size_t expectedSize = 0)
@@ -666,7 +666,7 @@ struct StaticEnv
         vars.erase(it, end);
     }
 
-    Vars::const_iterator find(Symbol name) const
+    Vars::const_iterator find(SymbolRef name) const
     {
         Vars::value_type key(name, 0);
         auto i = std::lower_bound(vars.begin(), vars.end(), key);

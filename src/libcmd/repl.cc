@@ -99,7 +99,7 @@ struct NixRepl : AbstractNixRepl, detail::ReplCompleterMixin, gc
     void reloadFilesAndFlakes();
     void showLastLoaded();
     void addAttrsToScope(Value & attrs);
-    void addVarToScope(const Symbol name, Value & v);
+    void addVarToScope(const SymbolRef name, Value & v);
     Expr * parseString(std::string s);
     void evalString(std::string s, Value & v);
     void loadDebugTraceEnv(DebugTrace & dt);
@@ -854,7 +854,7 @@ void NixRepl::addAttrsToScope(Value & attrs)
         notice("... and %1% more; view with :ll", attrs.attrs()->size() - max_print);
 }
 
-void NixRepl::addVarToScope(const Symbol name, Value & v)
+void NixRepl::addVarToScope(const SymbolRef name, Value & v)
 {
     if (displ >= envSize)
         throw Error("environment full; cannot add more variables");

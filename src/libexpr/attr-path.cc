@@ -30,9 +30,9 @@ static Strings parseAttrPath(std::string_view s)
     return res;
 }
 
-std::vector<Symbol> parseAttrPath(EvalState & state, std::string_view s)
+std::vector<SymbolRef> parseAttrPath(EvalState & state, std::string_view s)
 {
-    std::vector<Symbol> res;
+    std::vector<SymbolRef> res;
     for (auto & a : parseAttrPath(s))
         res.push_back(state.symbols.create(a));
     return res;

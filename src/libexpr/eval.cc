@@ -109,12 +109,12 @@ std::string printValue(EvalState & state, Value & v)
 }
 
 /* XXX [speed] [[gnu::always_inline]] */
-const Value * SymbolStr::valuePtr(EvalState & es) const noexcept
+const Value * Symbol::valuePtr(EvalState & es) const noexcept
 {
     return es.VRtoVP(data->v);
 }
 
-SymbolStr::SymbolStr(const Key & key)
+Symbol::Symbol(const Key & key)
 {
     auto size = key.str.size();
     // XXX [speed]: check if this is still a limitation
@@ -145,14 +145,14 @@ SymbolStr::SymbolStr(const Key & key)
     this->data = data;
 }
 
-SymbolStr SymbolTable::operator[](Symbol ref) const
+Symbol SymbolTable::operator[](SymbolRef ref) const
 {
     // to get from our Value to the SymbolData we look behind the start of the
     // string by the length of one SymbolData
-    return SymbolStr((SymbolData *) es.VRtoV(ref).c_str() - 1);
+    return Symbol((SymbolData *) es.VRtoV(ref).c_str() - 1);
 }
 
-Value * Value::toPtr(EvalState & es, SymbolStr sym) noexcept
+Value * Value::toPtr(EvalState & es, Symbol sym) noexcept
 {
     return const_cast<Value *>(sym.valuePtr(es));
 }
@@ -242,7 +242,7 @@ bool Value::isTrivial() const
                || dynamic_cast<ExprLambda *>(thunk().expr) || dynamic_cast<ExprList *>(thunk().expr));
 }
 
-static Symbol getName(const AttrName & name, EvalState & state, Env & env)
+static SymbolRef getName(const AttrName & name, EvalState & state, Env & env)
 {
     if (name.symbol) {
         return name.symbol;
@@ -1636,10 +1636,10 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
     v = *vAttrs;
 }
 
-Symbol ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, Value & attrs)
+SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, Value & attrs)
 {
     Value vTmp;
-    Symbol name = getName(attrPath[attrPath.size() - 1], state, env);
+    SymbolRef name = getName(attrPath[attrPath.size() - 1], state, env);
 
     if (attrPath.size() == 1) {
         e->eval(state, env, vTmp);
@@ -2406,7 +2406,7 @@ bool EvalState::forceBool(Value & v, const PosIdx pos, std::string_view errorCtx
     return v.boolean();
 }
 
-Bindings::const_iterator EvalState::getAttr(Symbol attrSym, const Bindings * attrSet, std::string_view errorCtx)
+Bindings::const_iterator EvalState::getAttr(SymbolRef attrSym, const Bindings * attrSet, std::string_view errorCtx)
 {
     auto value = attrSet->find(attrSym);
     if (value == attrSet->end()) {

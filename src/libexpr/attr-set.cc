@@ -19,7 +19,7 @@ Bindings * EvalState::allocBindings(size_t capacity)
     return new (allocBytes(sizeof(Bindings) + sizeof(Attr) * capacity)) Bindings((Bindings::size_t) capacity);
 }
 
-Value & BindingsBuilder::alloc(Symbol name, PosIdx pos)
+Value & BindingsBuilder::alloc(SymbolRef name, PosIdx pos)
 {
     auto value = state.allocValue();
     bindings->push_back(Attr(name, value, pos));

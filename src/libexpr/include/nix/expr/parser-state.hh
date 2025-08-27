@@ -95,11 +95,11 @@ struct ParserState
     const EvalSettings & settings;
 
     void dupAttr(const AttrPath & attrPath, const PosIdx pos, const PosIdx prevPos);
-    void dupAttr(Symbol attr, const PosIdx pos, const PosIdx prevPos);
+    void dupAttr(SymbolRef attr, const PosIdx pos, const PosIdx prevPos);
     void addAttr(
         ExprAttrs * attrs, AttrPath && attrPath, const ParserLocation & loc, Expr * e, const ParserLocation & exprLoc);
-    void addAttr(ExprAttrs * attrs, AttrPath & attrPath, const Symbol & symbol, ExprAttrs::AttrDef && def);
-    Formals * validateFormals(Formals * formals, PosIdx pos = noPos, Symbol arg = {});
+    void addAttr(ExprAttrs * attrs, AttrPath & attrPath, const SymbolRef & symbol, ExprAttrs::AttrDef && def);
+    Formals * validateFormals(Formals * formals, PosIdx pos = noPos, SymbolRef arg = {});
     Expr * stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, std::variant<Expr *, StringToken>>> && es);
     PosIdx at(const ParserLocation & loc);
 };
@@ -111,7 +111,7 @@ inline void ParserState::dupAttr(const AttrPath & attrPath, const PosIdx pos, co
          .pos = positions[pos]});
 }
 
-inline void ParserState::dupAttr(Symbol attr, const PosIdx pos, const PosIdx prevPos)
+inline void ParserState::dupAttr(SymbolRef attr, const PosIdx pos, const PosIdx prevPos)
 {
     throw ParseError(
         {.msg = HintFmt("attribute '%1%' already defined at %2%", symbols[attr], positions[prevPos]),
@@ -167,7 +167,7 @@ inline void ParserState::addAttr(
  * symbol as its last element.
  */
 inline void
-ParserState::addAttr(ExprAttrs * attrs, AttrPath & attrPath, const Symbol & symbol, ExprAttrs::AttrDef && def)
+ParserState::addAttr(ExprAttrs * attrs, AttrPath & attrPath, const SymbolRef & symbol, ExprAttrs::AttrDef && def)
 {
     ExprAttrs::AttrDefs::iterator j = attrs->attrs.find(symbol);
     if (j != attrs->attrs.end()) {
@@ -219,13 +219,13 @@ ParserState::addAttr(ExprAttrs * attrs, AttrPath & attrPath, const Symbol & symb
     }
 }
 
-inline Formals * ParserState::validateFormals(Formals * formals, PosIdx pos, Symbol arg)
+inline Formals * ParserState::validateFormals(Formals * formals, PosIdx pos, SymbolRef arg)
 {
     std::sort(formals->formals.begin(), formals->formals.end(), [](const auto & a, const auto & b) {
         return std::tie(a.name, a.pos) < std::tie(b.name, b.pos);
     });
 
-    std::optional<std::pair<Symbol, PosIdx>> duplicate;
+    std::optional<std::pair<SymbolRef, PosIdx>> duplicate;
     for (size_t i = 0; i + 1 < formals->formals.size(); i++) {
         if (formals->formals[i].name != formals->formals[i + 1].name)
             continue;

@@ -17,7 +17,7 @@ ExprBlackHole eBlackHole;
 
 // FIXME: remove, because *symbols* are abstract and do not have a single
 //        textual representation; see printIdentifier()
-std::ostream & operator<<(std::ostream & str, const SymbolStr & symbol)
+std::ostream & operator<<(std::ostream & str, const Symbol & symbol)
 {
     std::string_view s = symbol;
     return printIdentifier(str, s);
@@ -82,10 +82,10 @@ void ExprAttrs::showBindings(EvalState & state, const SymbolTable & symbols, std
         std::string_view sa = symbols[a->first], sb = symbols[b->first];
         return sa < sb;
     });
-    std::vector<Symbol> inherits;
+    std::vector<SymbolRef> inherits;
     // We can use the displacement as a proxy for the order in which the symbols were parsed.
     // The assignment of displacements should be deterministic, so that showBindings is deterministic.
-    std::map<Displacement, std::vector<Symbol>> inheritsFrom;
+    std::map<Displacement, std::vector<SymbolRef>> inheritsFrom;
     for (auto & i : sorted) {
         switch (i->second.kind) {
         case AttrDef::Kind::Plain:
@@ -576,9 +576,9 @@ void ExprPos::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & 
 
 /* Storing function names. */
 
-void Expr::setName(Symbol name) {}
+void Expr::setName(SymbolRef name) {}
 
-void ExprLambda::setName(Symbol name)
+void ExprLambda::setName(SymbolRef name)
 {
     this->name = name;
     body->setName(name);
@@ -612,7 +612,7 @@ void ExprLambda::setDocComment(DocComment docComment)
 size_t SymbolTable::totalSize() const
 {
     size_t n = 0;
-    dump([&](SymbolStr s) { n += s.size(); });
+    dump([&](Symbol s) { n += s.size(); });
     return n;
 }
 

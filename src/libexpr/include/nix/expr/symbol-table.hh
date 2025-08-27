@@ -10,8 +10,6 @@
 
 namespace nix {
 
-// XXX [speed]: The names of these classes are inherited from an earlier time when they had a different structure and function. TODO: rename them so they make more sense now.
-
 /**
  * SymbolData is the deduplicated data associated with a Symbol. The primary
  * thing this stores is the string underlying it, but sometimes (e.g. via
@@ -24,8 +22,8 @@ namespace nix {
  * members, but the string is a char array that gets stored at the end, after
  * all the other members of SymbolData.
  *
- * WARNING: This means SymbolData is not a fixed size, and cannot be stored in
- *          an array.
+ * WARNING: This means SymbolData is not a fixed size, and cannot be created on
+ *          the stack or stored in an array.
  */
  // XXX [speed]: do we actually need size? Can't we construct a string_view with just a c string pointer? is it super slow?
 class SymbolData {
@@ -41,50 +39,49 @@ public:
         // return a string pointer to the end of the struct, where we keep our string data
         return (char *)(this + 1);
     }
-    friend class SymbolStr;
+    friend class Symbol;
     friend class SymbolTable;
 };
 
 /**
- * A Symbol points to the canonical Value of a SymbolStr. The type is literally
+ * A SymbolRef points to the canonical Value of a Symbol. The type is literally
  * a subtype of ValueRefs, but only the ones that point at Symbols. We use
- * Symbols so we can refer to SymbolData by a smaller value (4 bytes, rather
- * than the 8 of SymbolStr). The tradeoff is that we need an EvalState around to
- * access anything, so the use of Symbols is typically to construct a SymbolStr
+ * SymbolRefs so we can refer to SymbolData by a smaller value (4 bytes, rather
+ * than the 8 of Symbol). The tradeoff is that we need an EvalState around to
+ * access anything, so the use of SymbolRefs is typically to construct a Symbol
  * that directly refers to the data.
  *
- * Once we have the Value pointed to by the Symbol, we can follow it to the
+ * Once we have the Value pointed to by the SymbolRef, we can follow it to the
  * string, which is itself a known offset from the beginning of the SymbolData.
  *
- * Symbols can also be compared directly for equality, since the Values they
+ * SymbolRefs can also be compared directly for equality, since the Values they
  * point to have been deduplicated.
  */
-typedef ValueRef Symbol;
+typedef ValueRef SymbolRef;
 
 /**
- * SymbolStrs have the property that they can be compared efficiently
- * (using an equality test), because the symbol table stores only one
- * copy of each string.
+ * Symbols have the property that they can be compared efficiently (using an
+ * equality test), because the symbol table stores only one copy of each string.
  *
- * We also define several convenience operators so that SymbolStrs can be used
- * as though they were the underlying string in many contexts.
+ * We also define several convenience operators so that Symbols can be used as
+ * though they were the underlying string in many contexts.
  *
- * SymbolStrs are stored in the SymbolTable, which performs deduplication.
+ * Symbols are stored in the SymbolTable, which performs deduplication.
  */
-class SymbolStr {
+class Symbol {
 
     friend class SymbolTable;
 
     SymbolData *data;
 
     public:
-    explicit SymbolStr(SymbolData *data) noexcept
+    explicit Symbol(SymbolData *data) noexcept
         : data(data)
     {
     }
 
     // Fast equality comparison of pointers, courtesy of deduplicated data.
-    bool operator==(const SymbolStr other) const noexcept
+    bool operator==(const Symbol other) const noexcept
     {
         return data == other.data;
     }
@@ -127,7 +124,7 @@ class SymbolStr {
         using is_transparent = void;
         using is_avalanching = std::true_type;
 
-        std::size_t operator()(SymbolStr sym) const
+        std::size_t operator()(Symbol sym) const
         {
             return Key::HashType{}(sym);
         }
@@ -142,19 +139,19 @@ class SymbolStr {
     {
         using is_transparent = void;
 
-        bool operator()(SymbolStr a, SymbolStr b) const noexcept
+        bool operator()(Symbol a, Symbol b) const noexcept
         {
             // strings are unique, so that a pointer comparison is OK
             return a.data == b.data;
         }
 
-        bool operator()(SymbolStr a, const Key & b) const noexcept
+        bool operator()(Symbol a, const Key & b) const noexcept
         {
             return a == b.str;
         }
 
         [[gnu::always_inline]]
-        bool operator()(const Key & a, SymbolStr b) const noexcept
+        bool operator()(const Key & a, Symbol b) const noexcept
         {
             return operator()(b, a);
         }
@@ -166,9 +163,9 @@ class SymbolStr {
      * This is where we do the allocating and assinging of a new Value and
      * SymbolData based on the Key. It's called when we're inserting into the
      * unordered_hash_set, and the Key doesn't match any of the already-existing
-     * SymbolStrs.
+     * Symbols.
      */
-    SymbolStr(const Key & key);
+    Symbol(const Key & key);
 
     /* End of deduplication machinery */
 
@@ -191,7 +188,7 @@ class SymbolStr {
         return this_str == s2;
     }
 
-    friend std::ostream & operator<<(std::ostream & os, const SymbolStr & symbol);
+    friend std::ostream & operator<<(std::ostream & os, const Symbol & symbol);
 
     [[gnu::always_inline]]
     bool empty() const noexcept
@@ -228,7 +225,7 @@ class SymbolTable {
      * Hash set which allows deduplication of SymbolData. We first see if a
      * string is already in here before creating a new one.
      */
-    boost::unordered_flat_set<SymbolStr, SymbolStr::Hash, SymbolStr::Equal> symbols{chunkSize};
+    boost::unordered_flat_set<Symbol, Symbol::Hash, Symbol::Equal> symbols{chunkSize};
 
 public:
 
@@ -240,20 +237,20 @@ public:
     /**
      * Converts a string into a symbol.
      */
-    Symbol create(std::string_view s)
+    SymbolRef create(std::string_view s)
     {
         // Most symbols are looked up more than once, so we trade off insertion performance
         // for lookup performance.
         // FIXME: make this thread-safe.
-        return symbols.insert(SymbolStr::Key{es, s, stringAlloc}).first->data->v;
+        return symbols.insert(Symbol::Key{es, s, stringAlloc}).first->data->v;
     }
 
     // XXX [speed]: these don't actually need a SymbolTable, just an EvalState
-    SymbolStr operator[](Symbol ref) const;
+    Symbol operator[](SymbolRef ref) const;
 
-    std::vector<SymbolStr> resolve(const std::vector<Symbol> & symbols) const
+    std::vector<Symbol> resolve(const std::vector<SymbolRef> & symbols) const
     {
-        std::vector<SymbolStr> result;
+        std::vector<Symbol> result;
         result.reserve(symbols.size());
         for (auto sym : symbols)
             result.push_back((*this)[sym]);

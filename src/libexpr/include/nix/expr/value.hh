@@ -90,8 +90,8 @@ struct Expr;
 struct ExprLambda;
 struct ExprBlackHole;
 struct PrimOp;
-typedef ValueRef Symbol;
-class SymbolStr;
+typedef ValueRef SymbolRef;
+class Symbol;
 class PosIdx;
 struct Pos;
 class StorePath;
@@ -588,7 +588,7 @@ public:
     /**
      * Never modify the backing `Value` object!
      */
-    static Value * toPtr(EvalState & es, SymbolStr str) noexcept;
+    static Value * toPtr(EvalState & es, Symbol str) noexcept;
 
     void print(EvalState & state, std::ostream & str, PrintOptions options = PrintOptions{});
 
@@ -890,13 +890,13 @@ void Value::mkBlackhole()
 
 typedef std::vector<Value *, traceable_allocator<Value *>> ValueVector;
 typedef std::unordered_map<
-    Symbol,
+    SymbolRef,
     Value *,
-    std::hash<Symbol>,
-    std::equal_to<Symbol>,
-    traceable_allocator<std::pair<const Symbol, Value *>>>
+    std::hash<SymbolRef>,
+    std::equal_to<SymbolRef>,
+    traceable_allocator<std::pair<const SymbolRef, Value *>>>
     ValueMap;
-typedef std::map<Symbol, ValueVector, std::less<Symbol>, traceable_allocator<std::pair<const Symbol, ValueVector>>>
+typedef std::map<SymbolRef, ValueVector, std::less<SymbolRef>, traceable_allocator<std::pair<const SymbolRef, ValueVector>>>
     ValueVectorMap;
 
 /**
