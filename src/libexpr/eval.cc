@@ -638,7 +638,7 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
     v->mkPrimOp(new PrimOp(primOp));
 
     if (primOp.internal)
-        internalPrimOps.emplace(primOp.name, v);
+        internalPrimOps.emplace(primOp.name, VPtoVR(v));
     else {
         staticBaseEnv->vars.emplace_back(envName, baseEnvDispl);
         baseEnv.values[baseEnvDispl++] = VPtoVR(v);

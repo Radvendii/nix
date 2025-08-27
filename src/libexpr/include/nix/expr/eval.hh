@@ -695,10 +695,10 @@ public:
      */
     std::unordered_map<
         std::string,
-        Value *,
+        ValueRef,
         std::hash<std::string>,
         std::equal_to<std::string>,
-        traceable_allocator<std::pair<const std::string, Value *>>>
+        traceable_allocator<std::pair<const std::string, ValueRef>>>
         internalPrimOps;
 
     /**
