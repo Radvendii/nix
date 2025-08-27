@@ -167,11 +167,11 @@ typedef std::unordered_map<PosIdx, DocComment> DocCommentMap;
 struct Env
 {
     Env * up;
-    Value * values[0];
+    ValueRef values[0];
 };
 
-void printEnvBindings(const EvalState & es, const Expr & expr, const Env & env);
-void printEnvBindings(const SymbolTable & st, const StaticEnv & se, const Env & env, int lvl = 0);
+void printEnvBindings(EvalState & es, const Expr & expr, const Env & env);
+void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, const Env & env, int lvl = 0);
 
 std::unique_ptr<ValMap> mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const Env & env);
 

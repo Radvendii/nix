@@ -267,7 +267,7 @@ static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path,
     unsigned int displ = 0;
     for (auto & attr : *vScope->attrs()) {
         staticEnv->vars.emplace_back(attr.name, displ);
-        env->values[displ++] = state.VRtoVP(attr.value);
+        env->values[displ++] = attr.value;
     }
 
     // No need to call staticEnv.sort(), because

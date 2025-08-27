@@ -70,7 +70,7 @@ Env & EvalState::allocEnv(size_t size)
     if (size == 1) {
         /* see allocValue for explanations. */
         if (!*env1AllocCache) {
-            *env1AllocCache = GC_malloc_many(sizeof(Env) + sizeof(Value *));
+            *env1AllocCache = GC_malloc_many(sizeof(Env) + sizeof(ValueRef));
             if (!*env1AllocCache)
                 throw std::bad_alloc();
         }
@@ -81,7 +81,7 @@ Env & EvalState::allocEnv(size_t size)
         env = (Env *) p;
     } else
 #endif
-        env = (Env *) allocBytes(sizeof(Env) + size * sizeof(Value *));
+        env = (Env *) allocBytes(sizeof(Env) + size * sizeof(ValueRef));
 
     /* We assume that env->values has been cleared by the allocator; maybeThunk() and lookupVar fromWith expect this. */
 

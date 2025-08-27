@@ -572,7 +572,7 @@ void EvalState::addConstant(const std::string & name, Value * v, Constant info)
 
         /* Install value the base environment. */
         staticBaseEnv->vars.emplace_back(symbols.create(name), baseEnvDispl);
-        baseEnv.values[baseEnvDispl++] = v;
+        baseEnv.values[baseEnvDispl++] = VPtoVR(v);
         const_cast<Bindings *>(getBuiltins().attrs())->push_back(Attr(symbols.create(name2), VPtoVR(v)));
     }
 }
@@ -641,7 +641,7 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
         internalPrimOps.emplace(primOp.name, v);
     else {
         staticBaseEnv->vars.emplace_back(envName, baseEnvDispl);
-        baseEnv.values[baseEnvDispl++] = v;
+        baseEnv.values[baseEnvDispl++] = VPtoVR(v);
         const_cast<Bindings *>(getBuiltins().attrs())->push_back(Attr(symbols.create(primOp.name), VPtoVR(v)));
     }
 
@@ -650,7 +650,7 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
 
 Value & EvalState::getBuiltins()
 {
-    return *baseEnv.values[0];
+    return *VRtoVP(baseEnv.values[0]);
 }
 
 Value & EvalState::getBuiltin(const std::string & name)
@@ -749,13 +749,13 @@ void printStaticEnvBindings(const SymbolTable & st, const StaticEnv & se)
 }
 
 // just for the current level of Env, not the whole chain.
-void printWithBindings(const SymbolTable & st, const Env & env)
+void printWithBindings(EvalState & state, const SymbolTable & st, const Env & env)
 {
-    if (!env.values[0]->isThunk()) {
+    if (!state.VRtoVP(env.values[0])->isThunk()) {
         std::cout << "with: ";
         std::cout << ANSI_MAGENTA;
-        auto j = env.values[0]->attrs()->begin();
-        while (j != env.values[0]->attrs()->end()) {
+        auto j = state.VRtoVP(env.values[0])->attrs()->begin();
+        while (j != state.VRtoVP(env.values[0])->attrs()->end()) {
             std::cout << st[j->name] << " ";
             ++j;
         }
@@ -764,7 +764,7 @@ void printWithBindings(const SymbolTable & st, const Env & env)
     }
 }
 
-void printEnvBindings(const SymbolTable & st, const StaticEnv & se, const Env & env, int lvl)
+void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, const Env & env, int lvl)
 {
     std::cout << "Env level " << lvl << std::endl;
 
@@ -772,9 +772,9 @@ void printEnvBindings(const SymbolTable & st, const StaticEnv & se, const Env & 
         std::cout << "static: ";
         printStaticEnvBindings(st, se);
         if (se.isWith)
-            printWithBindings(st, env);
+            printWithBindings(es, st, env);
         std::cout << std::endl;
-        printEnvBindings(st, *se.up, *env.up, ++lvl);
+        printEnvBindings(es, st, *se.up, *env.up, ++lvl);
     } else {
         std::cout << ANSI_MAGENTA;
         // for the top level, don't print the double underscore ones;
@@ -785,35 +785,35 @@ void printEnvBindings(const SymbolTable & st, const StaticEnv & se, const Env & 
         std::cout << ANSI_NORMAL;
         std::cout << std::endl;
         if (se.isWith)
-            printWithBindings(st, env); // probably nothing there for the top level.
+            printWithBindings(es, st, env); // probably nothing there for the top level.
         std::cout << std::endl;
     }
 }
 
-void printEnvBindings(const EvalState & es, const Expr & expr, const Env & env)
+void printEnvBindings(EvalState & es, const Expr & expr, const Env & env)
 {
     // just print the names for now
     auto se = es.getStaticEnv(expr);
     if (se)
-        printEnvBindings(es.symbols, *se, env, 0);
+        printEnvBindings(es, es.symbols, *se, env, 0);
 }
 
-void mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const Env & env, ValMap & vm)
+void mapStaticEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, const Env & env, ValMap & vm)
 {
     // add bindings for the next level up first, so that the bindings for this level
     // override the higher levels.
     // The top level bindings (builtins) are skipped since they are added for us by initEnv()
     if (env.up && se.up) {
-        mapStaticEnvBindings(state, st, *se.up, *env.up, vm);
+        mapStaticEnvBindings(es, st, *se.up, *env.up, vm);
 
-        if (se.isWith && !env.values[0]->isThunk()) {
+        if (se.isWith && !es.VRtoVP(env.values[0])->isThunk()) {
             // add 'with' bindings.
-            for (auto & j : *env.values[0]->attrs())
+            for (auto & j : *es.VRtoVP(env.values[0])->attrs())
                 vm.insert_or_assign(std::string(st[j.name]), j.value);
         } else {
             // iterate through staticenv bindings and add them.
             for (auto & i : se.vars)
-                vm.insert_or_assign(std::string(st[i.first]), state.VPtoVR(env.values[i.second]));
+                vm.insert_or_assign(std::string(st[i.first]), env.values[i.second]);
         }
     }
 }
@@ -1096,7 +1096,7 @@ inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
         ;
 
     if (!var.fromWith)
-        return env->values[var.displ];
+        return VRtoVP(env->values[var.displ]);
 
     // This early exit defeats the `maybeThunk` optimization for variables from `with`,
     // The added complexity of handling this appears to be similarly in cost, or
@@ -1106,8 +1106,8 @@ inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
 
     auto * fromWith = var.fromWith;
     while (1) {
-        forceAttrs(*env->values[0], fromWith->pos, "while evaluating the first subexpression of a with expression");
-        if (auto j = env->values[0]->attrs()->get(var.name)) {
+        forceAttrs(*VRtoVP(env->values[0]), fromWith->pos, "while evaluating the first subexpression of a with expression");
+        if (auto j = VRtoVP(env->values[0])->attrs()->get(var.name)) {
             if (countCalls)
                 attrSelects[j->pos]++;
             return VRtoVP(j->value);
@@ -1401,7 +1401,7 @@ Env * ExprAttrs::buildInheritFromEnv(EvalState & state, Env & up)
 
     Displacement displ = 0;
     for (auto from : *inheritFromExprs)
-        inheritEnv.values[displ++] = from->maybeThunk(state, up);
+        inheritEnv.values[displ++] = state.VPtoVR(from->maybeThunk(state, up));
 
     return &inheritEnv;
 }
@@ -1434,7 +1434,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
                 mkThunk(*vAttr, *i.second.chooseByKind(&env2, &env, inheritEnv), i.second.e);
             } else
                 vAttr = i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv));
-            env2.values[displ++] = vAttr;
+            env2.values[displ++] = state.VPtoVR(vAttr);
             bindings.insert(i.first, vAttr, i.second.pos);
         }
 
@@ -1457,7 +1457,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
                 AttrDefs::iterator j = attrs.find(i.name);
                 if (j != attrs.end()) {
                     (*bindings.bindings)[j->second.displ] = i;
-                    env2.values[j->second.displ] = state.VRtoVP(i.value);
+                    env2.values[j->second.displ] = state.VPtoVR(state.VRtoVP(i.value));
                 } else
                     bindings.push_back(i);
             }
@@ -1517,7 +1517,7 @@ void ExprLet::eval(EvalState & state, Env & env, Value & v)
        environment. */
     Displacement displ = 0;
     for (auto & i : attrs->attrs) {
-        env2.values[displ++] = i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv));
+        env2.values[displ++] = state.VPtoVR(i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv)));
     }
 
     auto dts = state.debugRepl
@@ -1719,7 +1719,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
             Displacement displ = 0;
 
             if (!lambda.hasFormals())
-                env2.values[displ++] = args[0];
+                env2.values[displ++] = VPtoVR(args[0]);
             else {
                 try {
                     forceAttrs(*args[0], lambda.pos, "while evaluating the value passed for the lambda argument");
@@ -1730,7 +1730,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
                 }
 
                 if (lambda.arg)
-                    env2.values[displ++] = args[0];
+                    env2.values[displ++] = VPtoVR(args[0]);
 
                 /* For each formal argument, get the actual argument.  If
                    there is no matching actual argument but the formal
@@ -1749,10 +1749,10 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
                                 .withFrame(*vCur.lambda().env, lambda)
                                 .debugThrow();
                         }
-                        env2.values[displ++] = i.def->maybeThunk(*this, env2);
+                        env2.values[displ++] = VPtoVR(i.def->maybeThunk(*this, env2));
                     } else {
                         attrsUsed++;
-                        env2.values[displ++] = VRtoVP(j->value);
+                        env2.values[displ++] = j->value;
                     }
                 }
 
@@ -2004,7 +2004,7 @@ void ExprWith::eval(EvalState & state, Env & env, Value & v)
 {
     Env & env2(state.allocEnv(1));
     env2.up = &env;
-    env2.values[0] = attrs->maybeThunk(state, env);
+    env2.values[0] = state.VPtoVR(attrs->maybeThunk(state, env));
 
     body->eval(state, env2, v);
 }

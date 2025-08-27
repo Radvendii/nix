@@ -825,7 +825,7 @@ void NixRepl::addAttrsToScope(Value & attrs)
 
     for (auto & i : *attrs.attrs()) {
         staticEnv->vars.emplace_back(i.name, displ);
-        env->values[displ++] = state->VRtoVP(i.value);
+        env->values[displ++] = i.value;
         varNames.emplace(state->symbols[i.name]);
     }
     staticEnv->sort();
@@ -862,7 +862,7 @@ void NixRepl::addVarToScope(const SymbolRef name, Value & v)
         staticEnv->vars.erase(oldVar);
     staticEnv->vars.emplace_back(name, displ);
     staticEnv->sort();
-    env->values[displ++] = &v;
+    env->values[displ++] = state->VPtoVR(&v);
     varNames.emplace(state->symbols[name]);
 }
 
