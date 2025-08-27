@@ -159,7 +159,7 @@ struct Constant
 };
 
 typedef std::
-    map<std::string, Value *, std::less<std::string>, traceable_allocator<std::pair<const std::string, Value *>>>
+    map<std::string, ValueRef, std::less<std::string>, traceable_allocator<std::pair<const std::string, ValueRef>>>
         ValMap;
 
 typedef std::unordered_map<PosIdx, DocComment> DocCommentMap;

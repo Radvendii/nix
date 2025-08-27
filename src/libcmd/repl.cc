@@ -348,7 +348,7 @@ void NixRepl::loadDebugTraceEnv(DebugTrace & dt)
 
         // add staticenv vars.
         for (auto & [name, value] : *(vm.get()))
-            addVarToScope(state->symbols.create(name), *value);
+            addVarToScope(state->symbols.create(name), *state->VRtoVP(value));
     }
 }
 
@@ -926,7 +926,7 @@ ReplExitStatus AbstractNixRepl::runSimple(ref<EvalState> evalState, const ValMap
 
     // add 'extra' vars.
     for (auto & [name, value] : extraEnv)
-        repl->addVarToScope(repl->state->symbols.create(name), *value);
+        repl->addVarToScope(repl->state->symbols.create(name), *evalState->VRtoVP(value));
 
     return repl->mainLoop();
 }

@@ -809,11 +809,11 @@ void mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const Stati
         if (se.isWith && !env.values[0]->isThunk()) {
             // add 'with' bindings.
             for (auto & j : *env.values[0]->attrs())
-                vm.insert_or_assign(std::string(st[j.name]), state.VRtoVP(j.value));
+                vm.insert_or_assign(std::string(st[j.name]), j.value);
         } else {
             // iterate through staticenv bindings and add them.
             for (auto & i : se.vars)
-                vm.insert_or_assign(std::string(st[i.first]), env.values[i.second]);
+                vm.insert_or_assign(std::string(st[i.first]), state.VPtoVR(env.values[i.second]));
         }
     }
 }
