@@ -54,14 +54,14 @@ json printValueAsJSON(
             break;
         }
         if (auto i = v.attrs()->get(state.sOutPath))
-            return printValueAsJSON(state, strict, *i->value, i->pos, context, copyToStore);
+            return printValueAsJSON(state, strict, *state.VRtoVP(i->value), i->pos, context, copyToStore);
         else {
             out = json::object();
             for (auto & a : v.attrs()->lexicographicOrder(state.symbols)) {
                 try {
                     out.emplace(
                         state.symbols[a->name],
-                        printValueAsJSON(state, strict, *a->value, a->pos, context, copyToStore));
+                        printValueAsJSON(state, strict, *state.VRtoVP(a->value), a->pos, context, copyToStore));
                 } catch (Error & e) {
                     e.addTrace(
                         state.positions[a->pos], HintFmt("while evaluating attribute '%1%'", state.symbols[a->name]));

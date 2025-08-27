@@ -38,7 +38,7 @@ void printAmbiguous(
             str << "{ ";
             for (auto & i : v.attrs()->lexicographicOrder(symbols)) {
                 str << symbols[i->name] << " = ";
-                printAmbiguous(state, *i->value, symbols, str, seen, depth - 1);
+                printAmbiguous(state, *state.VRtoVP(i->value), symbols, str, seen, depth - 1);
                 str << "; ";
             }
             str << "}";

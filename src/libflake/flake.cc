@@ -65,15 +65,15 @@ static void parseFlakeInputAttr(EvalState & state, const Attr & attr, fetchers::
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch-enum"
-    switch (attr.value->type()) {
+    switch (state.VRtoVP(attr.value)->type()) {
     case nString:
-        attrs.emplace(state.symbols[attr.name], attr.value->c_str());
+        attrs.emplace(state.symbols[attr.name], state.VRtoVP(attr.value)->c_str());
         break;
     case nBool:
-        attrs.emplace(state.symbols[attr.name], Explicit<bool>{attr.value->boolean()});
+        attrs.emplace(state.symbols[attr.name], Explicit<bool>{state.VRtoVP(attr.value)->boolean()});
         break;
     case nInt: {
-        auto intValue = attr.value->integer().value;
+        auto intValue = state.VRtoVP(attr.value)->integer().value;
         if (intValue < 0)
             state
                 .error<EvalError>(
@@ -87,13 +87,13 @@ static void parseFlakeInputAttr(EvalState & state, const Attr & attr, fetchers::
             experimentalFeatureSettings.require(Xp::VerifiedFetches);
             NixStringContext emptyContext = {};
             attrs.emplace(
-                state.symbols[attr.name], printValueAsJSON(state, true, *attr.value, attr.pos, emptyContext).dump());
+                state.symbols[attr.name], printValueAsJSON(state, true, *state.VRtoVP(attr.value), attr.pos, emptyContext).dump());
         } else
             state
                 .error<TypeError>(
                     "flake input attribute '%s' is %s while a string, Boolean, or integer is expected",
                     state.symbols[attr.name],
-                    showType(state, *attr.value))
+                    showType(state, *state.VRtoVP(attr.value)))
                 .debugThrow();
     }
 #pragma GCC diagnostic pop
@@ -121,11 +121,11 @@ static FlakeInput parseFlakeInput(
     for (auto & attr : *value->attrs()) {
         try {
             if (attr.name == sUrl) {
-                forceTrivialValue(state, *attr.value, pos);
-                if (attr.value->type() == nString)
-                    url = attr.value->string_view();
-                else if (attr.value->type() == nPath) {
-                    auto path = attr.value->path();
+                forceTrivialValue(state, *state.VRtoVP(attr.value), pos);
+                if (state.VRtoVP(attr.value)->type() == nString)
+                    url = state.VRtoVP(attr.value)->string_view();
+                else if (state.VRtoVP(attr.value)->type() == nPath) {
+                    auto path = state.VRtoVP(attr.value)->path();
                     if (path.accessor != flakeDir.accessor)
                         throw Error(
                             "input attribute path '%s' at %s must be in the same source tree as %s",
@@ -136,18 +136,18 @@ static FlakeInput parseFlakeInput(
                 } else
                     throw Error(
                         "expected a string or a path but got %s at %s",
-                        showType(attr.value->type()),
+                        showType(state.VRtoVP(attr.value)->type()),
                         state.positions[attr.pos]);
                 attrs.emplace("url", *url);
             } else if (attr.name == sFlake) {
-                expectType(state, nBool, *attr.value, attr.pos);
-                input.isFlake = attr.value->boolean();
+                expectType(state, nBool, *state.VRtoVP(attr.value), attr.pos);
+                input.isFlake = state.VRtoVP(attr.value)->boolean();
             } else if (attr.name == sInputs) {
                 input.overrides =
-                    parseFlakeInputs(state, attr.value, attr.pos, lockRootAttrPath, flakeDir, false).first;
+                    parseFlakeInputs(state, state.VRtoVP(attr.value), attr.pos, lockRootAttrPath, flakeDir, false).first;
             } else if (attr.name == sFollows) {
-                expectType(state, nString, *attr.value, attr.pos);
-                auto follows(parseInputAttrPath(attr.value->c_str()));
+                expectType(state, nString, *state.VRtoVP(attr.value), attr.pos);
+                auto follows(parseInputAttrPath(state.VRtoVP(attr.value)->c_str()));
                 follows.insert(follows.begin(), lockRootAttrPath.begin(), lockRootAttrPath.end());
                 input.follows = follows;
             } else
@@ -198,12 +198,12 @@ static std::pair<std::map<FlakeId, FlakeInput>, fetchers::Attrs> parseFlakeInput
         if (inputName == "self") {
             if (!allowSelf)
                 throw Error("'self' input attribute not allowed at %s", state.positions[inputAttr.pos]);
-            expectType(state, nAttrs, *inputAttr.value, inputAttr.pos);
-            for (auto & attr : *inputAttr.value->attrs())
+            expectType(state, nAttrs, *state.VRtoVP(inputAttr.value), inputAttr.pos);
+            for (auto & attr : *state.VRtoVP(inputAttr.value)->attrs())
                 parseFlakeInputAttr(state, attr, selfAttrs);
         } else {
             inputs.emplace(
-                inputName, parseFlakeInput(state, inputAttr.value, inputAttr.pos, lockRootAttrPath, flakeDir));
+                inputName, parseFlakeInput(state, state.VRtoVP(inputAttr.value), inputAttr.pos, lockRootAttrPath, flakeDir));
         }
     }
 
@@ -233,15 +233,15 @@ static Flake readFlake(
     };
 
     if (auto description = vInfo.attrs()->get(state.sDescription)) {
-        expectType(state, nString, *description->value, description->pos);
-        flake.description = description->value->c_str();
+        expectType(state, nString, *state.VRtoVP(description->value), description->pos);
+        flake.description = state.VRtoVP(description->value)->c_str();
     }
 
     auto sInputs = state.symbols.create("inputs");
 
     if (auto inputs = vInfo.attrs()->get(sInputs)) {
         auto [flakeInputs, selfAttrs] =
-            parseFlakeInputs(state, inputs->value, inputs->pos, lockRootAttrPath, flakeDir, true);
+            parseFlakeInputs(state, state.VRtoVP(inputs->value), inputs->pos, lockRootAttrPath, flakeDir, true);
         flake.inputs = std::move(flakeInputs);
         flake.selfAttrs = std::move(selfAttrs);
     }
@@ -249,10 +249,10 @@ static Flake readFlake(
     auto sOutputs = state.symbols.create("outputs");
 
     if (auto outputs = vInfo.attrs()->get(sOutputs)) {
-        expectType(state, nFunction, *outputs->value, outputs->pos);
+        expectType(state, nFunction, *state.VRtoVP(outputs->value), outputs->pos);
 
-        if (outputs->value->isLambda() && outputs->value->lambda().fun->hasFormals()) {
-            for (auto & formal : outputs->value->lambda().fun->formals->formals) {
+        if (state.VRtoVP(outputs->value)->isLambda() && state.VRtoVP(outputs->value)->lambda().fun->hasFormals()) {
+            for (auto & formal : state.VRtoVP(outputs->value)->lambda().fun->formals->formals) {
                 if (formal.name != state.sSelf)
                     flake.inputs.emplace(
                         state.symbols[formal.name],
@@ -266,32 +266,32 @@ static Flake readFlake(
     auto sNixConfig = state.symbols.create("nixConfig");
 
     if (auto nixConfig = vInfo.attrs()->get(sNixConfig)) {
-        expectType(state, nAttrs, *nixConfig->value, nixConfig->pos);
+        expectType(state, nAttrs, *state.VRtoVP(nixConfig->value), nixConfig->pos);
 
-        for (auto & setting : *nixConfig->value->attrs()) {
-            forceTrivialValue(state, *setting.value, setting.pos);
-            if (setting.value->type() == nString)
+        for (auto & setting : *state.VRtoVP(nixConfig->value)->attrs()) {
+            forceTrivialValue(state, *state.VRtoVP(setting.value), setting.pos);
+            if (state.VRtoVP(setting.value)->type() == nString)
                 flake.config.settings.emplace(
-                    state.symbols[setting.name], std::string(state.forceStringNoCtx(*setting.value, setting.pos, "")));
-            else if (setting.value->type() == nPath) {
+                    state.symbols[setting.name], std::string(state.forceStringNoCtx(*state.VRtoVP(setting.value), setting.pos, "")));
+            else if (state.VRtoVP(setting.value)->type() == nPath) {
                 auto storePath =
-                    fetchToStore(state.fetchSettings, *state.store, setting.value->path(), FetchMode::Copy);
+                    fetchToStore(state.fetchSettings, *state.store, state.VRtoVP(setting.value)->path(), FetchMode::Copy);
                 flake.config.settings.emplace(state.symbols[setting.name], state.store->printStorePath(storePath));
-            } else if (setting.value->type() == nInt)
+            } else if (state.VRtoVP(setting.value)->type() == nInt)
                 flake.config.settings.emplace(
-                    state.symbols[setting.name], state.forceInt(*setting.value, setting.pos, "").value);
-            else if (setting.value->type() == nBool)
+                    state.symbols[setting.name], state.forceInt(*state.VRtoVP(setting.value), setting.pos, "").value);
+            else if (state.VRtoVP(setting.value)->type() == nBool)
                 flake.config.settings.emplace(
-                    state.symbols[setting.name], Explicit<bool>{state.forceBool(*setting.value, setting.pos, "")});
-            else if (setting.value->type() == nList) {
+                    state.symbols[setting.name], Explicit<bool>{state.forceBool(*state.VRtoVP(setting.value), setting.pos, "")});
+            else if (state.VRtoVP(setting.value)->type() == nList) {
                 std::vector<std::string> ss;
-                for (auto elem : setting.value->listView(state)) {
+                for (auto elem : state.VRtoVP(setting.value)->listView(state)) {
                     if (elem->type() != nString)
                         state
                             .error<TypeError>(
                                 "list element in flake configuration setting '%s' is %s while a string is expected",
                                 state.symbols[setting.name],
-                                showType(state, *setting.value))
+                                showType(state, *state.VRtoVP(setting.value)))
                             .debugThrow();
                     ss.emplace_back(state.forceStringNoCtx(*elem, setting.pos, ""));
                 }
@@ -299,7 +299,7 @@ static Flake readFlake(
             } else
                 state
                     .error<TypeError>(
-                        "flake configuration setting '%s' is %s", state.symbols[setting.name], showType(state, *setting.value))
+                        "flake configuration setting '%s' is %s", state.symbols[setting.name], showType(state, *state.VRtoVP(setting.value)))
                     .debugThrow();
         }
     }

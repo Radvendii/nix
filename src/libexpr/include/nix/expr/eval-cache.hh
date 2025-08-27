@@ -77,6 +77,7 @@ struct int_t
     NixInt x;
 };
 
+// XXX [speed]: does this need to be 8 bytes?
 typedef uint64_t AttrId;
 typedef std::pair<AttrId, SymbolRef> AttrKey;
 typedef std::pair<std::string, NixStringContext> string_t;

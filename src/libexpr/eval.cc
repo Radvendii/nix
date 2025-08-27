@@ -89,6 +89,7 @@ static const char * makeImmutableString(std::string_view s)
     return t;
 }
 
+// XXX [speed]: what is this doing?
 RootValue allocRootValue(Value * v)
 {
     return std::allocate_shared<Value *>(traceable_allocator<Value *>(), v);
@@ -574,7 +575,7 @@ void EvalState::addConstant(const std::string & name, Value * v, Constant info)
         /* Install value the base environment. */
         staticBaseEnv->vars.emplace_back(symbols.create(name), baseEnvDispl);
         baseEnv.values[baseEnvDispl++] = v;
-        const_cast<Bindings *>(getBuiltins().attrs())->push_back(Attr(symbols.create(name2), v));
+        const_cast<Bindings *>(getBuiltins().attrs())->push_back(Attr(symbols.create(name2), VPtoVR(v)));
     }
 }
 
@@ -643,7 +644,7 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
     else {
         staticBaseEnv->vars.emplace_back(envName, baseEnvDispl);
         baseEnv.values[baseEnvDispl++] = v;
-        const_cast<Bindings *>(getBuiltins().attrs())->push_back(Attr(symbols.create(primOp.name), v));
+        const_cast<Bindings *>(getBuiltins().attrs())->push_back(Attr(symbols.create(primOp.name), VPtoVR(v)));
     }
 
     return v;
@@ -658,7 +659,7 @@ Value & EvalState::getBuiltin(const std::string & name)
 {
     auto it = getBuiltins().attrs()->get(symbols.create(name));
     if (it)
-        return *it->value;
+        return *VRtoVP(it->value);
     else
         error<EvalError>("builtin '%1%' not found", name).debugThrow();
 }
@@ -720,7 +721,7 @@ std::optional<EvalState::Doc> EvalState::getDoc(Value & v)
     }
     if (isFunctor(v)) {
         try {
-            Value & functor = *v.attrs()->find(sFunctor)->value;
+            Value & functor = *VRtoVP(v.attrs()->find(sFunctor)->value);
             Value * vp[] = {&v};
             Value partiallyApplied;
             // The first parameter is not user-provided, and may be
@@ -799,18 +800,18 @@ void printEnvBindings(const EvalState & es, const Expr & expr, const Env & env)
         printEnvBindings(es.symbols, *se, env, 0);
 }
 
-void mapStaticEnvBindings(const SymbolTable & st, const StaticEnv & se, const Env & env, ValMap & vm)
+void mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const Env & env, ValMap & vm)
 {
     // add bindings for the next level up first, so that the bindings for this level
     // override the higher levels.
     // The top level bindings (builtins) are skipped since they are added for us by initEnv()
     if (env.up && se.up) {
-        mapStaticEnvBindings(st, *se.up, *env.up, vm);
+        mapStaticEnvBindings(state, st, *se.up, *env.up, vm);
 
         if (se.isWith && !env.values[0]->isThunk()) {
             // add 'with' bindings.
             for (auto & j : *env.values[0]->attrs())
-                vm.insert_or_assign(std::string(st[j.name]), j.value);
+                vm.insert_or_assign(std::string(st[j.name]), state.VRtoVP(j.value));
         } else {
             // iterate through staticenv bindings and add them.
             for (auto & i : se.vars)
@@ -819,10 +820,10 @@ void mapStaticEnvBindings(const SymbolTable & st, const StaticEnv & se, const En
     }
 }
 
-std::unique_ptr<ValMap> mapStaticEnvBindings(const SymbolTable & st, const StaticEnv & se, const Env & env)
+std::unique_ptr<ValMap> mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const Env & env)
 {
     auto vm = std::make_unique<ValMap>();
-    mapStaticEnvBindings(st, se, env, *vm);
+    mapStaticEnvBindings(state, st, se, env, *vm);
     return vm;
 }
 
@@ -901,7 +902,7 @@ void EvalState::runDebugRepl(const Error * error, const Env & env, const Expr & 
 
     auto se = getStaticEnv(expr);
     if (se) {
-        auto vm = mapStaticEnvBindings(symbols, *se.get(), env);
+        auto vm = mapStaticEnvBindings(*this, symbols, *se.get(), env);
         DebuggerGuard _guard(inDebugger);
         auto exitStatus = (debugRepl) (ref<EvalState>(shared_from_this()), *vm);
         switch (exitStatus) {
@@ -1111,7 +1112,7 @@ inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
         if (auto j = env->values[0]->attrs()->get(var.name)) {
             if (countCalls)
                 attrSelects[j->pos]++;
-            return j->value;
+            return VRtoVP(j->value);
         }
         if (!fromWith->parentWith)
             error<UndefinedVarError>("undefined variable '%1%'", symbols[var.name])
@@ -1448,7 +1449,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
            been substituted into the bodies of the other attributes.
            Hence we need __overrides.) */
         if (hasOverrides) {
-            Value * vOverrides = (*bindings.bindings)[overrides->second.displ].value;
+            Value * vOverrides = state.VRtoVP((*bindings.bindings)[overrides->second.displ].value);
             state.forceAttrs(
                 *vOverrides,
                 [&]() { return vOverrides->determinePos(state, noPos); },
@@ -1458,7 +1459,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
                 AttrDefs::iterator j = attrs.find(i.name);
                 if (j != attrs.end()) {
                     (*bindings.bindings)[j->second.displ] = i;
-                    env2.values[j->second.displ] = i.value;
+                    env2.values[j->second.displ] = state.VRtoVP(i.value);
                 } else
                     bindings.push_back(i);
             }
@@ -1614,7 +1615,7 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
                         .debugThrow();
                 }
             }
-            vAttrs = j->value;
+            vAttrs = state.VRtoVP(j->value);
             pos2 = j->pos;
             if (state.countCalls)
                 state.attrSelects[pos2]++;
@@ -1664,7 +1665,7 @@ void ExprOpHasAttr::eval(EvalState & state, Env & env, Value & v)
         const Attr * j;
         auto name = getName(i, state, env);
         if (vAttrs->type() == nAttrs && (j = vAttrs->attrs()->get(name))) {
-            vAttrs = j->value;
+            vAttrs = state.VRtoVP(j->value);
         } else {
             v.mkBool(false);
             return;
@@ -1753,7 +1754,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
                         env2.values[displ++] = i.def->maybeThunk(*this, env2);
                     } else {
                         attrsUsed++;
-                        env2.values[displ++] = j->value;
+                        env2.values[displ++] = VRtoVP(j->value);
                     }
                 }
 
@@ -1900,7 +1901,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
             Value * args2[] = {allocValue(), args[0]};
             *args2[0] = vCur;
             try {
-                callFunction(*functor->value, args2, vCur, functor->pos);
+                callFunction(*VRtoVP(functor->value), args2, vCur, functor->pos);
             } catch (Error & e) {
                 e.addTrace(positions[pos], "while calling a functor (an attribute set with a '__functor' attribute)");
                 throw;
@@ -1958,7 +1959,7 @@ void EvalState::autoCallFunction(const Bindings & args, Value & fun, Value & res
         auto found = fun.attrs()->find(sFunctor);
         if (found != fun.attrs()->end()) {
             Value * v = allocValue();
-            callFunction(*found->value, fun, *v, pos);
+            callFunction(*VRtoVP(found->value), fun, *v, pos);
             forceValue(*v, pos);
             return autoCallFunction(args, *v, res);
         }
@@ -2327,16 +2328,16 @@ void EvalState::forceValueDeep(Value & v)
             for (auto & i : *v.attrs())
                 try {
                     // If the value is a thunk, we're evaling. Otherwise no trace necessary.
-                    auto dts = debugRepl && i.value->isThunk() ? makeDebugTraceStacker(
+                    auto dts = debugRepl && VRtoVP(i.value)->isThunk() ? makeDebugTraceStacker(
                                                                      *this,
-                                                                     *i.value->thunk().expr,
-                                                                     *i.value->thunk().env,
+                                                                     *VRtoVP(i.value)->thunk().expr,
+                                                                     *VRtoVP(i.value)->thunk().env,
                                                                      i.pos,
                                                                      "while evaluating the attribute '%1%'",
                                                                      symbols[i.name])
                                                                : nullptr;
 
-                    recurse(*i.value);
+                    recurse(*VRtoVP(i.value));
                 } catch (Error & e) {
                     addErrorTrace(e, i.pos, "while evaluating the attribute '%1%'", symbols[i.name]);
                     throw;
@@ -2489,10 +2490,10 @@ bool EvalState::isDerivation(Value & v)
     auto i = v.attrs()->get(sType);
     if (!i)
         return false;
-    forceValue(*i->value, i->pos);
-    if (i->value->type() != nString)
+    forceValue(*VRtoVP(i->value), i->pos);
+    if (VRtoVP(i->value)->type() != nString)
         return false;
-    return i->value->string_view().compare("derivation") == 0;
+    return VRtoVP(i->value)->string_view().compare("derivation") == 0;
 }
 
 std::optional<std::string>
@@ -2501,7 +2502,7 @@ EvalState::tryAttrsToString(const PosIdx pos, Value & v, NixStringContext & cont
     auto i = v.attrs()->find(sToString);
     if (i != v.attrs()->end()) {
         Value v1;
-        callFunction(*i->value, v, v1, pos);
+        callFunction(*VRtoVP(i->value), v, v1, pos);
         return coerceToString(
                    pos,
                    v1,
@@ -2551,7 +2552,7 @@ BackedStringView EvalState::coerceToString(
                 .withTrace(pos, errorCtx)
                 .debugThrow();
         }
-        return coerceToString(pos, *i->value, context, errorCtx, coerceMore, copyToStore, canonicalizePath);
+        return coerceToString(pos, *VRtoVP(i->value), context, errorCtx, coerceMore, copyToStore, canonicalizePath);
     }
 
     if (v.type() == nExternal) {
@@ -2654,7 +2655,7 @@ SourcePath EvalState::coerceToPath(const PosIdx pos, Value & v, NixStringContext
         auto i = v.attrs()->find(sToString);
         if (i != v.attrs()->end()) {
             Value v1;
-            callFunction(*i->value, v, v1, pos);
+            callFunction(*VRtoVP(i->value), v, v1, pos);
             return coerceToPath(pos, v1, context, errorCtx);
         }
     }
@@ -2845,7 +2846,7 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
             auto j = v2.attrs()->get(sOutPath);
             if (i && j) {
                 try {
-                    assertEqValues(*i->value, *j->value, pos, errorCtx);
+                    assertEqValues(*VRtoVP(i->value), *VRtoVP(j->value), pos, errorCtx);
                     return;
                 } catch (Error & e) {
                     e.addTrace(positions[pos], "while comparing a derivation by its '%s' attribute", "outPath");
@@ -2891,7 +2892,7 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
                 assert(false);
             }
             try {
-                assertEqValues(*i->value, *j->value, pos, errorCtx);
+                assertEqValues(*VRtoVP(i->value), *VRtoVP(j->value), pos, errorCtx);
             } catch (Error & e) {
                 // The order of traces is reversed, so this presents as
                 //  where left hand side is
@@ -2998,7 +2999,7 @@ bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_v
             auto i = v1.attrs()->get(sOutPath);
             auto j = v2.attrs()->get(sOutPath);
             if (i && j)
-                return eqValues(*i->value, *j->value, pos, errorCtx);
+                return eqValues(*VRtoVP(i->value), *VRtoVP(j->value), pos, errorCtx);
         }
 
         if (v1.attrs()->size() != v2.attrs()->size())
@@ -3007,7 +3008,7 @@ bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_v
         /* Otherwise, compare the attributes one by one. */
         Bindings::const_iterator i, j;
         for (i = v1.attrs()->begin(), j = v2.attrs()->begin(); i != v1.attrs()->end(); ++i, ++j)
-            if (i->name != j->name || !eqValues(*i->value, *j->value, pos, errorCtx))
+            if (i->name != j->name || !eqValues(*VRtoVP(i->value), *VRtoVP(j->value), pos, errorCtx))
                 return false;
 
         return true;

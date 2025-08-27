@@ -275,7 +275,7 @@ private:
         if (auto i = v.attrs()->get(state.sDrvPath)) {
             NixStringContext context;
             storePath =
-                state.coerceToStorePath(i->pos, *i->value, context, "while evaluating the drvPath of a derivation");
+                state.coerceToStorePath(i->pos, *state.VRtoVP(i->value), context, "while evaluating the drvPath of a derivation");
         }
 
         /* This unfortunately breaks printing nested values because of
@@ -342,7 +342,7 @@ private:
 
             AttrVec sorted;
             for (auto & i : *v.attrs())
-                sorted.emplace_back(std::pair(state.symbols[i.name], i.value));
+                sorted.emplace_back(std::pair(state.symbols[i.name], state.VRtoVP(i.value)));
 
             if (options.maxAttrs == std::numeric_limits<size_t>::max())
                 std::sort(sorted.begin(), sorted.end());

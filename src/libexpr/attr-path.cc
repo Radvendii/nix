@@ -82,7 +82,7 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
                 throw AttrPathNotFound(
                     suggestions, "attribute '%1%' in selection path '%2%' not found", attr, attrPath);
             }
-            v = &*a->value;
+            v = state.VRtoVP(a->value);
             pos = a->pos;
         }
 

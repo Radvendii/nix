@@ -77,11 +77,11 @@ TEST_F(TrivialExpressionTest, updateAttrs)
     ASSERT_THAT(v, IsAttrsOfSize(2));
     auto a = v.attrs()->find(createSymbol("a"));
     ASSERT_NE(a, nullptr);
-    ASSERT_THAT(*a->value, IsIntEq(3));
+    ASSERT_THAT(*state.VRtoVP(a->value), IsIntEq(3));
 
     auto b = v.attrs()->find(createSymbol("b"));
     ASSERT_NE(b, nullptr);
-    ASSERT_THAT(*b->value, IsIntEq(2));
+    ASSERT_THAT(*state.VRtoVP(b->value), IsIntEq(2));
 }
 
 TEST_F(TrivialExpressionTest, hasAttrOpFalse)
@@ -179,18 +179,18 @@ TEST_P(AttrSetMergeTrvialExpressionTest, attrsetMergeLazy)
     auto a = v.attrs()->find(createSymbol("a"));
     ASSERT_NE(a, nullptr);
 
-    ASSERT_THAT(*a->value, IsThunk());
-    state.forceValue(*a->value, noPos);
+    ASSERT_THAT(*state.VRtoVP(a->value), IsThunk());
+    state.forceValue(*state.VRtoVP(a->value), noPos);
 
-    ASSERT_THAT(*a->value, IsAttrsOfSize(2));
+    ASSERT_THAT(*state.VRtoVP(a->value), IsAttrsOfSize(2));
 
-    auto b = a->value->attrs()->find(createSymbol("b"));
+    auto b = state.VRtoVP(a->value)->attrs()->find(createSymbol("b"));
     ASSERT_NE(b, nullptr);
-    ASSERT_THAT(*b->value, IsIntEq(1));
+    ASSERT_THAT(*state.VRtoVP(b->value), IsIntEq(1));
 
-    auto c = a->value->attrs()->find(createSymbol("c"));
+    auto c = state.VRtoVP(a->value)->attrs()->find(createSymbol("c"));
     ASSERT_NE(c, nullptr);
-    ASSERT_THAT(*c->value, IsIntEq(2));
+    ASSERT_THAT(*state.VRtoVP(c->value), IsIntEq(2));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -332,7 +332,7 @@ TEST_F(TrivialExpressionTest, bindOr)
     ASSERT_THAT(v, IsAttrsOfSize(1));
     auto b = v.attrs()->find(createSymbol("or"));
     ASSERT_NE(b, nullptr);
-    ASSERT_THAT(*b->value, IsIntEq(1));
+    ASSERT_THAT(*state.VRtoVP(b->value), IsIntEq(1));
 }
 
 TEST_F(TrivialExpressionTest, orCantBeUsed)

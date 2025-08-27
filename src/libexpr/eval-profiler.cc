@@ -186,7 +186,7 @@ FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value
                 state.forceAttrs(*args[0], pos, "");
                 auto attrs = args[0]->attrs();
                 auto nameAttr = state.getAttr(state.sName, attrs, "");
-                auto drvName = std::string(state.forceStringNoCtx(*nameAttr->value, pos, ""));
+                auto drvName = std::string(state.forceStringNoCtx(*state.VRtoVP(nameAttr->value), pos, ""));
                 return DerivationStrictFrameInfo{.callPos = pos, .drvName = std::move(drvName)};
             } catch (...) {
                 /* Ignore all errors, since those will be diagnosed by the evaluator itself. */

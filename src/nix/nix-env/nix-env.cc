@@ -1256,11 +1256,11 @@ static void opQuery(Globals & globals, Strings opFlags, Strings opArgs)
                                 attrs2["type"] = "strings";
                                 XMLOpenElement m(xml, "meta", attrs2);
                                 for (auto & i : *v->attrs()) {
-                                    if (i.value->type() != nString)
+                                    if (globals.state->VRtoVP(i.value)->type() != nString)
                                         continue;
                                     XMLAttrs attrs3;
                                     attrs3["type"] = globals.state->symbols[i.name];
-                                    attrs3["value"] = i.value->c_str();
+                                    attrs3["value"] = globals.state->VRtoVP(i.value)->c_str();
                                     xml.writeEmptyElement("string", attrs3);
                                 }
                             }

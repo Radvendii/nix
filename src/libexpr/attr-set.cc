@@ -19,10 +19,15 @@ Bindings * EvalState::allocBindings(size_t capacity)
     return new (allocBytes(sizeof(Bindings) + sizeof(Attr) * capacity)) Bindings((Bindings::size_t) capacity);
 }
 
+void BindingsBuilder::insert(SymbolRef name, Value * value, PosIdx pos)
+{
+    insert(Attr(name, state.VPtoVR(value), pos));
+}
+
 Value & BindingsBuilder::alloc(SymbolRef name, PosIdx pos)
 {
     auto value = state.allocValue();
-    bindings->push_back(Attr(name, value, pos));
+    bindings->push_back(Attr(name, state.VPtoVR(value), pos));
     return *value;
 }
 

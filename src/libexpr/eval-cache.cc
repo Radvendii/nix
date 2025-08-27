@@ -23,7 +23,7 @@ void CachedEvalError::force()
     if (v.type() == nAttrs) {
         auto a = v.attrs()->get(this->attr);
 
-        state.forceValue(*a->value, a->pos);
+        state.forceValue(cursor->root->state.VRtoV(a->value), a->pos);
     }
 
     // Shouldn't happen.
@@ -346,7 +346,7 @@ Value & AttrCursor::getValue()
             auto attr = vParent.attrs()->get(parent->second);
             if (!attr)
                 throw Error("attribute '%s' is unexpectedly missing", getAttrPathStr());
-            _value = allocRootValue(attr->value);
+            _value = allocRootValue(root->state.VRtoVP(attr->value));
         } else
             _value = allocRootValue(root->getRootValue());
     }
@@ -487,7 +487,7 @@ std::shared_ptr<AttrCursor> AttrCursor::maybeGetAttr(SymbolRef name)
     }
 
     return make_ref<AttrCursor>(
-        root, std::make_pair(ref(shared_from_this()), name), attr->value, std::move(cachedValue2));
+        root, std::make_pair(ref(shared_from_this()), name), root->state.VRtoVP(attr->value), std::move(cachedValue2));
 }
 
 std::shared_ptr<AttrCursor> AttrCursor::maybeGetAttr(std::string_view name)

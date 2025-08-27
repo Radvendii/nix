@@ -99,7 +99,7 @@ TEST_F(PrimOpTest, tryEvalFailure)
     auto s = createSymbol("success");
     auto p = v.attrs()->get(s);
     ASSERT_NE(p, nullptr);
-    ASSERT_THAT(*p->value, IsFalse());
+    ASSERT_THAT(*state.VRtoVP(p->value), IsFalse());
 }
 
 TEST_F(PrimOpTest, tryEvalSuccess)
@@ -109,11 +109,11 @@ TEST_F(PrimOpTest, tryEvalSuccess)
     auto s = createSymbol("success");
     auto p = v.attrs()->get(s);
     ASSERT_NE(p, nullptr);
-    ASSERT_THAT(*p->value, IsTrue());
+    ASSERT_THAT(*state.VRtoVP(p->value), IsTrue());
     s = createSymbol("value");
     p = v.attrs()->get(s);
     ASSERT_NE(p, nullptr);
-    ASSERT_THAT(*p->value, IsIntEq(123));
+    ASSERT_THAT(*state.VRtoVP(p->value), IsIntEq(123));
 }
 
 TEST_F(PrimOpTest, getEnv)
@@ -197,19 +197,19 @@ TEST_F(PrimOpTest, unsafeGetAttrPos)
 
     auto file = v.attrs()->find(createSymbol("file"));
     ASSERT_NE(file, nullptr);
-    ASSERT_THAT(*file->value, IsString());
-    auto s = baseNameOf(file->value->string_view());
+    ASSERT_THAT(*state.VRtoVP(file->value), IsString());
+    auto s = baseNameOf(state.VRtoVP(file->value)->string_view());
     ASSERT_EQ(s, "foo.nix");
 
     auto line = v.attrs()->find(createSymbol("line"));
     ASSERT_NE(line, nullptr);
-    state.forceValue(*line->value, noPos);
-    ASSERT_THAT(*line->value, IsIntEq(4));
+    state.forceValue(*state.VRtoVP(line->value), noPos);
+    ASSERT_THAT(*state.VRtoVP(line->value), IsIntEq(4));
 
     auto column = v.attrs()->find(createSymbol("column"));
     ASSERT_NE(column, nullptr);
-    state.forceValue(*column->value, noPos);
-    ASSERT_THAT(*column->value, IsIntEq(3));
+    state.forceValue(*state.VRtoVP(column->value), noPos);
+    ASSERT_THAT(*state.VRtoVP(column->value), IsIntEq(3));
 }
 
 TEST_F(PrimOpTest, hasAttr)
@@ -268,7 +268,7 @@ TEST_F(PrimOpTest, listToAttrs)
     ASSERT_THAT(v, IsAttrsOfSize(1));
     auto key = v.attrs()->find(createSymbol("key"));
     ASSERT_NE(key, nullptr);
-    ASSERT_THAT(*key->value, IsIntEq(123));
+    ASSERT_THAT(*state.VRtoVP(key->value), IsIntEq(123));
 }
 
 TEST_F(PrimOpTest, intersectAttrs)
@@ -277,7 +277,7 @@ TEST_F(PrimOpTest, intersectAttrs)
     ASSERT_THAT(v, IsAttrsOfSize(1));
     auto b = v.attrs()->find(createSymbol("b"));
     ASSERT_NE(b, nullptr);
-    ASSERT_THAT(*b->value, IsIntEq(3));
+    ASSERT_THAT(*state.VRtoVP(b->value), IsIntEq(3));
 }
 
 TEST_F(PrimOpTest, catAttrs)
@@ -295,11 +295,11 @@ TEST_F(PrimOpTest, functionArgs)
 
     auto x = v.attrs()->find(createSymbol("x"));
     ASSERT_NE(x, nullptr);
-    ASSERT_THAT(*x->value, IsFalse());
+    ASSERT_THAT(*state.VRtoVP(x->value), IsFalse());
 
     auto y = v.attrs()->find(createSymbol("y"));
     ASSERT_NE(y, nullptr);
-    ASSERT_THAT(*y->value, IsTrue());
+    ASSERT_THAT(*state.VRtoVP(y->value), IsTrue());
 }
 
 TEST_F(PrimOpTest, mapAttrs)
@@ -309,15 +309,15 @@ TEST_F(PrimOpTest, mapAttrs)
 
     auto a = v.attrs()->find(createSymbol("a"));
     ASSERT_NE(a, nullptr);
-    ASSERT_THAT(*a->value, IsThunk());
-    state.forceValue(*a->value, noPos);
-    ASSERT_THAT(*a->value, IsIntEq(10));
+    ASSERT_THAT(*state.VRtoVP(a->value), IsThunk());
+    state.forceValue(*state.VRtoVP(a->value), noPos);
+    ASSERT_THAT(*state.VRtoVP(a->value), IsIntEq(10));
 
     auto b = v.attrs()->find(createSymbol("b"));
     ASSERT_NE(b, nullptr);
-    ASSERT_THAT(*b->value, IsThunk());
-    state.forceValue(*b->value, noPos);
-    ASSERT_THAT(*b->value, IsIntEq(20));
+    ASSERT_THAT(*state.VRtoVP(b->value), IsThunk());
+    state.forceValue(*state.VRtoVP(b->value), noPos);
+    ASSERT_THAT(*state.VRtoVP(b->value), IsIntEq(20));
 }
 
 TEST_F(PrimOpTest, isList)
@@ -491,18 +491,18 @@ TEST_F(PrimOpTest, partition)
 
     auto right = v.attrs()->get(createSymbol("right"));
     ASSERT_NE(right, nullptr);
-    ASSERT_THAT(*right->value, IsListOfSize(2));
-    ASSERT_THAT(*right->value->listView(state)[0], IsIntEq(23));
-    ASSERT_THAT(*right->value->listView(state)[1], IsIntEq(42));
+    ASSERT_THAT(*state.VRtoVP(right->value), IsListOfSize(2));
+    ASSERT_THAT(*state.VRtoVP(right->value)->listView(state)[0], IsIntEq(23));
+    ASSERT_THAT(*state.VRtoVP(right->value)->listView(state)[1], IsIntEq(42));
 
     auto wrong = v.attrs()->get(createSymbol("wrong"));
     ASSERT_NE(wrong, nullptr);
-    ASSERT_EQ(wrong->value->type(), nList);
-    ASSERT_EQ(wrong->value->listSize(), 3u);
-    ASSERT_THAT(*wrong->value, IsListOfSize(3));
-    ASSERT_THAT(*wrong->value->listView(state)[0], IsIntEq(1));
-    ASSERT_THAT(*wrong->value->listView(state)[1], IsIntEq(9));
-    ASSERT_THAT(*wrong->value->listView(state)[2], IsIntEq(3));
+    ASSERT_EQ(state.VRtoVP(wrong->value)->type(), nList);
+    ASSERT_EQ(state.VRtoVP(wrong->value)->listSize(), 3u);
+    ASSERT_THAT(*state.VRtoVP(wrong->value), IsListOfSize(3));
+    ASSERT_THAT(*state.VRtoVP(wrong->value)->listView(state)[0], IsIntEq(1));
+    ASSERT_THAT(*state.VRtoVP(wrong->value)->listView(state)[1], IsIntEq(9));
+    ASSERT_THAT(*state.VRtoVP(wrong->value)->listView(state)[2], IsIntEq(3));
 }
 
 TEST_F(PrimOpTest, concatMap)
@@ -841,11 +841,11 @@ TEST_P(ParseDrvNamePrimOpTest, parseDrvName)
 
     auto name = v.attrs()->find(createSymbol("name"));
     ASSERT_TRUE(name);
-    ASSERT_THAT(*name->value, IsStringEq(expectedName));
+    ASSERT_THAT(*state.VRtoVP(name->value), IsStringEq(expectedName));
 
     auto version = v.attrs()->find(createSymbol("version"));
     ASSERT_TRUE(version);
-    ASSERT_THAT(*version->value, IsStringEq(expectedVersion));
+    ASSERT_THAT(*state.VRtoVP(version->value), IsStringEq(expectedVersion));
 }
 
 INSTANTIATE_TEST_SUITE_P(

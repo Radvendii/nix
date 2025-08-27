@@ -11,6 +11,7 @@ namespace nix {
 class EvalState;
 struct Value;
 
+// XXX [speed]: look into turning arrays of Attrs into struct of arrays
 /**
  * Map one attribute name to its value.
  */
@@ -22,8 +23,8 @@ struct Attr
        way we keep Attr size at two words with no wasted space. */
     SymbolRef name;
     PosIdx pos;
-    Value * value = nullptr;
-    Attr(SymbolRef name, Value * value, PosIdx pos = noPos)
+    ValueRef value = ValueRefNull;
+    Attr(SymbolRef name, ValueRef value, PosIdx pos = noPos)
         : name(name)
         , pos(pos)
         , value(value) {};
@@ -36,7 +37,7 @@ struct Attr
 };
 
 static_assert(
-    sizeof(Attr) == 2 * sizeof(uint32_t) + sizeof(Value *),
+    sizeof(Attr) == 3 * sizeof(uint32_t),
     "performance of the evaluator is highly sensitive to the size of Attr. "
     "avoid introducing any padding into Attr if at all possible, and do not "
     "introduce new fields that need not be present for almost every instance.");
@@ -181,10 +182,7 @@ public:
     {
     }
 
-    void insert(SymbolRef name, Value * value, PosIdx pos = noPos)
-    {
-        insert(Attr(name, value, pos));
-    }
+    void insert(SymbolRef name, Value * value, PosIdx pos = noPos);
 
     void insert(const Attr & attr)
     {

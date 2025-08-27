@@ -263,7 +263,7 @@ static void showHelp(std::vector<std::string> subcommand, NixArgs & toplevel)
     if (!attr)
         throw UsageError("Nix has no subcommand '%s'", concatStringsSep("", subcommand));
 
-    auto markdown = state.forceString(*attr->value, noPos, "while evaluating the lowdown help text");
+    auto markdown = state.forceString(*state.VRtoVP(attr->value), noPos, "while evaluating the lowdown help text");
 
     RunPager pager;
     std::cout << renderMarkdownToTerminal(markdown) << "\n";
@@ -434,9 +434,9 @@ void mainWrapped(int argc, char ** argv)
         for (auto & builtinPtr : state.getBuiltins().attrs()->lexicographicOrder(state.symbols)) {
             auto & builtin = *builtinPtr;
             auto b = nlohmann::json::object();
-            if (!builtin.value->isPrimOp())
+            if (!state.VRtoVP(builtin.value)->isPrimOp())
                 continue;
-            auto primOp = builtin.value->primOp();
+            auto primOp = state.VRtoVP(builtin.value)->primOp();
             if (!primOp->doc)
                 continue;
             b["args"] = primOp->args;

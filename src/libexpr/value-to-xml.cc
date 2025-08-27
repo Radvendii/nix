@@ -50,7 +50,7 @@ static void showAttrs(
             posToXML(state, xmlAttrs, state.positions[a->pos]);
 
         XMLOpenElement _(doc, "attr", xmlAttrs);
-        printValueAsXML(state, strict, location, *a->value, doc, context, drvsSeen, a->pos);
+        printValueAsXML(state, strict, location, *state.VRtoVP(a->value), doc, context, drvsSeen, a->pos);
     }
 }
 
@@ -100,16 +100,16 @@ static void printValueAsXML(
             Path drvPath;
             if (auto a = v.attrs()->get(state.sDrvPath)) {
                 if (strict)
-                    state.forceValue(*a->value, a->pos);
-                if (a->value->type() == nString)
-                    xmlAttrs["drvPath"] = drvPath = a->value->c_str();
+                    state.forceValue(*state.VRtoVP(a->value), a->pos);
+                if (state.VRtoVP(a->value)->type() == nString)
+                    xmlAttrs["drvPath"] = drvPath = state.VRtoVP(a->value)->c_str();
             }
 
             if (auto a = v.attrs()->get(state.sOutPath)) {
                 if (strict)
-                    state.forceValue(*a->value, a->pos);
-                if (a->value->type() == nString)
-                    xmlAttrs["outPath"] = a->value->c_str();
+                    state.forceValue(*state.VRtoVP(a->value), a->pos);
+                if (state.VRtoVP(a->value)->type() == nString)
+                    xmlAttrs["outPath"] = state.VRtoVP(a->value)->c_str();
             }
 
             XMLOpenElement _(doc, "derivation", xmlAttrs);

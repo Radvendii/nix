@@ -102,9 +102,9 @@ static void prim_flakeRefToString(EvalState & state, const PosIdx pos, Value ** 
     state.forceAttrs(*args[0], noPos, "while evaluating the argument passed to builtins.flakeRefToString");
     fetchers::Attrs attrs;
     for (const auto & attr : *args[0]->attrs()) {
-        auto t = attr.value->type();
+        auto t = state.VRtoVP(attr.value)->type();
         if (t == nInt) {
-            auto intValue = attr.value->integer().value;
+            auto intValue = state.VRtoVP(attr.value)->integer().value;
 
             if (intValue < 0) {
                 state
@@ -116,16 +116,16 @@ static void prim_flakeRefToString(EvalState & state, const PosIdx pos, Value ** 
 
             attrs.emplace(state.symbols[attr.name], uint64_t(intValue));
         } else if (t == nBool) {
-            attrs.emplace(state.symbols[attr.name], Explicit<bool>{attr.value->boolean()});
+            attrs.emplace(state.symbols[attr.name], Explicit<bool>{state.VRtoVP(attr.value)->boolean()});
         } else if (t == nString) {
-            attrs.emplace(state.symbols[attr.name], std::string(attr.value->string_view()));
+            attrs.emplace(state.symbols[attr.name], std::string(state.VRtoVP(attr.value)->string_view()));
         } else {
             state
                 .error<EvalError>(
                     "flake reference attribute sets may only contain integers, Booleans, "
                     "and strings, but attribute '%s' is %s",
                     state.symbols[attr.name],
-                    showType(state, *attr.value))
+                    showType(state, *state.VRtoVP(attr.value)))
                 .debugThrow();
         }
     }

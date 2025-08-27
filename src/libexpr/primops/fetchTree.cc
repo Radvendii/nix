@@ -99,7 +99,7 @@ static void fetchTree(
             if (type)
                 state.error<EvalError>("unexpected argument 'type'").atPos(pos).debugThrow();
             type = state.forceStringNoCtx(
-                *aType->value, aType->pos, fmt("while evaluating the `type` argument passed to '%s'", fetcher));
+                *state.VRtoVP(aType->value), aType->pos, fmt("while evaluating the `type` argument passed to '%s'", fetcher));
         } else if (!type)
             state.error<EvalError>("argument 'type' is missing in call to '%s'", fetcher).atPos(pos).debugThrow();
 
@@ -108,16 +108,16 @@ static void fetchTree(
         for (auto & attr : *args[0]->attrs()) {
             if (attr.name == state.sType)
                 continue;
-            state.forceValue(*attr.value, attr.pos);
-            if (attr.value->type() == nPath || attr.value->type() == nString) {
-                auto s = state.coerceToString(attr.pos, *attr.value, context, "", false, false).toOwned();
+            state.forceValue(*state.VRtoVP(attr.value), attr.pos);
+            if (state.VRtoVP(attr.value)->type() == nPath || state.VRtoVP(attr.value)->type() == nString) {
+                auto s = state.coerceToString(attr.pos, *state.VRtoVP(attr.value), context, "", false, false).toOwned();
                 attrs.emplace(
                     state.symbols[attr.name],
                     params.isFetchGit && state.symbols[attr.name] == "url" ? fixGitURL(s) : s);
-            } else if (attr.value->type() == nBool)
-                attrs.emplace(state.symbols[attr.name], Explicit<bool>{attr.value->boolean()});
-            else if (attr.value->type() == nInt) {
-                auto intValue = attr.value->integer().value;
+            } else if (state.VRtoVP(attr.value)->type() == nBool)
+                attrs.emplace(state.symbols[attr.name], Explicit<bool>{state.VRtoVP(attr.value)->boolean()});
+            else if (state.VRtoVP(attr.value)->type() == nInt) {
+                auto intValue = state.VRtoVP(attr.value)->integer().value;
 
                 if (intValue < 0)
                     state
@@ -133,14 +133,14 @@ static void fetchTree(
             } else if (state.symbols[attr.name] == "publicKeys") {
                 experimentalFeatureSettings.require(Xp::VerifiedFetches);
                 attrs.emplace(
-                    state.symbols[attr.name], printValueAsJSON(state, true, *attr.value, pos, context).dump());
+                    state.symbols[attr.name], printValueAsJSON(state, true, *state.VRtoVP(attr.value), pos, context).dump());
             } else
                 state
                     .error<TypeError>(
                         "argument '%s' to '%s' is %s while a string, Boolean or integer is expected",
                         state.symbols[attr.name],
                         fetcher,
-                        showType(state, *attr.value))
+                        showType(state, *state.VRtoVP(attr.value)))
                     .debugThrow();
         }
 
@@ -494,16 +494,16 @@ static void fetch(
         for (auto & attr : *args[0]->attrs()) {
             std::string_view n(state.symbols[attr.name]);
             if (n == "url")
-                url = state.forceStringNoCtx(*attr.value, attr.pos, "while evaluating the url we should fetch");
+                url = state.forceStringNoCtx(*state.VRtoVP(attr.value), attr.pos, "while evaluating the url we should fetch");
             else if (n == "sha256")
                 expectedHash = newHashAllowEmpty(
                     state.forceStringNoCtx(
-                        *attr.value, attr.pos, "while evaluating the sha256 of the content we should fetch"),
+                        *state.VRtoVP(attr.value), attr.pos, "while evaluating the sha256 of the content we should fetch"),
                     HashAlgorithm::SHA256);
             else if (n == "name") {
                 nameAttrPassed = true;
                 name = state.forceStringNoCtx(
-                    *attr.value, attr.pos, "while evaluating the name of the content we should fetch");
+                    *state.VRtoVP(attr.value), attr.pos, "while evaluating the name of the content we should fetch");
             } else
                 state.error<EvalError>("unsupported argument '%s' to '%s'", n, who).atPos(pos).debugThrow();
         }

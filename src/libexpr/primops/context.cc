@@ -272,19 +272,19 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, Value ** arg
         auto namePath = state.store->parseStorePath(name);
         if (!settings.readOnlyMode)
             state.store->ensurePath(namePath);
-        state.forceAttrs(*i.value, i.pos, "while evaluating the value of a string context");
+        state.forceAttrs(*state.VRtoVP(i.value), i.pos, "while evaluating the value of a string context");
 
-        if (auto attr = i.value->attrs()->get(sPath)) {
-            if (state.forceBool(*attr->value, attr->pos, "while evaluating the `path` attribute of a string context"))
+        if (auto attr = state.VRtoVP(i.value)->attrs()->get(sPath)) {
+            if (state.forceBool(*state.VRtoVP(attr->value), attr->pos, "while evaluating the `path` attribute of a string context"))
                 context.emplace(
                     NixStringContextElem::Opaque{
                         .path = namePath,
                     });
         }
 
-        if (auto attr = i.value->attrs()->get(sAllOutputs)) {
+        if (auto attr = state.VRtoVP(i.value)->attrs()->get(sAllOutputs)) {
             if (state.forceBool(
-                    *attr->value, attr->pos, "while evaluating the `allOutputs` attribute of a string context")) {
+                    *state.VRtoVP(attr->value), attr->pos, "while evaluating the `allOutputs` attribute of a string context")) {
                 if (!isDerivation(name)) {
                     state
                         .error<EvalError>(
@@ -299,16 +299,16 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, Value ** arg
             }
         }
 
-        if (auto attr = i.value->attrs()->get(state.sOutputs)) {
-            state.forceList(*attr->value, attr->pos, "while evaluating the `outputs` attribute of a string context");
-            if (attr->value->listSize() && !isDerivation(name)) {
+        if (auto attr = state.VRtoVP(i.value)->attrs()->get(state.sOutputs)) {
+            state.forceList(*state.VRtoVP(attr->value), attr->pos, "while evaluating the `outputs` attribute of a string context");
+            if (state.VRtoVP(attr->value)->listSize() && !isDerivation(name)) {
                 state
                     .error<EvalError>(
                         "tried to add derivation output context of %s, which is not a derivation, to a string", name)
                     .atPos(i.pos)
                     .debugThrow();
             }
-            for (auto elem : attr->value->listView(state)) {
+            for (auto elem : state.VRtoVP(attr->value)->listView(state)) {
                 auto outputName =
                     state.forceStringNoCtx(*elem, attr->pos, "while evaluating an output name within a string context");
                 context.emplace(

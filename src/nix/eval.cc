@@ -101,7 +101,7 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
                         try {
                             if (name == "." || name == "..")
                                 throw Error("invalid file name '%s'", name);
-                            recurse(*attr.value, attr.pos, path / name);
+                            recurse(*state->VRtoVP(attr.value), attr.pos, path / name);
                         } catch (Error & e) {
                             e.addTrace(
                                 state->positions[attr.pos], HintFmt("while evaluating the attribute '%s'", name));

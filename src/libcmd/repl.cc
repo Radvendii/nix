@@ -344,7 +344,7 @@ void NixRepl::loadDebugTraceEnv(DebugTrace & dt)
 
     auto se = state->getStaticEnv(dt.expr);
     if (se) {
-        auto vm = mapStaticEnvBindings(state->symbols, *se.get(), dt.env);
+        auto vm = mapStaticEnvBindings(*state, state->symbols, *se.get(), dt.env);
 
         // add staticenv vars.
         for (auto & [name, value] : *(vm.get()))
@@ -825,7 +825,7 @@ void NixRepl::addAttrsToScope(Value & attrs)
 
     for (auto & i : *attrs.attrs()) {
         staticEnv->vars.emplace_back(i.name, displ);
-        env->values[displ++] = i.value;
+        env->values[displ++] = state->VRtoVP(i.value);
         varNames.emplace(state->symbols[i.name]);
     }
     staticEnv->sort();
