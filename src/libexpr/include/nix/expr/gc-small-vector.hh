@@ -19,7 +19,8 @@ template<size_t nItems>
 using SmallValueVector = SmallVector<ValueRef, nItems>;
 
 /**
- * A vector of values that must not be referenced after the vector is destroyed.
+ * A vector of values that must not be ever be referenced. They are not in
+ * EvalState's values vector, so they cannot have a valid ValueRef.
  *
  * See also `SmallValueVector`.
  */

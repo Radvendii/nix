@@ -2204,7 +2204,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
         return result;
     };
 
-    // List of returned strings. References to these Values must NOT be persisted.
+    // List of returned strings. It is illegal to create a ValueRef to these Values.
     SmallTemporaryValueVector<conservativeStackReservation> values(es->size());
     Value * vTmpP = values.data();
 

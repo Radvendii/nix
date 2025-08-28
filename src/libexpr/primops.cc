@@ -4041,12 +4041,13 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, Value ** args, V
     state.forceList(*args[1], pos, "while evaluating the second argument passed to builtins.concatMap");
     auto nrLists = args[1]->listSize();
 
-    // List of returned lists before concatenation. References to these Values must NOT be persisted.
+    // List of returned lists before concatenation. It is illegal to create a ValueRef to these Values.
     SmallTemporaryValueVector<conservativeStackReservation> lists(nrLists);
     size_t len = 0;
 
     for (size_t n = 0; n < nrLists; ++n) {
         Value * vElem = args[1]->listView(state)[n];
+        // XXX [speed]: and this is why callFunction() must take a Value & not a ValueRef
         state.callFunction(*args[0], *vElem, lists[n], pos);
         state.forceList(
             lists[n],
