@@ -1933,7 +1933,8 @@ void ExprCall::eval(EvalState & state, Env & env, Value & v)
     // 4: about 60
     // 5: under 10
     // This excluded attrset lambdas (`{...}:`). Contributions of mixed lambdas appears insignificant at ~150 total.
-    SmallValueVector<4> vArgs(args.size());
+    // XXX [speed]: for now, this can remain an old SmallValueVector, with Value *s. But eventually we will make callFunction take ValueRefs and then we can switch it over
+    SmallVector<Value *, 4> vArgs(args.size());
     for (size_t i = 0; i < args.size(); ++i)
         vArgs[i] = args[i]->maybeThunk(state, env);
 

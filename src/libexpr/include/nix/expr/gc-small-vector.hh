@@ -16,7 +16,7 @@ using SmallVector = boost::container::small_vector<T, nItems, traceable_allocato
  * A vector of value pointers. See `SmallVector`.
  */
 template<size_t nItems>
-using SmallValueVector = SmallVector<Value *, nItems>;
+using SmallValueVector = SmallVector<ValueRef, nItems>;
 
 /**
  * A vector of values that must not be referenced after the vector is destroyed.

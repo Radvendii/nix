@@ -3264,12 +3264,12 @@ static void prim_catAttrs(EvalState & state, const PosIdx pos, Value ** args, Va
         state.forceAttrs(
             *v2, pos, "while evaluating an element in the list passed as second argument to builtins.catAttrs");
         if (auto i = v2->attrs()->get(attrName))
-            res[found++] = state.VRtoVP(i->value);
+            res[found++] = i->value;
     }
 
     auto list = state.buildList(found);
     for (size_t n = 0; n < found; ++n)
-        list[n] = res[n];
+        list[n] = state.VRtoVP(res[n]);
     v.mkList(state, list);
 }
 
@@ -3607,7 +3607,7 @@ static void prim_filter(EvalState & state, const PosIdx pos, Value ** args, Valu
         state.callFunction(*args[0], *args[1]->listView(state)[n], res, noPos);
         if (state.forceBool(
                 res, pos, "while evaluating the return value of the filtering function passed to builtins.filter"))
-            vs[k++] = args[1]->listView(state)[n];
+            vs[k++] = state.VPtoVR(args[1]->listView(state)[n]);
         else
             same = false;
     }
@@ -3617,7 +3617,7 @@ static void prim_filter(EvalState & state, const PosIdx pos, Value ** args, Valu
     else {
         auto list = state.buildList(k);
         for (const auto & [n, v] : enumerate(list))
-            v = vs[n];
+            v = state.VRtoVP(vs[n]);
         v.mkList(state, list);
     }
 }
