@@ -115,9 +115,9 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
             state->forceList(*state->VRtoVP(i->value), i->pos, "while evaluating the 'outputs' attribute of a derivation");
 
             /* For each output... */
-            for (auto elem : state->VRtoVP(i->value)->listView(*state)) {
+            for (auto elem : state->VRtoVP(i->value)->listView()) {
                 std::string output(
-                    state->forceStringNoCtx(*elem, i->pos, "while evaluating the name of an output of a derivation"));
+                    state->forceStringNoCtx(*state->VRtoVP(elem), i->pos, "while evaluating the name of an output of a derivation"));
 
                 if (withPaths) {
                     /* Evaluate the corresponding set. */
@@ -166,10 +166,10 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
         if (!outTI->isList())
             throw errMsg;
         Outputs result;
-        for (auto elem : outTI->listView(*state)) {
-            if (elem->type() != nString)
+        for (auto elem : outTI->listView()) {
+            if (state->VRtoVP(elem)->type() != nString)
                 throw errMsg;
-            auto out = outputs.find(elem->c_str());
+            auto out = outputs.find(state->VRtoVP(elem)->c_str());
             if (out == outputs.end())
                 throw errMsg;
             result.insert(*out);
@@ -216,8 +216,8 @@ bool PackageInfo::checkMeta(Value & v)
 {
     state->forceValue(v, v.determinePos(*state, noPos));
     if (v.type() == nList) {
-        for (auto elem : v.listView(*state))
-            if (!checkMeta(*elem))
+        for (auto elem : v.listView())
+            if (!checkMeta(*state->VRtoVP(elem)))
                 return false;
         return true;
     } else if (v.type() == nAttrs) {
@@ -427,11 +427,11 @@ static void getDerivations(
     }
 
     else if (v.type() == nList) {
-        auto listView = v.listView(state);
+        auto listView = v.listView();
         for (auto [n, elem] : enumerate(listView)) {
             std::string pathPrefix2 = addToPath(pathPrefix, fmt("%d", n));
-            if (getDerivation(state, *elem, pathPrefix2, drvs, done, ignoreAssertionFailures))
-                getDerivations(state, *elem, pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
+            if (getDerivation(state, *state.VRtoVP(elem), pathPrefix2, drvs, done, ignoreAssertionFailures))
+                getDerivations(state, *state.VRtoVP(elem), pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
         }
     }
 

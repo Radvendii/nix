@@ -58,7 +58,7 @@ class JSONSax : nlohmann::json_sax<json>
         {
             auto attrs2 = state.buildBindings(attrs.size());
             for (auto & i : attrs)
-                attrs2.insert(i.first, i.second);
+                attrs2.insert(i.first, state.VRtoVP(i.second));
             parent->value(state).mkAttrs(attrs2);
             return std::move(parent);
         }
@@ -71,7 +71,7 @@ class JSONSax : nlohmann::json_sax<json>
         void key(string_t & name, EvalState & state)
         {
             forceNoNullByte(name);
-            attrs.insert_or_assign(state.symbols.create(name), &value(state));
+            attrs.insert_or_assign(state.symbols.create(name), state.VPtoVR(&value(state)));
         }
     };
 
@@ -84,13 +84,13 @@ class JSONSax : nlohmann::json_sax<json>
             auto list = state.buildList(values.size());
             for (const auto & [n, v2] : enumerate(list))
                 v2 = values[n];
-            parent->value(state).mkList(state, list);
+            parent->value(state).mkList(list);
             return std::move(parent);
         }
 
         void add(EvalState &state) override
         {
-            values.push_back(state.VRtoVP(*v));
+            values.push_back(*v);
             v = nullptr;
         }
     public:

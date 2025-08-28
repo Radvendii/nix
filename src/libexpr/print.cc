@@ -380,7 +380,7 @@ private:
     /**
      * @note This may force items.
      */
-    bool shouldPrettyPrintList(std::span<Value * const> list)
+    bool shouldPrettyPrintList(std::span<ValueRef const> list)
     {
         if (!options.shouldPrettyPrint() || list.empty()) {
             return false;
@@ -391,7 +391,7 @@ private:
             return true;
         }
 
-        auto item = list[0];
+        auto item = state.VRtoVP(list[0]);
         if (!item) {
             return true;
         }
@@ -415,7 +415,7 @@ private:
         if (depth < options.maxDepth) {
             increaseIndent();
             output << "[";
-            auto listItems = v.listView(state);
+            auto listItems = v.listView();
             auto prettyPrint = shouldPrettyPrintList(listItems.span());
 
             size_t currentListItemsPrinted = 0;
@@ -429,7 +429,7 @@ private:
                 }
 
                 if (elem) {
-                    print(*elem, depth + 1);
+                    print(*state.VRtoVP(elem), depth + 1);
                 } else {
                     printNullptr();
                 }

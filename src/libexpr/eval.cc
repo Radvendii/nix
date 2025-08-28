@@ -139,7 +139,7 @@ Symbol::Symbol(const Key & key)
         memcpy(data->c_str, key.str.data(), size);
         data->c_str[size] = '\0';
         // XXX [speed]: there should either be a tSymbol Value type that fits in 8 bytes, or at least a contextless string type that does
-        vp->mkString(str, nullptr);
+        vp->mkString(data->c_str, nullptr);
     }
     this->data = data;
 }
@@ -411,7 +411,7 @@ EvalState::EvalState(
 
     static_assert(sizeof(Env) <= 16, "environment must be <= 16 bytes");
 
-    vEmptyList.mkList(*this, buildList(0));
+    vEmptyList.mkList(buildList(0));
     vNull.mkNull();
     vTrue.mkBool(true);
     vFalse.mkBool(false);
@@ -981,30 +981,6 @@ void Value::mkPath(const SourcePath & path)
 }
 
 // XXX [speed]: return these to their homes
-void Value::mkList(EvalState & es, const ListBuilder & builder) noexcept
-{
-    if (builder.size == 1) {
-        auto vr0 = es.VPtoVR(builder.inlineElems[0]);
-        setStorage(std::array<ValueRef, 2>{vr0, ValueRefNull});
-        nrListSmall++;
-    }
-    else if (builder.size == 2) {
-        auto vr0 = es.VPtoVR(builder.inlineElems[0]);
-        auto vr1 = es.VPtoVR(builder.inlineElems[1]);
-        setStorage(std::array<ValueRef, 2>{vr0, vr1});
-        nrListSmall++;
-    }
-    else {
-        // XXX [speed]: added allocation
-        ValueRef *vrs = (ValueRef *) allocBytes(builder.size * sizeof(ValueRef));
-        for (size_t i = 0; i < builder.size; i++) {
-            vrs[i] = es.VPtoVR(builder.elems[i]);
-        }
-        setStorage(List{.size = builder.size, .elems = vrs});
-        nrListN++;
-    }
-}
-
 // inline
 void Value::mkApp(EvalState & es, Value * l, Value * r) noexcept
 {
@@ -1024,29 +1000,7 @@ void Value::mkPrimOpApp(EvalState & es, Value * l, Value * r) noexcept
 }
 
 // XXX [speed]: this function should probably go back to how it was originally in stage 2
-Value * const * ListView::data() & noexcept
-{
-    // memoized for correctness, not just avoiding needless allocation
-    if (_data) return _data;
-    return _data = std::visit(
-        overloaded{
-            [this](const SmallList & list) {
-                // XXX [speed]: added allocation
-                Value ** vps = (Value **) allocBytes(2 * sizeof(Value *));
-                vps[0] = es.VRtoVP(list.data()[0]);
-                vps[1] = es.VRtoVP(list.data()[1]);
-                return vps;
-            },
-            [this](const List & list) {
-                // XXX [speed]: added allocation
-                Value ** vps = (Value **) allocBytes(list.size * sizeof(Value *));
-                for (size_t i = 0; i < list.size; i++) {
-                    vps[i] = es.VRtoVP(list.elems[i]);
-                }
-                return vps;
-            }},
-        raw);
-}
+// Value * const * ListView::data() & noexcept
 
 ExprInt::ExprInt(EvalState & state, NixInt n)
 {
@@ -1125,7 +1079,7 @@ inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
 
 ListBuilder::ListBuilder(EvalState & state, size_t size)
     : size(size)
-    , elems(size <= 2 ? inlineElems : (Value **) allocBytes(size * sizeof(Value *)))
+    , elems(size <= 2 ? inlineElems : (ValueRef *) allocBytes(size * sizeof(ValueRef)))
 {
     state.nrListElems += size;
 }
@@ -1531,8 +1485,8 @@ void ExprList::eval(EvalState & state, Env & env, Value & v)
 {
     auto list = state.buildList(elems.size());
     for (const auto & [n, v2] : enumerate(list))
-        v2 = elems[n]->maybeThunk(state, env);
-    v.mkList(state, list);
+        v2 = state.VPtoVR(elems[n]->maybeThunk(state, env));
+    v.mkList(list);
 }
 
 Value * ExprList::maybeThunk(EvalState & state, Env & env)
@@ -2132,6 +2086,7 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, Value & v)
 
 void ExprOpConcatLists::eval(EvalState & state, Env & env, Value & v)
 {
+    // XXX [speed]: come back to these Values
     Value v1;
     e1->eval(state, env, v1);
     Value v2;
@@ -2163,13 +2118,13 @@ void EvalState::concatLists(
     auto list = buildList(len);
     auto out = list.elems;
     for (size_t n = 0, pos = 0; n < nrLists; ++n) {
-        auto listView = lists[n]->listView(*this);
+        auto listView = lists[n]->listView();
         auto l = listView.size();
         if (l)
-            memcpy(out + pos, listView.data(), l * sizeof(Value *));
+            memcpy(out + pos, listView.data(), l * sizeof(ValueRef));
         pos += l;
     }
-    v.mkList(*this, list);
+    v.mkList(list);
 }
 
 void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
@@ -2344,8 +2299,8 @@ void EvalState::forceValueDeep(Value & v)
         }
 
         else if (v.isList()) {
-            for (auto v2 : v.listView(*this))
-                recurse(*v2);
+            for (auto v2 : v.listView())
+                recurse(*VRtoVP(v2));
         }
     };
 
@@ -2579,12 +2534,12 @@ BackedStringView EvalState::coerceToString(
 
         if (v.isList()) {
             std::string result;
-            auto listView = v.listView(*this);
+            auto listView = v.listView();
             for (auto [n, v2] : enumerate(listView)) {
                 try {
                     result += *coerceToString(
                         pos,
-                        *v2,
+                        *VRtoVP(v2),
                         context,
                         "while evaluating one element of the list",
                         coerceMore,
@@ -2596,7 +2551,7 @@ BackedStringView EvalState::coerceToString(
                 }
                 if (n < v.listSize() - 1
                     /* !!! not quite correct */
-                    && (!v2->isList() || v2->listSize() != 0))
+                    && (!VRtoVP(v2)->isList() || VRtoVP(v2)->listSize() != 0))
                     result += " ";
             }
             return result;
@@ -2831,7 +2786,7 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         }
         for (size_t n = 0; n < v1.listSize(); ++n) {
             try {
-                assertEqValues(*v1.listView(*this)[n], *v2.listView(*this)[n], pos, errorCtx);
+                assertEqValues(*VRtoVP(v1.listView()[n]), *VRtoVP(v2.listView()[n]), pos, errorCtx);
             } catch (Error & e) {
                 e.addTrace(positions[pos], "while comparing list element %d", n);
                 throw;
@@ -2987,7 +2942,7 @@ bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_v
         if (v1.listSize() != v2.listSize())
             return false;
         for (size_t n = 0; n < v1.listSize(); ++n)
-            if (!eqValues(*v1.listView(*this)[n], *v2.listView(*this)[n], pos, errorCtx))
+            if (!eqValues(*VRtoVP(v1.listView()[n]), *VRtoVP(v2.listView()[n]), pos, errorCtx))
                 return false;
         return true;
 
@@ -3071,6 +3026,7 @@ void EvalState::printStatistics()
     float cpuTime = buf.ru_utime.tv_sec + ((float) buf.ru_utime.tv_usec / 1000000);
 #endif
 
+    // XXX [speed]: Come back to these
     uint64_t bEnvs = nrEnvs * sizeof(Env) + nrValuesInEnvs * sizeof(Value *);
     uint64_t bLists = nrListElems * sizeof(Value *);
     uint64_t bValues = nrValues * sizeof(Value);

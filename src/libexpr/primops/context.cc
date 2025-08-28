@@ -217,8 +217,8 @@ static void prim_getContext(EvalState & state, const PosIdx pos, Value ** args, 
         if (!info.second.outputs.empty()) {
             auto list = state.buildList(info.second.outputs.size());
             for (const auto & [i, output] : enumerate(info.second.outputs))
-                (list[i] = state.allocValue())->mkString(output);
-            infoAttrs.alloc(state.sOutputs).mkList(state, list);
+                state.VRtoVP(list[i] = state.VPtoVR(state.allocValue()))->mkString(output);
+            infoAttrs.alloc(state.sOutputs).mkList(list);
         }
         attrs.alloc(state.store->printStorePath(info.first)).mkAttrs(infoAttrs);
     }
@@ -308,9 +308,9 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, Value ** arg
                     .atPos(i.pos)
                     .debugThrow();
             }
-            for (auto elem : state.VRtoVP(attr->value)->listView(state)) {
+            for (auto elem : state.VRtoVP(attr->value)->listView()) {
                 auto outputName =
-                    state.forceStringNoCtx(*elem, attr->pos, "while evaluating an output name within a string context");
+                    state.forceStringNoCtx(*state.VRtoVP(elem), attr->pos, "while evaluating an output name within a string context");
                 context.emplace(
                     NixStringContextElem::Built{
                         .drvPath = makeConstantStorePathRef(namePath),

@@ -166,9 +166,9 @@ std::ostream & operator<<(std::ostream & str, const ExternalValueBase & v);
 class ListBuilder
 {
     const size_t size;
-    Value * inlineElems[2] = {nullptr, nullptr};
+    ValueRef inlineElems[2] = {ValueRefNull, ValueRefNull};
 public:
-    Value ** elems;
+    ValueRef * elems;
     ListBuilder(EvalState & state, size_t size);
 
     // NOTE: Can be noexcept because we are just copying integral values and
@@ -180,12 +180,12 @@ public:
     {
     }
 
-    Value *& operator[](size_t n)
+    ValueRef & operator[](size_t n)
     {
         return elems[n];
     }
 
-    typedef Value ** iterator;
+    typedef ValueRef * iterator;
 
     iterator begin()
     {
@@ -388,31 +388,35 @@ protected:
  */
 class ListView
 {
-    using SpanType = std::span<Value * const>;
+    using SpanType = std::span<ValueRef const>;
     using SmallList = detail::ValueBase::SmallList;
     using List = detail::ValueBase::List;
 
     std::variant<SmallList, List> raw;
-    // XXX [speed]: added in stage 1. should probably be removed in stage 2
-    Value * const * _data;
-    EvalState & es;
 
 public:
-    ListView(EvalState & es, SmallList list)
+    ListView(SmallList list)
         : raw(list)
-        , _data(nullptr)
-        , es(es)
     {
     }
 
-    ListView(EvalState & es, List list)
+    ListView(List list)
         : raw(list)
-        , _data(nullptr)
-        , es(es)
     {
     }
 
-    Value * const * data() & /* XXX [speed] const */ noexcept;
+    ValueRef const * data() const & noexcept
+    {
+        return std::visit(
+            overloaded{
+                [](const SmallList & list) {
+                    return list.data();
+                },
+                [](const List & list) {
+                    return list.elems;
+                }},
+            raw);
+    }
 
     std::size_t size() const noexcept
     {
@@ -423,12 +427,12 @@ public:
             raw);
     }
 
-    Value * operator[](std::size_t i) /* XXX [speed] const */ noexcept
+    ValueRef operator[](std::size_t i) const noexcept
     {
         return data()[i];
     }
 
-    SpanType span() /* XXX [speed] const */ &
+    SpanType span() const &
     {
         return SpanType(data(), size());
     }
@@ -436,7 +440,7 @@ public:
     /* Ensure that no dangling views can be created accidentally, as that
        would lead to hard to diagnose bugs that only affect small lists. */
     SpanType span() && = delete;
-    Value * const * data() && noexcept = delete;
+    ValueRef const * data() && noexcept = delete;
 
     /**
      * Random-access iterator that only allows iterating over a constant range
@@ -448,7 +452,7 @@ public:
     class iterator
     {
     public:
-        using value_type = Value *;
+        using value_type = ValueRef;
         using pointer = const value_type *;
         using reference = const value_type &;
         using difference_type = std::ptrdiff_t;
@@ -545,12 +549,12 @@ public:
 
     using const_iterator = iterator;
 
-    iterator begin()  /* XXX [speed] const */ &
+    iterator begin()  const &
     {
         return data();
     }
 
-    iterator end() /* XXX [speed] const */ &
+    iterator end() const &
     {
         return data() + size();
     }
@@ -732,7 +736,21 @@ public:
 
     Value & mkAttrs(BindingsBuilder & bindings);
 
-    void mkList(EvalState & es, const ListBuilder & builder) noexcept;
+    void mkList(const ListBuilder & builder) noexcept
+    {
+        if (builder.size == 1) {
+            setStorage(std::array<ValueRef, 2>{builder.inlineElems[0], ValueRefNull});
+            nrListSmall++;
+        }
+        else if (builder.size == 2) {
+            setStorage(std::array<ValueRef, 2>{builder.inlineElems[0], builder.inlineElems[1]});
+            nrListSmall++;
+        }
+        else {
+            setStorage(List{.size = builder.size, .elems = builder.elems});
+            nrListN++;
+        }
+    }
 
     inline void mkThunk(Env * e, Expr * ex) noexcept
     {
@@ -776,9 +794,9 @@ public:
         return isa<tListSmall, tListN>();
     }
 
-    ListView listView(EvalState & es) const noexcept
+    ListView listView() const noexcept
     {
-        return isa<tListSmall>() ? ListView(es, getStorage<SmallList>()) : ListView(es, getStorage<List>());
+        return isa<tListSmall>() ? ListView(getStorage<SmallList>()) : ListView(getStorage<List>());
     }
 
     size_t listSize() const noexcept
@@ -888,14 +906,13 @@ void Value::mkBlackhole()
     mkThunk(nullptr, (Expr *) &eBlackHole);
 }
 
-// XXX [speed]: ValueVector, ValueMap, and ValueVectorMap are used when preparing to a BuildBindings or BuildList. As such, for now they keep Value *. When we change BuildBindings and BuildList to directly take ValueRefs, they will change as well
-typedef std::vector<Value *, traceable_allocator<Value *>> ValueVector;
+typedef std::vector<ValueRef, traceable_allocator<ValueRef>> ValueVector;
 typedef std::unordered_map<
     SymbolRef,
-    Value *,
+    ValueRef,
     std::hash<SymbolRef>,
     std::equal_to<SymbolRef>,
-    traceable_allocator<std::pair<const SymbolRef, Value *>>>
+    traceable_allocator<std::pair<const SymbolRef, ValueRef>>>
     ValueMap;
 typedef std::map<SymbolRef, ValueVector, std::less<SymbolRef>, traceable_allocator<std::pair<const SymbolRef, ValueVector>>>
     ValueVectorMap;

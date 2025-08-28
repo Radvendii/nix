@@ -285,15 +285,15 @@ static Flake readFlake(
                     state.symbols[setting.name], Explicit<bool>{state.forceBool(*state.VRtoVP(setting.value), setting.pos, "")});
             else if (state.VRtoVP(setting.value)->type() == nList) {
                 std::vector<std::string> ss;
-                for (auto elem : state.VRtoVP(setting.value)->listView(state)) {
-                    if (elem->type() != nString)
+                for (auto elem : state.VRtoVP(setting.value)->listView()) {
+                    if (state.VRtoVP(elem)->type() != nString)
                         state
                             .error<TypeError>(
                                 "list element in flake configuration setting '%s' is %s while a string is expected",
                                 state.symbols[setting.name],
                                 showType(state, *state.VRtoVP(setting.value)))
                             .debugThrow();
-                    ss.emplace_back(state.forceStringNoCtx(*elem, setting.pos, ""));
+                    ss.emplace_back(state.forceStringNoCtx(*state.VRtoVP(elem), setting.pos, ""));
                 }
                 flake.config.settings.emplace(state.symbols[setting.name], ss);
             } else

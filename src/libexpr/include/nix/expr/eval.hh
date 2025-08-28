@@ -244,6 +244,7 @@ public:
 
     Bindings emptyBindings;
 
+    // XXX [speed]: these Values need to be ValueRefs
     /**
      * Empty list constant.
      */

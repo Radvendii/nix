@@ -651,9 +651,9 @@ std::vector<std::string> AttrCursor::getListOfStrings()
 
     std::vector<std::string> res;
 
-    for (auto elem : v.listView(root->state))
+    for (auto elem : v.listView())
         res.push_back(
-            std::string(root->state.forceStringNoCtx(*elem, noPos, "while evaluating an attribute for caching")));
+            std::string(root->state.forceStringNoCtx(*root->state.VRtoVP(elem), noPos, "while evaluating an attribute for caching")));
 
     if (root->db)
         cachedValue = {root->db->setListOfStrings(getKey(), res), res};

@@ -75,9 +75,9 @@ json printValueAsJSON(
     case nList: {
         out = json::array();
         int i = 0;
-        for (auto elem : v.listView(state)) {
+        for (auto elem : v.listView()) {
             try {
-                out.push_back(printValueAsJSON(state, strict, *elem, pos, context, copyToStore));
+                out.push_back(printValueAsJSON(state, strict, *state.VRtoVP(elem), pos, context, copyToStore));
             } catch (Error & e) {
                 e.addTrace(state.positions[pos], HintFmt("while evaluating list element at index %1%", i));
                 throw;

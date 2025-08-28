@@ -170,8 +170,8 @@ TEST_F(PrimOpTest, attrValues)
 {
     auto v = eval("builtins.attrValues { x = \"foo\";  a = 1; }");
     ASSERT_THAT(v, IsListOfSize(2));
-    ASSERT_THAT(*v.listView(state)[0], IsIntEq(1));
-    ASSERT_THAT(*v.listView(state)[1], IsStringEq("foo"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[0]), IsIntEq(1));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1]), IsStringEq("foo"));
 }
 
 TEST_F(PrimOpTest, getAttr)
@@ -284,8 +284,8 @@ TEST_F(PrimOpTest, catAttrs)
 {
     auto v = eval("builtins.catAttrs \"a\" [{a = 1;} {b = 0;} {a = 2;}]");
     ASSERT_THAT(v, IsListOfSize(2));
-    ASSERT_THAT(*v.listView(state)[0], IsIntEq(1));
-    ASSERT_THAT(*v.listView(state)[1], IsIntEq(2));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[0]), IsIntEq(1));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1]), IsIntEq(2));
 }
 
 TEST_F(PrimOpTest, functionArgs)
@@ -364,9 +364,9 @@ TEST_F(PrimOpTest, tail)
 {
     auto v = eval("builtins.tail [ 3 2 1 0 ]");
     ASSERT_THAT(v, IsListOfSize(3));
-    auto listView = v.listView(state);
+    auto listView = v.listView();
     for (const auto [n, elem] : enumerate(listView))
-        ASSERT_THAT(*elem, IsIntEq(2 - static_cast<int>(n)));
+        ASSERT_THAT(*state.VRtoVP(elem), IsIntEq(2 - static_cast<int>(n)));
 }
 
 TEST_F(PrimOpTest, tailEmpty)
@@ -378,28 +378,28 @@ TEST_F(PrimOpTest, map)
 {
     auto v = eval("map (x: \"foo\" + x) [ \"bar\" \"bla\" \"abc\" ]");
     ASSERT_THAT(v, IsListOfSize(3));
-    auto elem = v.listView(state)[0];
-    ASSERT_THAT(*elem, IsThunk());
-    state.forceValue(*elem, noPos);
-    ASSERT_THAT(*elem, IsStringEq("foobar"));
+    auto elem = v.listView()[0];
+    ASSERT_THAT(*state.VRtoVP(elem), IsThunk());
+    state.forceValue(*state.VRtoVP(elem), noPos);
+    ASSERT_THAT(*state.VRtoVP(elem), IsStringEq("foobar"));
 
-    elem = v.listView(state)[1];
-    ASSERT_THAT(*elem, IsThunk());
-    state.forceValue(*elem, noPos);
-    ASSERT_THAT(*elem, IsStringEq("foobla"));
+    elem = v.listView()[1];
+    ASSERT_THAT(*state.VRtoVP(elem), IsThunk());
+    state.forceValue(*state.VRtoVP(elem), noPos);
+    ASSERT_THAT(*state.VRtoVP(elem), IsStringEq("foobla"));
 
-    elem = v.listView(state)[2];
-    ASSERT_THAT(*elem, IsThunk());
-    state.forceValue(*elem, noPos);
-    ASSERT_THAT(*elem, IsStringEq("fooabc"));
+    elem = v.listView()[2];
+    ASSERT_THAT(*state.VRtoVP(elem), IsThunk());
+    state.forceValue(*state.VRtoVP(elem), noPos);
+    ASSERT_THAT(*state.VRtoVP(elem), IsStringEq("fooabc"));
 }
 
 TEST_F(PrimOpTest, filter)
 {
     auto v = eval("builtins.filter (x: x == 2) [ 3 2 3 2 3 2 ]");
     ASSERT_THAT(v, IsListOfSize(3));
-    for (const auto elem : v.listView(state))
-        ASSERT_THAT(*elem, IsIntEq(2));
+    for (const auto elem : v.listView())
+        ASSERT_THAT(*state.VRtoVP(elem), IsIntEq(2));
 }
 
 TEST_F(PrimOpTest, elemTrue)
@@ -418,9 +418,9 @@ TEST_F(PrimOpTest, concatLists)
 {
     auto v = eval("builtins.concatLists [[1 2] [3 4]]");
     ASSERT_THAT(v, IsListOfSize(4));
-    auto listView = v.listView(state);
+    auto listView = v.listView();
     for (const auto [i, elem] : enumerate(listView))
-        ASSERT_THAT(*elem, IsIntEq(static_cast<int>(i) + 1));
+        ASSERT_THAT(*state.VRtoVP(elem), IsIntEq(static_cast<int>(i) + 1));
 }
 
 TEST_F(PrimOpTest, length)
@@ -464,11 +464,11 @@ TEST_F(PrimOpTest, genList)
     auto v = eval("builtins.genList (x: x + 1) 3");
     ASSERT_EQ(v.type(), nList);
     ASSERT_EQ(v.listSize(), 3u);
-    auto listView = v.listView(state);
+    auto listView = v.listView();
     for (const auto [i, elem] : enumerate(listView)) {
-        ASSERT_THAT(*elem, IsThunk());
-        state.forceValue(*elem, noPos);
-        ASSERT_THAT(*elem, IsIntEq(static_cast<int>(i) + 1));
+        ASSERT_THAT(*state.VRtoVP(elem), IsThunk());
+        state.forceValue(*state.VRtoVP(elem), noPos);
+        ASSERT_THAT(*state.VRtoVP(elem), IsIntEq(static_cast<int>(i) + 1));
     }
 }
 
@@ -479,9 +479,9 @@ TEST_F(PrimOpTest, sortLessThan)
     ASSERT_EQ(v.listSize(), 6u);
 
     const std::vector<int> numbers = {42, 77, 147, 249, 483, 526};
-    auto listView = v.listView(state);
+    auto listView = v.listView();
     for (const auto [n, elem] : enumerate(listView))
-        ASSERT_THAT(*elem, IsIntEq(numbers[n]));
+        ASSERT_THAT(*state.VRtoVP(elem), IsIntEq(numbers[n]));
 }
 
 TEST_F(PrimOpTest, partition)
@@ -492,17 +492,17 @@ TEST_F(PrimOpTest, partition)
     auto right = v.attrs()->get(createSymbol("right"));
     ASSERT_NE(right, nullptr);
     ASSERT_THAT(*state.VRtoVP(right->value), IsListOfSize(2));
-    ASSERT_THAT(*state.VRtoVP(right->value)->listView(state)[0], IsIntEq(23));
-    ASSERT_THAT(*state.VRtoVP(right->value)->listView(state)[1], IsIntEq(42));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(right->value)->listView()[0]), IsIntEq(23));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(right->value)->listView()[1]), IsIntEq(42));
 
     auto wrong = v.attrs()->get(createSymbol("wrong"));
     ASSERT_NE(wrong, nullptr);
     ASSERT_EQ(state.VRtoVP(wrong->value)->type(), nList);
     ASSERT_EQ(state.VRtoVP(wrong->value)->listSize(), 3u);
     ASSERT_THAT(*state.VRtoVP(wrong->value), IsListOfSize(3));
-    ASSERT_THAT(*state.VRtoVP(wrong->value)->listView(state)[0], IsIntEq(1));
-    ASSERT_THAT(*state.VRtoVP(wrong->value)->listView(state)[1], IsIntEq(9));
-    ASSERT_THAT(*state.VRtoVP(wrong->value)->listView(state)[2], IsIntEq(3));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(wrong->value)->listView()[0]), IsIntEq(1));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(wrong->value)->listView()[1]), IsIntEq(9));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(wrong->value)->listView()[2]), IsIntEq(3));
 }
 
 TEST_F(PrimOpTest, concatMap)
@@ -512,9 +512,9 @@ TEST_F(PrimOpTest, concatMap)
     ASSERT_EQ(v.listSize(), 6u);
 
     const std::vector<int> numbers = {1, 2, 0, 3, 4, 0};
-    auto listView = v.listView(state);
+    auto listView = v.listView();
     for (const auto [n, elem] : enumerate(listView))
-        ASSERT_THAT(*elem, IsIntEq(numbers[n]));
+        ASSERT_THAT(*state.VRtoVP(elem), IsIntEq(numbers[n]));
 }
 
 TEST_F(PrimOpTest, addInt)
@@ -787,9 +787,9 @@ TEST_F(PrimOpTest, splitVersion)
     ASSERT_THAT(v, IsListOfSize(4));
 
     const std::vector<std::string_view> strings = {"1", "2", "3", "git"};
-    auto listView = v.listView(state);
+    auto listView = v.listView();
     for (const auto [n, p] : enumerate(listView))
-        ASSERT_THAT(*p, IsStringEq(strings[n]));
+        ASSERT_THAT(*state.VRtoVP(p), IsStringEq(strings[n]));
 }
 
 class CompareVersionsPrimOpTest : public PrimOpTest,
@@ -877,12 +877,12 @@ TEST_F(PrimOpTest, split1)
     auto v = eval("builtins.split \"(a)b\" \"abc\"");
     ASSERT_THAT(v, IsListOfSize(3));
 
-    ASSERT_THAT(*v.listView(state)[0], IsStringEq(""));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[0]), IsStringEq(""));
 
-    ASSERT_THAT(*v.listView(state)[1], IsListOfSize(1));
-    ASSERT_THAT(*v.listView(state)[1]->listView(state)[0], IsStringEq("a"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1]), IsListOfSize(1));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[1])->listView()[0]), IsStringEq("a"));
 
-    ASSERT_THAT(*v.listView(state)[2], IsStringEq("c"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[2]), IsStringEq("c"));
 }
 
 TEST_F(PrimOpTest, split2)
@@ -891,17 +891,17 @@ TEST_F(PrimOpTest, split2)
     auto v = eval("builtins.split \"([ac])\" \"abc\"");
     ASSERT_THAT(v, IsListOfSize(5));
 
-    ASSERT_THAT(*v.listView(state)[0], IsStringEq(""));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[0]), IsStringEq(""));
 
-    ASSERT_THAT(*v.listView(state)[1], IsListOfSize(1));
-    ASSERT_THAT(*v.listView(state)[1]->listView(state)[0], IsStringEq("a"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1]), IsListOfSize(1));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[1])->listView()[0]), IsStringEq("a"));
 
-    ASSERT_THAT(*v.listView(state)[2], IsStringEq("b"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[2]), IsStringEq("b"));
 
-    ASSERT_THAT(*v.listView(state)[3], IsListOfSize(1));
-    ASSERT_THAT(*v.listView(state)[3]->listView(state)[0], IsStringEq("c"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[3]), IsListOfSize(1));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[3])->listView()[0]), IsStringEq("c"));
 
-    ASSERT_THAT(*v.listView(state)[4], IsStringEq(""));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[4]), IsStringEq(""));
 }
 
 TEST_F(PrimOpTest, split3)
@@ -910,37 +910,37 @@ TEST_F(PrimOpTest, split3)
     ASSERT_THAT(v, IsListOfSize(5));
 
     // First list element
-    ASSERT_THAT(*v.listView(state)[0], IsStringEq(""));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[0]), IsStringEq(""));
 
     // 2nd list element is a list [ "" null ]
-    ASSERT_THAT(*v.listView(state)[1], IsListOfSize(2));
-    ASSERT_THAT(*v.listView(state)[1]->listView(state)[0], IsStringEq("a"));
-    ASSERT_THAT(*v.listView(state)[1]->listView(state)[1], IsNull());
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1]), IsListOfSize(2));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[1])->listView()[0]), IsStringEq("a"));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[1])->listView()[1]), IsNull());
 
     // 3rd element
-    ASSERT_THAT(*v.listView(state)[2], IsStringEq("b"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[2]), IsStringEq("b"));
 
     // 4th element is a list: [ null "c" ]
-    ASSERT_THAT(*v.listView(state)[3], IsListOfSize(2));
-    ASSERT_THAT(*v.listView(state)[3]->listView(state)[0], IsNull());
-    ASSERT_THAT(*v.listView(state)[3]->listView(state)[1], IsStringEq("c"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[3]), IsListOfSize(2));
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[3])->listView()[0]), IsNull());
+    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[3])->listView()[1]), IsStringEq("c"));
 
     // 5th element is the empty string
-    ASSERT_THAT(*v.listView(state)[4], IsStringEq(""));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[4]), IsStringEq(""));
 }
 
 TEST_F(PrimOpTest, split4)
 {
     auto v = eval("builtins.split \"([[:upper:]]+)\" \" FOO \"");
     ASSERT_THAT(v, IsListOfSize(3));
-    auto first = v.listView(state)[0];
-    auto second = v.listView(state)[1];
-    auto third = v.listView(state)[2];
+    auto first = state.VRtoVP(v.listView()[0]);
+    auto second = state.VRtoVP(v.listView()[1]);
+    auto third = state.VRtoVP(v.listView()[2]);
 
-    ASSERT_THAT(*first, IsStringEq(" "));
+    ASSERT_THAT(*(first), IsStringEq(" "));
 
     ASSERT_THAT(*second, IsListOfSize(1));
-    ASSERT_THAT(*second->listView(state)[0], IsStringEq("FOO"));
+    ASSERT_THAT(*state.VRtoVP(second->listView()[0]), IsStringEq("FOO"));
 
     ASSERT_THAT(*third, IsStringEq(" "));
 }
@@ -961,15 +961,15 @@ TEST_F(PrimOpTest, match3)
 {
     auto v = eval("builtins.match \"a(b)(c)\" \"abc\"");
     ASSERT_THAT(v, IsListOfSize(2));
-    ASSERT_THAT(*v.listView(state)[0], IsStringEq("b"));
-    ASSERT_THAT(*v.listView(state)[1], IsStringEq("c"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[0]), IsStringEq("b"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1]), IsStringEq("c"));
 }
 
 TEST_F(PrimOpTest, match4)
 {
     auto v = eval("builtins.match \"[[:space:]]+([[:upper:]]+)[[:space:]]+\" \"  FOO   \"");
     ASSERT_THAT(v, IsListOfSize(1));
-    ASSERT_THAT(*v.listView(state)[0], IsStringEq("FOO"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[0]), IsStringEq("FOO"));
 }
 
 TEST_F(PrimOpTest, match5)
@@ -988,9 +988,9 @@ TEST_F(PrimOpTest, attrNames)
 
     // ensure that the list is sorted
     const std::vector<std::string_view> expected{"a", "x", "y", "z"};
-    auto listView = v.listView(state);
+    auto listView = v.listView();
     for (const auto [n, elem] : enumerate(listView))
-        ASSERT_THAT(*elem, IsStringEq(expected[n]));
+        ASSERT_THAT(*state.VRtoVP(elem), IsStringEq(expected[n]));
 }
 
 TEST_F(PrimOpTest, genericClosure_not_strict)

@@ -52,9 +52,9 @@ void printAmbiguous(
             str << "«repeated»";
         else {
             str << "[ ";
-            for (auto v2 : v.listView(state)) {
+            for (auto v2 : v.listView()) {
                 if (v2)
-                    printAmbiguous(state, *v2, symbols, str, seen, depth - 1);
+                    printAmbiguous(state, *state.VRtoVP(v2), symbols, str, seen, depth - 1);
                 else
                     str << "(nullptr)";
                 str << " ";

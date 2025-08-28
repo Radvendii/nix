@@ -1245,11 +1245,11 @@ static void opQuery(Globals & globals, Strings opFlags, Strings opArgs)
                             } else if (v->type() == nList) {
                                 attrs2["type"] = "strings";
                                 XMLOpenElement m(xml, "meta", attrs2);
-                                for (auto elem : v->listView(*globals.state)) {
-                                    if (elem->type() != nString)
+                                for (auto elem : v->listView()) {
+                                    if (globals.state->VRtoVP(elem)->type() != nString)
                                         continue;
                                     XMLAttrs attrs3;
-                                    attrs3["value"] = elem->c_str();
+                                    attrs3["value"] = globals.state->VRtoVP(elem)->c_str();
                                     xml.writeEmptyElement("string", attrs3);
                                 }
                             } else if (v->type() == nAttrs) {

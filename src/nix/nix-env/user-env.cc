@@ -68,7 +68,7 @@ bool createUserEnv(
         // Copy each output meant for installation.
         auto outputsList = state.buildList(outputs.size());
         for (const auto & [m, j] : enumerate(outputs)) {
-            (outputsList[m] = state.allocValue())->mkString(j.first);
+            state.VRtoVP(outputsList[m] = state.VPtoVR(state.allocValue()))->mkString(j.first);
             auto outputAttrs = state.buildBindings(2);
             outputAttrs.alloc(state.sOutPath).mkString(state.store->printStorePath(*j.second));
             attrs.alloc(j.first).mkAttrs(outputAttrs);
@@ -80,7 +80,7 @@ bool createUserEnv(
 
             references.insert(*j.second);
         }
-        attrs.alloc(state.sOutputs).mkList(state, outputsList);
+        attrs.alloc(state.sOutputs).mkList(outputsList);
 
         // Copy the meta attributes.
         auto meta = state.buildBindings(metaNames.size());
@@ -93,14 +93,14 @@ bool createUserEnv(
 
         attrs.alloc(state.sMeta).mkAttrs(meta);
 
-        (list[n] = state.allocValue())->mkAttrs(attrs);
+        state.VRtoVP(list[n] = state.VPtoVR(state.allocValue()))->mkAttrs(attrs);
 
         if (drvPath)
             references.insert(*drvPath);
     }
 
     Value manifest;
-    manifest.mkList(state, list);
+    manifest.mkList(list);
 
     /* Also write a copy of the list of user environment elements to
        the store; we need it for future modifications of the

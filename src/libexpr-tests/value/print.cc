@@ -80,10 +80,11 @@ TEST_F(ValuePrintingTests, tList)
     vTwo.mkInt(2);
 
     auto list = state.buildList(3);
-    list.elems[0] = &vOne;
-    list.elems[1] = &vTwo;
+    // XXX [speed]: We need to change all these values to allocate in the values vector
+    list.elems[0] = state.VPtoVR(&vOne);
+    list.elems[1] = state.VPtoVR(&vTwo);
     Value vList;
-    vList.mkList(state, list);
+    vList.mkList(list);
 
     test(vList, "[ 1 2 «nullptr» ]");
 }
@@ -249,11 +250,11 @@ TEST_F(ValuePrintingTests, depthList)
     vNested.mkAttrs(builder2.finish());
 
     auto list = state.buildList(3);
-    list.elems[0] = &vOne;
-    list.elems[1] = &vTwo;
-    list.elems[2] = &vNested;
+    list.elems[0] = state.VPtoVR(&vOne);
+    list.elems[1] = state.VPtoVR(&vTwo);
+    list.elems[2] = state.VPtoVR(&vNested);
     Value vList;
-    vList.mkList(state, list);
+    vList.mkList(list);
 
     test(vList, "[ 1 2 { ... } ]", PrintOptions{.maxDepth = 1});
     test(vList, "[ 1 2 { nested = { ... }; one = 1; two = 2; } ]", PrintOptions{.maxDepth = 2});
@@ -483,10 +484,10 @@ TEST_F(ValuePrintingTests, ansiColorsList)
     vTwo.mkInt(2);
 
     auto list = state.buildList(3);
-    list.elems[0] = &vOne;
-    list.elems[1] = &vTwo;
+    list.elems[0] = state.VPtoVR(&vOne);
+    list.elems[1] = state.VPtoVR(&vTwo);
     Value vList;
-    vList.mkList(state, list);
+    vList.mkList(list);
 
     test(
         vList,
@@ -576,10 +577,10 @@ TEST_F(ValuePrintingTests, ansiColorsListRepeated)
     vEmpty.mkAttrs(emptyBuilder.finish());
 
     auto list = state.buildList(2);
-    list.elems[0] = &vEmpty;
-    list.elems[1] = &vEmpty;
+    list.elems[0] = state.VPtoVR(&vEmpty);
+    list.elems[1] = state.VPtoVR(&vEmpty);
     Value vList;
-    vList.mkList(state, list);
+    vList.mkList(list);
 
     test(vList, "[ { } " ANSI_MAGENTA "«repeated»" ANSI_NORMAL " ]", PrintOptions{.ansiColors = true});
 }
@@ -592,10 +593,10 @@ TEST_F(ValuePrintingTests, listRepeated)
     vEmpty.mkAttrs(emptyBuilder.finish());
 
     auto list = state.buildList(2);
-    list.elems[0] = &vEmpty;
-    list.elems[1] = &vEmpty;
+    list.elems[0] = state.VPtoVR(&vEmpty);
+    list.elems[1] = state.VPtoVR(&vEmpty);
     Value vList;
-    vList.mkList(state, list);
+    vList.mkList(list);
 
     test(vList, "[ { } «repeated» ]", PrintOptions{});
     test(vList, "[ { } { } ]", PrintOptions{.trackRepeated = false});
@@ -645,10 +646,10 @@ TEST_F(ValuePrintingTests, ansiColorsListElided)
 
     {
         auto list = state.buildList(2);
-        list.elems[0] = &vOne;
-        list.elems[1] = &vTwo;
+        list.elems[0] = state.VPtoVR(&vOne);
+        list.elems[1] = state.VPtoVR(&vTwo);
         Value vList;
-        vList.mkList(state, list);
+        vList.mkList(list);
 
         test(
             vList,
@@ -661,11 +662,11 @@ TEST_F(ValuePrintingTests, ansiColorsListElided)
 
     {
         auto list = state.buildList(3);
-        list.elems[0] = &vOne;
-        list.elems[1] = &vTwo;
-        list.elems[2] = &vThree;
+        list.elems[0] = state.VPtoVR(&vOne);
+        list.elems[1] = state.VPtoVR(&vTwo);
+        list.elems[2] = state.VPtoVR(&vThree);
         Value vList;
-        vList.mkList(state, list);
+        vList.mkList(list);
 
         test(
             vList,

@@ -98,7 +98,7 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
             if (*attrIndex >= v->listSize())
                 throw AttrPathNotFound("list index %1% in selection path '%2%' is out of range", *attrIndex, attrPath);
 
-            v = v->listView(state)[*attrIndex];
+            v = state.VRtoVP(v->listView()[*attrIndex]);
             pos = noPos;
         }
     }
