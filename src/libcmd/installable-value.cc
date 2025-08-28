@@ -7,7 +7,7 @@ namespace nix {
 std::vector<ref<eval_cache::AttrCursor>> InstallableValue::getCursors(EvalState & state)
 {
     auto evalCache =
-        std::make_shared<nix::eval_cache::EvalCache>(std::nullopt, state, [&]() { return toValue(state).first; });
+        std::make_shared<nix::eval_cache::EvalCache>(std::nullopt, state, [&]() { return state.VPtoVR(toValue(state).first); });
     return {evalCache->getRoot()};
 }
 

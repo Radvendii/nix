@@ -308,7 +308,7 @@ Value * EvalCache::getRootValue()
         debug("getting root value");
         value = allocRootValue(rootLoader());
     }
-    return *value;
+    return state.VRtoVP(*value);
 }
 
 ref<AttrCursor> EvalCache::getRoot()
@@ -323,7 +323,7 @@ AttrCursor::AttrCursor(
     , cachedValue(std::move(cachedValue))
 {
     if (value)
-        _value = allocRootValue(value);
+        _value = allocRootValue(root->state.VPtoVR(value));
 }
 
 AttrKey AttrCursor::getKey()
@@ -346,11 +346,11 @@ Value & AttrCursor::getValue()
             auto attr = vParent.attrs()->get(parent->second);
             if (!attr)
                 throw Error("attribute '%s' is unexpectedly missing", getAttrPathStr());
-            _value = allocRootValue(root->state.VRtoVP(attr->value));
+            _value = allocRootValue(attr->value);
         } else
-            _value = allocRootValue(root->getRootValue());
+            _value = allocRootValue(root->state.VPtoVR(root->getRootValue()));
     }
-    return **_value;
+    return root->state.VRtoV(*_value);
 }
 
 void AttrCursor::fetchCachedValue()

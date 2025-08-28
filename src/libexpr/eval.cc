@@ -90,9 +90,9 @@ static const char * makeImmutableString(std::string_view s)
 }
 
 // XXX [speed]: what is this doing?
-RootValue allocRootValue(Value * v)
+RootValue allocRootValue(ValueRef v)
 {
-    return std::allocate_shared<Value *>(traceable_allocator<Value *>(), v);
+    return std::allocate_shared<ValueRef>(traceable_allocator<ValueRef>(), v);
 }
 
 // Pretty print types for assertion errors

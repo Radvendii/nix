@@ -32,7 +32,7 @@ InstallableAttrPath::InstallableAttrPath(
     ExtendedOutputsSpec extendedOutputsSpec)
     : InstallableValue(state)
     , cmd(cmd)
-    , v(allocRootValue(v))
+    , v(allocRootValue(state->VPtoVR(v)))
     , attrPath(attrPath)
     , extendedOutputsSpec(std::move(extendedOutputsSpec))
 {
@@ -40,7 +40,7 @@ InstallableAttrPath::InstallableAttrPath(
 
 std::pair<Value *, PosIdx> InstallableAttrPath::toValue(EvalState & state)
 {
-    auto [vRes, pos] = findAlongAttrPath(state, attrPath, *cmd.getAutoArgs(state), **v);
+    auto [vRes, pos] = findAlongAttrPath(state, attrPath, *cmd.getAutoArgs(state), state.VRtoV(*v));
     state.forceValue(*vRes, pos);
     return {vRes, pos};
 }

@@ -456,7 +456,7 @@ ref<eval_cache::EvalCache> openEvalCache(EvalState & state, std::shared_ptr<flak
         auto aOutputs = vFlake->attrs()->get(state.symbols.create("outputs"));
         assert(aOutputs);
 
-        return state.VRtoVP(aOutputs->value);
+        return aOutputs->value;
     };
 
     if (fingerprint) {

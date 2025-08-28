@@ -30,7 +30,7 @@ class JSONSax : nlohmann::json_sax<json>
         {
         }
 
-        explicit JSONState(Value * v)
+        explicit JSONState(ValueRef v)
             : v(allocRootValue(v))
         {
         }
@@ -40,13 +40,13 @@ class JSONSax : nlohmann::json_sax<json>
         Value & value(EvalState & state)
         {
             if (!v)
-                v = allocRootValue(state.allocValue());
-            return **v;
+                v = allocRootValue(state.VPtoVR(state.allocValue()));
+            return state.VRtoV(*v);
         }
 
         virtual ~JSONState() {}
 
-        virtual void add() {}
+        virtual void add(EvalState & state) {}
     };
 
     class JSONObjectState : public JSONState
@@ -63,7 +63,7 @@ class JSONSax : nlohmann::json_sax<json>
             return std::move(parent);
         }
 
-        void add() override
+        void add(EvalState & state) override
         {
             v = nullptr;
         }
@@ -88,9 +88,9 @@ class JSONSax : nlohmann::json_sax<json>
             return std::move(parent);
         }
 
-        void add() override
+        void add(EvalState &state) override
         {
-            values.push_back(*v);
+            values.push_back(state.VRtoVP(*v));
             v = nullptr;
         }
     public:
@@ -107,26 +107,26 @@ class JSONSax : nlohmann::json_sax<json>
 public:
     JSONSax(EvalState & state, Value & v)
         : state(state)
-        , rs(new JSONState(&v)) {};
+        , rs(new JSONState(state.VPtoVR(&v))) {};
 
     bool null() override
     {
         rs->value(state).mkNull();
-        rs->add();
+        rs->add(state);
         return true;
     }
 
     bool boolean(bool val) override
     {
         rs->value(state).mkBool(val);
-        rs->add();
+        rs->add(state);
         return true;
     }
 
     bool number_integer(number_integer_t val) override
     {
         rs->value(state).mkInt(val);
-        rs->add();
+        rs->add(state);
         return true;
     }
 
@@ -137,14 +137,14 @@ public:
         }
         NixInt::Inner val = val_;
         rs->value(state).mkInt(val);
-        rs->add();
+        rs->add(state);
         return true;
     }
 
     bool number_float(number_float_t val, const string_t & s) override
     {
         rs->value(state).mkFloat(val);
-        rs->add();
+        rs->add(state);
         return true;
     }
 
@@ -152,7 +152,7 @@ public:
     {
         forceNoNullByte(val);
         rs->value(state).mkString(val);
-        rs->add();
+        rs->add(state);
         return true;
     }
 
@@ -180,7 +180,7 @@ public:
     bool end_object() override
     {
         rs = rs->resolve(state);
-        rs->add();
+        rs->add(state);
         return true;
     }
 

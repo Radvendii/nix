@@ -232,17 +232,17 @@ void derivationToValue(
     w->mkAttrs(attrs);
 
     if (!state.vImportedDrvToDerivation) {
-        state.vImportedDrvToDerivation = allocRootValue(state.allocValue());
+        state.vImportedDrvToDerivation = allocRootValue(state.VPtoVR(state.allocValue()));
         state.eval(
             state.parseExprFromString(
 #include "imported-drv-to-derivation.nix.gen.hh"
                 , state.rootPath(CanonPath::root)),
-            **state.vImportedDrvToDerivation);
+            state.VRtoV(*state.vImportedDrvToDerivation));
     }
 
     state.forceFunction(
-        **state.vImportedDrvToDerivation, pos, "while evaluating imported-drv-to-derivation.nix.gen.hh");
-    v.mkApp(state, *state.vImportedDrvToDerivation, w);
+        state.VRtoV(*state.vImportedDrvToDerivation), pos, "while evaluating imported-drv-to-derivation.nix.gen.hh");
+    v.mkApp(state, state.VRtoVP(*state.vImportedDrvToDerivation), w);
     state.forceAttrs(v, pos, "while calling imported-drv-to-derivation.nix.gen.hh");
 }
 

@@ -903,9 +903,10 @@ typedef std::map<SymbolRef, ValueVector, std::less<SymbolRef>, traceable_allocat
 /**
  * A value allocated in traceable memory.
  */
-typedef std::shared_ptr<Value *> RootValue;
+// XXX [speed]: I will have to revisit this with someone who actually knows what's going on. For now I'm going to modify it in ways that I know make no sense. But they compile and leave most of the code in place in case we need it (easier to rip it out later than try to restore it)
+typedef std::shared_ptr<ValueRef> RootValue;
 
-RootValue allocRootValue(Value * v);
+RootValue allocRootValue(ValueRef v);
 
 void forceNoNullByte(std::string_view s, std::function<Pos()> = nullptr);
 } // namespace nix
