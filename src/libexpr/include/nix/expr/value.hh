@@ -888,6 +888,7 @@ void Value::mkBlackhole()
     mkThunk(nullptr, (Expr *) &eBlackHole);
 }
 
+// XXX [speed]: ValueVector, ValueMap, and ValueVectorMap are used when preparing to a BuildBindings or BuildList. As such, for now they keep Value *. When we change BuildBindings and BuildList to directly take ValueRefs, they will change as well
 typedef std::vector<Value *, traceable_allocator<Value *>> ValueVector;
 typedef std::unordered_map<
     SymbolRef,
