@@ -244,41 +244,41 @@ public:
 
     Bindings emptyBindings;
 
-    // XXX [speed]: these Values need to be ValueRefs
+    // XXX [speed]: these could be at well-known constant locations, then we wouldn't need to hold ValueRefs. Though it doesn't matter much; it's a handful of bytes
     /**
      * Empty list constant.
      */
-    Value vEmptyList;
+    ValueRef vEmptyList;
 
     /**
      * `null` constant.
      *
      * This is _not_ a singleton. Pointer equality is _not_ sufficient.
      */
-    Value vNull;
+    ValueRef vNull = ValueRefNull;
 
     /**
      * `true` constant.
      *
      * This is _not_ a singleton. Pointer equality is _not_ sufficient.
      */
-    Value vTrue;
+    ValueRef vTrue = ValueRefNull;
 
     /**
      * `true` constant.
      *
      * This is _not_ a singleton. Pointer equality is _not_ sufficient.
      */
-    Value vFalse;
+    ValueRef vFalse = ValueRefNull;
 
     /** `"regular"` */
-    Value vStringRegular;
+    ValueRef vStringRegular = ValueRefNull;
     /** `"directory"` */
-    Value vStringDirectory;
+    ValueRef vStringDirectory = ValueRefNull;
     /** `"symlink"` */
-    Value vStringSymlink;
+    ValueRef vStringSymlink = ValueRefNull;
     /** `"unknown"` */
-    Value vStringUnknown;
+    ValueRef vStringUnknown = ValueRefNull;
 
     /**
      * The accessor corresponding to `store`.
@@ -385,6 +385,7 @@ private:
     /**
      * A cache from path names to values.
      */
+     // XXX [speed] this is using plain Values. does it need to be ValueRefs? (probably)
     typedef std::unordered_map<
         SourcePath,
         Value,
@@ -427,8 +428,6 @@ public:
     ~EvalState();
 
     Value * VRtoVP(ValueRef ref) {
-        // XXX [speed]: debug statement is temporary
-        std::cout << "VRtoVP called with value: " << ref << "\n";
         if (ref == ValueRefNull)
             return nullptr;
         return &values[ref];
@@ -441,11 +440,10 @@ public:
     }
 
     ValueRef VPtoVR(Value *v) {
+        // XXX [speed]: sloppy debug statement. clean it up
+        if (v < &values.front() || v > &values.back())
+            std::cout << "trying to convert to invalid ValueRef!" << "\n";
         ValueRef ref = v ? v - &values.front() : ValueRefNull;
-        // XXX [speed]: debug statement is temporary
-        std::cout << "VPtoVR called with ref: " << ref << "\n";
-        if (ref > values.size())
-            std::cout << "ref out of bounds!" << "\n";
         return ref;
     }
 

@@ -1078,11 +1078,11 @@ static void prim_tryEval(EvalState & state, const PosIdx pos, Value ** args, Val
     try {
         state.forceValue(*args[0], pos);
         attrs.insert(state.sValue, args[0]);
-        attrs.insert(state.symbols.create("success"), &state.vTrue);
+        attrs.insert(state.symbols.create("success"), state.VRtoVP(state.vTrue));
     } catch (AssertionError & e) {
         // `value = false;` is unfortunate but removing it is a breaking change.
-        attrs.insert(state.sValue, &state.vFalse);
-        attrs.insert(state.symbols.create("success"), &state.vFalse);
+        attrs.insert(state.sValue, state.VRtoVP(state.vFalse));
+        attrs.insert(state.symbols.create("success"), state.VRtoVP(state.vFalse));
     }
 
     // restore the debugRepl pointer if we saved it earlier.
@@ -2212,10 +2212,10 @@ static RegisterPrimOp primop_hashFile({
 
 static Value * fileTypeToString(EvalState & state, SourceAccessor::Type type)
 {
-    return type == SourceAccessor::Type::tRegular     ? &state.vStringRegular
-           : type == SourceAccessor::Type::tDirectory ? &state.vStringDirectory
-           : type == SourceAccessor::Type::tSymlink   ? &state.vStringSymlink
-                                                      : &state.vStringUnknown;
+    return state.VRtoVP(type == SourceAccessor::Type::tRegular     ? state.vStringRegular
+                        : type == SourceAccessor::Type::tDirectory ? state.vStringDirectory
+                        : type == SourceAccessor::Type::tSymlink   ? state.vStringSymlink
+                                                                   : state.vStringUnknown);
 }
 
 static void prim_readFileType(EvalState & state, const PosIdx pos, Value ** args, Value & v)
@@ -4589,8 +4589,7 @@ void prim_match(EvalState & state, const PosIdx pos, Value ** args, Value & v)
         auto list = state.buildList(match.size() - 1);
         for (const auto & [i, v2] : enumerate(list))
             if (!match[i + 1].matched)
-                // XXX [speed]: ILLEGAL! we have to fix the vNull situation
-                v2 = state.VPtoVR(&state.vNull);
+                v2 = state.vNull;
             else
                 v2 = state.VPtoVR(mkString(state, match[i + 1]));
         v.mkList(list);
@@ -4682,8 +4681,7 @@ void prim_split(EvalState & state, const PosIdx pos, Value ** args, Value & v)
             auto list2 = state.buildList(slen);
             for (const auto & [si, v2] : enumerate(list2)) {
                 if (!match[si + 1].matched)
-                    // XXX [speed]: ILLEGAL! deal with vNull situation
-                    v2 = state.VPtoVR(&state.vNull);
+                    v2 = state.vNull;
                 else
                     v2 = state.VPtoVR(mkString(state, match[si + 1]));
             }
@@ -5012,6 +5010,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
         )",
         });
 
+    // XXX [speed]: should this be vFalse??
     v.mkBool(false);
     addConstant(
         "false",
@@ -5037,7 +5036,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
 
     addConstant(
         "null",
-        &vNull,
+        VRtoVP(vNull),
         {
             .type = nNull,
             .doc = R"(

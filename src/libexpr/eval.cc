@@ -411,14 +411,14 @@ EvalState::EvalState(
 
     static_assert(sizeof(Env) <= 16, "environment must be <= 16 bytes");
 
-    vEmptyList.mkList(buildList(0));
-    vNull.mkNull();
-    vTrue.mkBool(true);
-    vFalse.mkBool(false);
-    vStringRegular.mkString("regular");
-    vStringDirectory.mkString("directory");
-    vStringSymlink.mkString("symlink");
-    vStringUnknown.mkString("unknown");
+    VRtoV(vEmptyList = VPtoVR(allocValue())).mkList(buildList(0));
+    VRtoV(vNull = VPtoVR(allocValue())).mkNull();
+    VRtoV(vTrue = VPtoVR(allocValue())).mkBool(true);
+    VRtoV(vFalse = VPtoVR(allocValue())).mkBool(false);
+    VRtoV(vStringRegular = VPtoVR(allocValue())).mkString("regular");
+    VRtoV(vStringDirectory = VPtoVR(allocValue())).mkString("directory");
+    VRtoV(vStringSymlink = VPtoVR(allocValue())).mkString("symlink");
+    VRtoV(vStringUnknown = VPtoVR(allocValue())).mkString("unknown");
 
     /* Construct the Nix expression search path. */
     assert(lookupPath.elements.empty());
@@ -1086,7 +1086,7 @@ ListBuilder::ListBuilder(EvalState & state, size_t size)
 
 Value * EvalState::getBool(bool b)
 {
-    return b ? &vTrue : &vFalse;
+    return b ? VRtoVP(vTrue) : VRtoVP(vFalse);
 }
 
 unsigned long nrThunks = 0;
@@ -1492,7 +1492,7 @@ void ExprList::eval(EvalState & state, Env & env, Value & v)
 Value * ExprList::maybeThunk(EvalState & state, Env & env)
 {
     if (elems.empty()) {
-        return &state.vEmptyList;
+        return state.VRtoVP(state.vEmptyList);
     }
     return Expr::maybeThunk(state, env);
 }
