@@ -2638,7 +2638,8 @@ bool EvalState::callPathFilter(Value * filterFun, const SourcePath & path, PosId
     /* Call the filter function.  The first argument is the path, the
        second is a string indicating the type of the file. */
     Value * arg1 = allocValue();
-    nrBytesAdded += sizeof(Value); // XXX [speed] arg1 was a Value on the stack
+    nrBytesAdded += sizeof(Value);
+    nrStackValues++;
     arg1->mkString(path.path.abs());
 
     // assert that type is not "unknown"
@@ -3664,14 +3665,10 @@ static void prim_concatLists(EvalState & state, const PosIdx pos, ValueRef * arg
 {
     state.forceList(*state.VRtoVP(args[0]), pos, "while evaluating the first argument passed to builtins.concatLists");
     auto listView = state.VRtoVP(args[0])->listView();
-    // XXX [speed] Ugh this is terrible. The problem is that concatLists also gets called with a list of Values allocated on the stack (they're never referenced so this is actually valid), so we can't so easily change it to take ValueRefs.
-    auto vps = (Value **) allocBytes(state.VRtoVP(args[0])->listSize() * sizeof(Value *));
-    for (auto [n, v] : enumerate(listView))
-        vps[n] = state.VRtoVP(v);
     state.concatLists(
         v,
         state.VRtoVP(args[0])->listSize(),
-        vps,
+        listView.data(),
         pos,
         "while evaluating a value of the list passed to builtins.concatLists");
 }

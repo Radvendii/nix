@@ -64,6 +64,7 @@ unsigned long nrListN = 0;
 unsigned long nrString = 0;
 unsigned long nrPath = 0;
 unsigned long nrBytesAdded = 0;
+unsigned long nrStackValues = 0;
 
 static char * allocString(size_t size)
 {
@@ -999,16 +1000,13 @@ void Value::mkPrimOpApp(EvalState & es, Value * l, Value * r) noexcept
     nrPrimOpApp++;
 }
 
-// XXX [speed]: this function should probably go back to how it was originally in stage 2
-// Value * const * ListView::data() & noexcept
-
 ExprInt::ExprInt(EvalState & state, NixInt n)
 {
     auto vp = state.allocValue();
     vp->mkInt(n);
     v = state.VPtoVR(vp);
-    // these values used to be stored directly in the Expr, so we've added 4 bytes for a ValueRef
-    nrBytesAdded += 4;
+    // these values used to be stored directly in the Expr. now we have a Value and a ValueRef
+    nrBytesAdded += sizeof(ValueRef);
 };
 
 ExprInt::ExprInt(EvalState & state, NixInt::Inner n)
@@ -1016,14 +1014,14 @@ ExprInt::ExprInt(EvalState & state, NixInt::Inner n)
     auto vp = state.allocValue();
     vp->mkInt(n);
     v = state.VPtoVR(vp);
-    nrBytesAdded += 4;
+    nrBytesAdded += sizeof(ValueRef);
 };
 ExprFloat::ExprFloat(EvalState & state, NixFloat nf)
 {
     auto vp = state.allocValue();
     vp->mkFloat(nf);
     v = state.VPtoVR(vp);
-    nrBytesAdded += 4;
+    nrBytesAdded += sizeof(ValueRef);
 };
 ExprString::ExprString(EvalState & state, std::string && s)
     : s(std::move(s))
@@ -1031,7 +1029,7 @@ ExprString::ExprString(EvalState & state, std::string && s)
     auto vp = state.allocValue();
     vp->mkString(this->s.data());
     v = state.VPtoVR(vp);
-    nrBytesAdded += 4;
+    nrBytesAdded += sizeof(ValueRef);
 };
 ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string s)
     : accessor(accessor)
@@ -1040,7 +1038,7 @@ ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string 
     auto vp = state.allocValue();
     vp->mkPath(&*accessor, this->s.c_str());
     v = state.VPtoVR(vp);
-    nrBytesAdded += 4;
+    nrBytesAdded += sizeof(ValueRef);
 }
 // XXX [speed]
 
@@ -2086,28 +2084,29 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, Value & v)
 
 void ExprOpConcatLists::eval(EvalState & state, Env & env, Value & v)
 {
-    // XXX [speed]: come back to these Values
-    Value v1;
-    e1->eval(state, env, v1);
-    Value v2;
-    e2->eval(state, env, v2);
-    Value * lists[2] = {&v1, &v2};
+    nrBytesAdded += 2 * sizeof(Value);
+    nrStackValues += 2;
+    Value * v1 = state.allocValue();
+    e1->eval(state, env, *v1);
+    Value * v2 = state.allocValue();
+    e2->eval(state, env, *v2);
+    ValueRef lists[2] = {state.VPtoVR(v1), state.VPtoVR(v2)};
     state.concatLists(v, 2, lists, pos, "while evaluating one of the elements to concatenate");
 }
 
 void EvalState::concatLists(
-    Value & v, size_t nrLists, Value * const * lists, const PosIdx pos, std::string_view errorCtx)
+    Value & v, size_t nrLists, ValueRef const * lists, const PosIdx pos, std::string_view errorCtx)
 {
     nrListConcats++;
 
     Value * nonEmpty = 0;
     size_t len = 0;
     for (size_t n = 0; n < nrLists; ++n) {
-        forceList(*lists[n], pos, errorCtx);
-        auto l = lists[n]->listSize();
+        forceList(*VRtoVP(lists[n]), pos, errorCtx);
+        auto l = VRtoVP(lists[n])->listSize();
         len += l;
         if (l)
-            nonEmpty = lists[n];
+            nonEmpty = VRtoVP(lists[n]);
     }
 
     if (nonEmpty && len == nonEmpty->listSize()) {
@@ -2118,7 +2117,7 @@ void EvalState::concatLists(
     auto list = buildList(len);
     auto out = list.elems;
     for (size_t n = 0, pos = 0; n < nrLists; ++n) {
-        auto listView = lists[n]->listView();
+        auto listView = VRtoVP(lists[n])->listView();
         auto l = listView.size();
         if (l)
             memcpy(out + pos, listView.data(), l * sizeof(ValueRef));
