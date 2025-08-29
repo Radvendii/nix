@@ -73,7 +73,7 @@ public:
 /**
  * Function that implements a primop.
  */
-using PrimOpFun = void(EvalState & state, const PosIdx pos, Value ** args, Value & v);
+using PrimOpFun = void(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
 
 /**
  * Info about a primitive operation, and its implementation
@@ -801,11 +801,11 @@ public:
 
     bool isFunctor(const Value & fun) const;
 
-    void callFunction(Value & fun, std::span<Value *> args, Value & vRes, const PosIdx pos);
+    void callFunction(Value & fun, std::span<ValueRef> args, Value & vRes, const PosIdx pos);
 
-    void callFunction(Value & fun, Value & arg, Value & vRes, const PosIdx pos)
+    void callFunction(Value & fun, ValueRef arg, Value & vRes, const PosIdx pos)
     {
-        Value * args[] = {&arg};
+        ValueRef args[] = {arg};
         callFunction(fun, args, vRes, pos);
     }
 
@@ -985,9 +985,9 @@ private:
     friend struct ExprFloat;
     friend struct ExprPath;
     friend struct ExprSelect;
-    friend void prim_getAttr(EvalState & state, const PosIdx pos, Value ** args, Value & v);
-    friend void prim_match(EvalState & state, const PosIdx pos, Value ** args, Value & v);
-    friend void prim_split(EvalState & state, const PosIdx pos, Value ** args, Value & v);
+    friend void prim_getAttr(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
+    friend void prim_match(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
+    friend void prim_split(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
 
     friend struct Value;
     friend class ListBuilder;

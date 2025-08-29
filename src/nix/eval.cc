@@ -75,7 +75,7 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
             auto vApply = state->allocValue();
             state->eval(state->parseExprFromString(*apply, state->rootPath(".")), *vApply);
             auto vRes = state->allocValue();
-            state->callFunction(*vApply, *v, *vRes, noPos);
+            state->callFunction(*vApply, state->VPtoVR(v), *vRes, noPos);
             v = vRes;
         }
 

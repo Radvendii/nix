@@ -233,6 +233,6 @@ void emitTreeAttrs(
  * always treats the input as final (i.e. no attributes can be
  * added/removed/changed).
  */
-void prim_fetchFinalTree(EvalState & state, const PosIdx pos, Value ** args, Value & v);
+void prim_fetchFinalTree(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
 
 } // namespace nix

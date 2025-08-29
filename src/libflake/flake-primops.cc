@@ -8,9 +8,9 @@ namespace nix::flake::primops {
 
 PrimOp getFlake(const Settings & settings)
 {
-    auto prim_getFlake = [&settings](EvalState & state, const PosIdx pos, Value ** args, Value & v) {
+    auto prim_getFlake = [&settings](EvalState & state, const PosIdx pos, ValueRef * args, Value & v) {
         std::string flakeRefS(
-            state.forceStringNoCtx(*args[0], pos, "while evaluating the argument passed to builtins.getFlake"));
+            state.forceStringNoCtx(*state.VRtoVP(args[0]), pos, "while evaluating the argument passed to builtins.getFlake"));
         auto flakeRef = nix::parseFlakeRef(state.fetchSettings, flakeRefS, {}, true);
         if (state.settings.pureEval && !flakeRef.input.isLocked())
             throw Error(
@@ -56,10 +56,10 @@ PrimOp getFlake(const Settings & settings)
     };
 }
 
-static void prim_parseFlakeRef(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_parseFlakeRef(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     std::string flakeRefS(
-        state.forceStringNoCtx(*args[0], pos, "while evaluating the argument passed to builtins.parseFlakeRef"));
+        state.forceStringNoCtx(*state.VRtoVP(args[0]), pos, "while evaluating the argument passed to builtins.parseFlakeRef"));
     auto attrs = nix::parseFlakeRef(state.fetchSettings, flakeRefS, {}, true).toAttrs();
     auto binds = state.buildBindings(attrs.size());
     for (const auto & [key, value] : attrs) {
@@ -97,11 +97,11 @@ nix::PrimOp parseFlakeRef({
     .experimentalFeature = Xp::Flakes,
 });
 
-static void prim_flakeRefToString(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_flakeRefToString(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
-    state.forceAttrs(*args[0], noPos, "while evaluating the argument passed to builtins.flakeRefToString");
+    state.forceAttrs(*state.VRtoVP(args[0]), noPos, "while evaluating the argument passed to builtins.flakeRefToString");
     fetchers::Attrs attrs;
-    for (const auto & attr : *args[0]->attrs()) {
+    for (const auto & attr : *state.VRtoVP(args[0])->attrs()) {
         auto t = state.VRtoVP(attr.value)->type();
         if (t == nInt) {
             auto intValue = state.VRtoVP(attr.value)->integer().value;

@@ -5,11 +5,11 @@
 
 namespace nix {
 
-static void prim_unsafeDiscardStringContext(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_unsafeDiscardStringContext(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     NixStringContext context;
     auto s = state.coerceToString(
-        pos, *args[0], context, "while evaluating the argument passed to builtins.unsafeDiscardStringContext");
+        pos, *state.VRtoVP(args[0]), context, "while evaluating the argument passed to builtins.unsafeDiscardStringContext");
     v.mkString(*s);
 }
 
@@ -22,10 +22,10 @@ static RegisterPrimOp primop_unsafeDiscardStringContext({
     .fun = prim_unsafeDiscardStringContext,
 });
 
-static void prim_hasContext(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_hasContext(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     NixStringContext context;
-    state.forceString(*args[0], context, pos, "while evaluating the argument passed to builtins.hasContext");
+    state.forceString(*state.VRtoVP(args[0]), context, pos, "while evaluating the argument passed to builtins.hasContext");
     v.mkBool(!context.empty());
 }
 
@@ -52,11 +52,11 @@ static RegisterPrimOp primop_hasContext(
     )",
      .fun = prim_hasContext});
 
-static void prim_unsafeDiscardOutputDependency(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_unsafeDiscardOutputDependency(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     NixStringContext context;
     auto s = state.coerceToString(
-        pos, *args[0], context, "while evaluating the argument passed to builtins.unsafeDiscardOutputDependency");
+        pos, *state.VRtoVP(args[0]), context, "while evaluating the argument passed to builtins.unsafeDiscardOutputDependency");
 
     NixStringContext context2;
     for (auto && c : context) {
@@ -93,11 +93,11 @@ static RegisterPrimOp primop_unsafeDiscardOutputDependency(
     )",
      .fun = prim_unsafeDiscardOutputDependency});
 
-static void prim_addDrvOutputDependencies(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_addDrvOutputDependencies(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     NixStringContext context;
     auto s = state.coerceToString(
-        pos, *args[0], context, "while evaluating the argument passed to builtins.addDrvOutputDependencies");
+        pos, *state.VRtoVP(args[0]), context, "while evaluating the argument passed to builtins.addDrvOutputDependencies");
 
     auto contextSize = context.size();
     if (contextSize != 1) {
@@ -177,7 +177,7 @@ static RegisterPrimOp primop_addDrvOutputDependencies(
    Note that for a given path any combination of the above attributes
    may be present.
 */
-static void prim_getContext(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_getContext(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     struct ContextInfo
     {
@@ -187,7 +187,7 @@ static void prim_getContext(EvalState & state, const PosIdx pos, Value ** args, 
     };
 
     NixStringContext context;
-    state.forceString(*args[0], context, pos, "while evaluating the argument passed to builtins.getContext");
+    state.forceString(*state.VRtoVP(args[0]), context, pos, "while evaluating the argument passed to builtins.getContext");
     auto contextInfos = std::map<StorePath, ContextInfo>();
     for (auto && i : context) {
         std::visit(
@@ -255,17 +255,17 @@ static RegisterPrimOp primop_getContext(
    See the commentary above getContext for details of the
    context representation.
 */
-static void prim_appendContext(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     NixStringContext context;
     auto orig = state.forceString(
-        *args[0], context, noPos, "while evaluating the first argument passed to builtins.appendContext");
+        *state.VRtoVP(args[0]), context, noPos, "while evaluating the first argument passed to builtins.appendContext");
 
-    state.forceAttrs(*args[1], pos, "while evaluating the second argument passed to builtins.appendContext");
+    state.forceAttrs(*state.VRtoVP(args[1]), pos, "while evaluating the second argument passed to builtins.appendContext");
 
     auto sPath = state.symbols.create("path");
     auto sAllOutputs = state.symbols.create("allOutputs");
-    for (auto & i : *args[1]->attrs()) {
+    for (auto & i : *state.VRtoVP(args[1])->attrs()) {
         const auto & name = state.symbols[i.name];
         if (!state.store->isStorePath(name))
             state.error<EvalError>("context key '%s' is not a store path", name).atPos(i.pos).debugThrow();

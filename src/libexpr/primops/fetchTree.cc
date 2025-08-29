@@ -79,7 +79,7 @@ struct FetchTreeParams
 };
 
 static void fetchTree(
-    EvalState & state, const PosIdx pos, Value ** args, Value & v, const FetchTreeParams & params = FetchTreeParams{})
+    EvalState & state, const PosIdx pos, ValueRef * args, Value & v, const FetchTreeParams & params = FetchTreeParams{})
 {
     fetchers::Input input{state.fetchSettings};
     NixStringContext context;
@@ -88,14 +88,14 @@ static void fetchTree(
     if (params.isFetchGit)
         type = "git";
 
-    state.forceValue(*args[0], pos);
+    state.forceValue(*state.VRtoVP(args[0]), pos);
 
-    if (args[0]->type() == nAttrs) {
-        state.forceAttrs(*args[0], pos, fmt("while evaluating the argument passed to '%s'", fetcher));
+    if (state.VRtoVP(args[0])->type() == nAttrs) {
+        state.forceAttrs(*state.VRtoVP(args[0]), pos, fmt("while evaluating the argument passed to '%s'", fetcher));
 
         fetchers::Attrs attrs;
 
-        if (auto aType = args[0]->attrs()->get(state.sType)) {
+        if (auto aType = state.VRtoVP(args[0])->attrs()->get(state.sType)) {
             if (type)
                 state.error<EvalError>("unexpected argument 'type'").atPos(pos).debugThrow();
             type = state.forceStringNoCtx(
@@ -105,7 +105,7 @@ static void fetchTree(
 
         attrs.emplace("type", type.value());
 
-        for (auto & attr : *args[0]->attrs()) {
+        for (auto & attr : *state.VRtoVP(args[0])->attrs()) {
             if (attr.name == state.sType)
                 continue;
             state.forceValue(*state.VRtoVP(attr.value), attr.pos);
@@ -165,7 +165,7 @@ static void fetchTree(
         auto url = state
                        .coerceToString(
                            pos,
-                           *args[0],
+                           *state.VRtoVP(args[0]),
                            context,
                            fmt("while evaluating the first argument passed to '%s'", fetcher),
                            false,
@@ -225,7 +225,7 @@ static void fetchTree(
     emitTreeAttrs(state, storePath, input2, v, params.emptyRevFallback, false);
 }
 
-static void prim_fetchTree(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_fetchTree(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     fetchTree(state, pos, args, v, {});
 }
@@ -460,7 +460,7 @@ static RegisterPrimOp primop_fetchTree({
     .experimentalFeature = Xp::FetchTree,
 });
 
-void prim_fetchFinalTree(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+void prim_fetchFinalTree(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     fetchTree(state, pos, args, v, {.isFinal = true});
 }
@@ -475,7 +475,7 @@ static RegisterPrimOp primop_fetchFinalTree({
 static void fetch(
     EvalState & state,
     const PosIdx pos,
-    Value ** args,
+    ValueRef * args,
     Value & v,
     const std::string & who,
     bool unpack,
@@ -484,14 +484,14 @@ static void fetch(
     std::optional<std::string> url;
     std::optional<Hash> expectedHash;
 
-    state.forceValue(*args[0], pos);
+    state.forceValue(*state.VRtoVP(args[0]), pos);
 
-    bool isArgAttrs = args[0]->type() == nAttrs;
+    bool isArgAttrs = state.VRtoVP(args[0])->type() == nAttrs;
     bool nameAttrPassed = false;
 
     if (isArgAttrs) {
 
-        for (auto & attr : *args[0]->attrs()) {
+        for (auto & attr : *state.VRtoVP(args[0])->attrs()) {
             std::string_view n(state.symbols[attr.name]);
             if (n == "url")
                 url = state.forceStringNoCtx(*state.VRtoVP(attr.value), attr.pos, "while evaluating the url we should fetch");
@@ -511,7 +511,7 @@ static void fetch(
         if (!url)
             state.error<EvalError>("'url' argument required").atPos(pos).debugThrow();
     } else
-        url = state.forceStringNoCtx(*args[0], pos, "while evaluating the url we should fetch");
+        url = state.forceStringNoCtx(*state.VRtoVP(args[0]), pos, "while evaluating the url we should fetch");
 
     if (who == "fetchTarball")
         url = state.settings.resolvePseudoUrl(*url);
@@ -595,7 +595,7 @@ static void fetch(
     state.allowAndSetStorePathString(storePath, v);
 }
 
-static void prim_fetchurl(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_fetchurl(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     fetch(state, pos, args, v, "fetchurl", false, "");
 }
@@ -621,7 +621,7 @@ static RegisterPrimOp primop_fetchurl({
     .fun = prim_fetchurl,
 });
 
-static void prim_fetchTarball(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_fetchTarball(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     fetch(state, pos, args, v, "fetchTarball", true, "source");
 }
@@ -671,7 +671,7 @@ static RegisterPrimOp primop_fetchTarball({
     .fun = prim_fetchTarball,
 });
 
-static void prim_fetchGit(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_fetchGit(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
     fetchTree(
         state, pos, args, v, FetchTreeParams{.emptyRevFallback = true, .allowNameArgument = true, .isFetchGit = true});

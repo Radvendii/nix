@@ -5,14 +5,14 @@
 
 namespace nix {
 
-void EvalProfiler::preFunctionCallHook(EvalState & state, const Value & v, std::span<Value *> args, const PosIdx pos) {}
+void EvalProfiler::preFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) {}
 
-void EvalProfiler::postFunctionCallHook(EvalState & state, const Value & v, std::span<Value *> args, const PosIdx pos)
+void EvalProfiler::postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
 {
 }
 
 void MultiEvalProfiler::preFunctionCallHook(
-    EvalState & state, const Value & v, std::span<Value *> args, const PosIdx pos)
+    EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
 {
     for (auto & profiler : profilers) {
         if (profiler->getNeededHooks().test(Hook::preFunctionCall))
@@ -21,7 +21,7 @@ void MultiEvalProfiler::preFunctionCallHook(
 }
 
 void MultiEvalProfiler::postFunctionCallHook(
-    EvalState & state, const Value & v, std::span<Value *> args, const PosIdx pos)
+    EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
 {
     for (auto & profiler : profilers) {
         if (profiler->getNeededHooks().test(Hook::postFunctionCall))
@@ -130,7 +130,7 @@ class SampleStack : public EvalProfiler
         return Hooks().set(preFunctionCall).set(postFunctionCall);
     }
 
-    FrameInfo getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value *> args, PosIdx pos);
+    FrameInfo getPrimOpFrameInfo(const PrimOp & primOp, std::span<ValueRef> args, PosIdx pos);
 
 public:
     SampleStack(EvalState & state, std::filesystem::path profileFile, std::chrono::nanoseconds period)
@@ -147,13 +147,13 @@ public:
     }
 
     [[gnu::noinline]] void
-    preFunctionCallHook(EvalState & state, const Value & v, std::span<Value *> args, const PosIdx pos) override;
+    preFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) override;
     [[gnu::noinline]] void
-    postFunctionCallHook(EvalState & state, const Value & v, std::span<Value *> args, const PosIdx pos) override;
+    postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) override;
 
     void maybeSaveProfile(std::chrono::time_point<std::chrono::high_resolution_clock> now);
     void saveProfile();
-    FrameInfo getFrameInfoFromValueAndPos(const Value & v, std::span<Value *> args, PosIdx pos);
+    FrameInfo getFrameInfoFromValueAndPos(const Value & v, std::span<ValueRef> args, PosIdx pos);
 
     SampleStack(SampleStack &&) = default;
     SampleStack & operator=(SampleStack &&) = delete;
@@ -173,7 +173,7 @@ private:
     PosCache posCache;
 };
 
-FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value *> args, PosIdx pos)
+FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<ValueRef> args, PosIdx pos)
 {
     auto derivationInfo = [&]() -> std::optional<FrameInfo> {
         /* Here we rely a bit on the implementation details of libexpr/primops/derivation.nix
@@ -183,8 +183,8 @@ FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value
         if (primOp.name == "derivationStrict") {
             try {
                 /* Error context strings don't actually matter, since we ignore all eval errors. */
-                state.forceAttrs(*args[0], pos, "");
-                auto attrs = args[0]->attrs();
+                state.forceAttrs(*state.VRtoVP(args[0]), pos, "");
+                auto attrs = state.VRtoVP(args[0])->attrs();
                 auto nameAttr = state.getAttr(state.sName, attrs, "");
                 auto drvName = std::string(state.forceStringNoCtx(*state.VRtoVP(nameAttr->value), pos, ""));
                 return DerivationStrictFrameInfo{.callPos = pos, .drvName = std::move(drvName)};
@@ -199,7 +199,7 @@ FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value
     return derivationInfo.value_or(PrimOpFrameInfo{.expr = &primOp, .callPos = pos});
 }
 
-FrameInfo SampleStack::getFrameInfoFromValueAndPos(const Value & v, std::span<Value *> args, PosIdx pos)
+FrameInfo SampleStack::getFrameInfoFromValueAndPos(const Value & v, std::span<ValueRef> args, PosIdx pos)
 {
     /* NOTE: No actual references to garbage collected values are not held in
        the profiler. */
@@ -223,7 +223,7 @@ FrameInfo SampleStack::getFrameInfoFromValueAndPos(const Value & v, std::span<Va
 }
 
 [[gnu::noinline]] void
-SampleStack::preFunctionCallHook(EvalState & state, const Value & v, std::span<Value *> args, const PosIdx pos)
+SampleStack::preFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
 {
     stack.push_back(getFrameInfoFromValueAndPos(v, args, pos));
 
@@ -240,7 +240,7 @@ SampleStack::preFunctionCallHook(EvalState & state, const Value & v, std::span<V
 }
 
 [[gnu::noinline]] void
-SampleStack::postFunctionCallHook(EvalState & state, const Value & v, std::span<Value *> args, const PosIdx pos)
+SampleStack::postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
 {
     if (!stack.empty())
         stack.pop_back();

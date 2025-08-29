@@ -720,7 +720,7 @@ std::optional<EvalState::Doc> EvalState::getDoc(Value & v)
     if (isFunctor(v)) {
         try {
             Value & functor = *VRtoVP(v.attrs()->find(sFunctor)->value);
-            Value * vp[] = {&v};
+            ValueRef vp[] = {VPtoVR(&v)};
             Value partiallyApplied;
             // The first parameter is not user-provided, and may be
             // handled by code that is opaque to the user, like lib.const = x: y: y;
@@ -1632,7 +1632,7 @@ void ExprLambda::eval(EvalState & state, Env & env, Value & v)
     v.mkLambda(&env, this);
 }
 
-void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes, const PosIdx pos)
+void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes, const PosIdx pos)
 {
     auto _level = addCallDepth(pos);
 
@@ -1654,7 +1654,7 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
         for (auto arg : args) {
             auto fun2 = allocValue();
             *fun2 = vRes;
-            vRes.mkPrimOpApp(*this, fun2, arg);
+            vRes.mkPrimOpApp(*this, fun2, VRtoVP(arg));
         }
     };
 
@@ -1673,10 +1673,10 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
             Displacement displ = 0;
 
             if (!lambda.hasFormals())
-                env2.values[displ++] = VPtoVR(args[0]);
+                env2.values[displ++] = args[0];
             else {
                 try {
-                    forceAttrs(*args[0], lambda.pos, "while evaluating the value passed for the lambda argument");
+                    forceAttrs(*VRtoVP(args[0]), lambda.pos, "while evaluating the value passed for the lambda argument");
                 } catch (Error & e) {
                     if (pos)
                         e.addTrace(positions[pos], "from call site");
@@ -1684,14 +1684,14 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
                 }
 
                 if (lambda.arg)
-                    env2.values[displ++] = VPtoVR(args[0]);
+                    env2.values[displ++] = args[0];
 
                 /* For each formal argument, get the actual argument.  If
                    there is no matching actual argument but the formal
                    argument has a default, use the default. */
                 size_t attrsUsed = 0;
                 for (auto & i : lambda.formals->formals) {
-                    auto j = args[0]->attrs()->get(i.name);
+                    auto j = VRtoVP(args[0])->attrs()->get(i.name);
                     if (!j) {
                         if (!i.def) {
                             error<TypeError>(
@@ -1712,10 +1712,10 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
 
                 /* Check that each actual argument is listed as a formal
                    argument (unless the attribute match specifies a `...'). */
-                if (!lambda.formals->ellipsis && attrsUsed != args[0]->attrs()->size()) {
+                if (!lambda.formals->ellipsis && attrsUsed != VRtoVP(args[0])->attrs()->size()) {
                     /* Nope, so show the first unexpected argument to the
                        user. */
-                    for (auto & i : *args[0]->attrs())
+                    for (auto & i : *VRtoVP(args[0])->attrs())
                         if (!lambda.formals->has(i.name)) {
                             StringSet formalNames;
                             for (auto & formal : lambda.formals->formals)
@@ -1816,10 +1816,11 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
                 /* We have all the arguments, so call the primop with
                    the previous and new arguments. */
 
-                Value * vArgs[maxPrimOpArity];
+                // XXX [speed]: these Value *s on the stack are trouble
+                ValueRef vArgs[maxPrimOpArity];
                 auto n = argsDone;
                 for (Value * arg = &vCur; arg->isPrimOpApp(); arg = VRtoVP(arg->primOpApp().left))
-                    vArgs[--n] = VRtoVP(arg->primOpApp().right);
+                    vArgs[--n] = arg->primOpApp().right;
 
                 for (size_t i = 0; i < argsLeft; ++i)
                     vArgs[argsDone + i] = args[i];
@@ -1850,8 +1851,8 @@ void EvalState::callFunction(Value & fun, std::span<Value *> args, Value & vRes,
             /* 'vCur' may be allocated on the stack of the calling
                function, but for functors we may keep a reference, so
                heap-allocate a copy and use that instead. */
-            Value * args2[] = {allocValue(), args[0]};
-            *args2[0] = vCur;
+            ValueRef args2[] = {VPtoVR(allocValue()), args[0]};
+            *VRtoVP(args2[0]) = vCur;
             try {
                 callFunction(*VRtoVP(functor->value), args2, vCur, functor->pos);
             } catch (Error & e) {
@@ -1887,10 +1888,9 @@ void ExprCall::eval(EvalState & state, Env & env, Value & v)
     // 4: about 60
     // 5: under 10
     // This excluded attrset lambdas (`{...}:`). Contributions of mixed lambdas appears insignificant at ~150 total.
-    // XXX [speed]: for now, this can remain an old SmallValueVector, with Value *s. But eventually we will make callFunction take ValueRefs and then we can switch it over
-    SmallVector<Value *, 4> vArgs(args.size());
+    SmallValueVector<4> vArgs(args.size());
     for (size_t i = 0; i < args.size(); ++i)
-        vArgs[i] = args[i]->maybeThunk(state, env);
+        vArgs[i] = state.VPtoVR(args[i]->maybeThunk(state, env));
 
     state.callFunction(vFun, vArgs, v, pos);
 }
@@ -1912,7 +1912,7 @@ void EvalState::autoCallFunction(const Bindings & args, Value & fun, Value & res
         auto found = fun.attrs()->find(sFunctor);
         if (found != fun.attrs()->end()) {
             Value * v = allocValue();
-            callFunction(*VRtoVP(found->value), fun, *v, pos);
+            callFunction(*VRtoVP(found->value), VPtoVR(&fun), *v, pos);
             forceValue(*v, pos);
             return autoCallFunction(args, *v, res);
         }
@@ -1952,7 +1952,7 @@ https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
         }
     }
 
-    callFunction(fun, allocValue()->mkAttrs(attrs), res, pos);
+    callFunction(fun, VPtoVR(&allocValue()->mkAttrs(attrs)), res, pos);
 }
 
 void ExprWith::eval(EvalState & state, Env & env, Value & v)
@@ -2456,7 +2456,7 @@ EvalState::tryAttrsToString(const PosIdx pos, Value & v, NixStringContext & cont
     auto i = v.attrs()->find(sToString);
     if (i != v.attrs()->end()) {
         Value v1;
-        callFunction(*VRtoVP(i->value), v, v1, pos);
+        callFunction(*VRtoVP(i->value), VPtoVR(&v), v1, pos);
         return coerceToString(
                    pos,
                    v1,
@@ -2609,7 +2609,7 @@ SourcePath EvalState::coerceToPath(const PosIdx pos, Value & v, NixStringContext
         auto i = v.attrs()->find(sToString);
         if (i != v.attrs()->end()) {
             Value v1;
-            callFunction(*VRtoVP(i->value), v, v1, pos);
+            callFunction(*VRtoVP(i->value), VPtoVR(&v), v1, pos);
             return coerceToPath(pos, v1, context, errorCtx);
         }
     }

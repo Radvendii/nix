@@ -119,16 +119,16 @@ static void runFetchClosureWithInputAddressedPath(
 
 typedef std::optional<StorePath> StorePathOrGap;
 
-static void prim_fetchClosure(EvalState & state, const PosIdx pos, Value ** args, Value & v)
+static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
 {
-    state.forceAttrs(*args[0], pos, "while evaluating the argument passed to builtins.fetchClosure");
+    state.forceAttrs(*state.VRtoVP(args[0]), pos, "while evaluating the argument passed to builtins.fetchClosure");
 
     std::optional<std::string> fromStoreUrl;
     std::optional<StorePath> fromPath;
     std::optional<StorePathOrGap> toPath;
     std::optional<bool> inputAddressedMaybe;
 
-    for (auto & attr : *args[0]->attrs()) {
+    for (auto & attr : *state.VRtoVP(args[0])->attrs()) {
         const auto & attrName = state.symbols[attr.name];
         auto attrHint = [&]() -> std::string {
             return fmt("while evaluating the attribute '%s' passed to builtins.fetchClosure", attrName);

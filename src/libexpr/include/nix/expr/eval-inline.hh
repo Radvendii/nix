@@ -108,7 +108,7 @@ void EvalState::forceValue(Value & v, const PosIdx pos)
             throw;
         }
     } else if (v.isApp())
-        callFunction(*VRtoVP(v.app().left), *VRtoVP(v.app().right), v, pos);
+        callFunction(*VRtoVP(v.app().left), v.app().right, v, pos);
 }
 
 [[gnu::always_inline]]
