@@ -781,7 +781,6 @@ static void prim_genericClosure(EvalState & state, const PosIdx pos, ValueRef * 
         res.push_back(e);
 
         /* Call the `operator' function with `e' as argument. */
-        // XXX [speed] will need to be ValueRef
         Value newElements;
         state.callFunction(*state.VRtoVP(op->value), e, newElements, noPos);
         state.forceList(

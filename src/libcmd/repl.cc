@@ -66,7 +66,9 @@ struct NixRepl : AbstractNixRepl, detail::ReplCompleterMixin, gc
 
     const static int envSize = 32768;
     std::shared_ptr<StaticEnv> staticEnv;
-    Value lastLoaded;
+    // This ValueRef is static for the lifetime of the repl but its contents
+    // change so it should never be referenced by another Value.
+    ValueRef lastLoaded;
     Env * env;
     int displ;
     StringSet varNames;
@@ -142,9 +144,11 @@ NixRepl::NixRepl(
     , debugTraceIndex(0)
     , getValues(getValues)
     , staticEnv(new StaticEnv(nullptr, state->staticBaseEnv))
+    , lastLoaded(state->VPtoVR(state->allocValue()))
     , runNixPtr{runNix}
     , interacter(make_unique<ReadlineLikeInteracter>(getDataDir() + "/repl-history"))
 {
+    state->VRtoVP(lastLoaded)->mkAttrs(&state->emptyBindings);
 }
 
 static std::ostream & showDebugTrace(std::ostream & out, const PosTable & positions, const DebugTrace & dt)
@@ -774,7 +778,7 @@ void NixRepl::showLastLoaded()
 {
     RunPager pager;
 
-    for (auto & i : *lastLoaded.attrs()) {
+    for (auto & i : *state->VRtoV(lastLoaded).attrs()) {
         std::string_view name = state->symbols[i.name];
         logger->cout(name);
     }
@@ -833,7 +837,7 @@ void NixRepl::addAttrsToScope(Value & attrs)
     staticEnv->deduplicate();
     notice("Added %1% variables.", attrs.attrs()->size());
 
-    lastLoaded = attrs;
+    *state->VRtoVP(lastLoaded) = attrs;
 
     const int max_print = 20;
     int counter = 0;

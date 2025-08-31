@@ -61,6 +61,7 @@ struct ExtraPathInfoValue : ExtraPathInfo
         ExtendedOutputsSpec extendedOutputsSpec;
     };
 
+    // XXX [speed] this is a different kind of Value, we don't need to turn it into a ValueRef
     Value value;
 
     ExtraPathInfoValue(Value && v)
