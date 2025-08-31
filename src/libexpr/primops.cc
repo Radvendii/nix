@@ -2636,13 +2636,11 @@ bool EvalState::callPathFilter(Value * filterFun, const SourcePath & path, PosId
 
     /* Call the filter function.  The first argument is the path, the
        second is a string indicating the type of the file. */
-    Value * arg1 = allocValue();
-    nrBytesAdded += sizeof(Value);
-    nrStackValues++;
-    arg1->mkString(path.path.abs());
+    Value arg1;
+    arg1.mkString(path.path.abs());
 
     // assert that type is not "unknown"
-    ValueRef args[]{VPtoVR(arg1), VPtoVR(fileTypeToString(*this, st.type))};
+    ValueRef args[]{VPtoVR(&arg1), VPtoVR(fileTypeToString(*this, st.type))};
     Value res;
     callFunction(*filterFun, args, res, pos);
 

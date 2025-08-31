@@ -44,7 +44,7 @@ struct Value;
 // XXX [speed]: these might not be needed when we're done
 typedef uint32_t ValueRef;
 inline void * allocBytes(size_t n);
-constexpr ValueRef ValueRefNull = std::numeric_limits<ValueRef>::max();
+constexpr ValueRef ValueRefNull = 0;
 // XXX [speed]
 class BindingsBuilder;
 

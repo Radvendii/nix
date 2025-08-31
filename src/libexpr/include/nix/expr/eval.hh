@@ -223,6 +223,17 @@ public:
      * Vector containing all allocated values
      */
     std::vector<Value> values;
+private:
+    /**
+     * In order to refer to Values allocated on the stack in a ValueRef (32
+     * bits), we need a stable pointer to somewhere in the stack from which to
+     * offset. This is that pointer.
+     *
+     * XXX [speed]: figure out what to call this and where to put it
+     * XXX [speed]: figure out how this works with multiple threads?
+     */
+    size_t stackPtr;
+public:
 
     SymbolTable symbols;
     PosTable positions;
@@ -434,21 +445,32 @@ public:
     Value * VRtoVP(ValueRef ref) {
         if (ref == ValueRefNull)
             return nullptr;
-        return &values[ref];
+        // XXX [speed] make sure this branching statement gets optimzied out
+        if (ref & 0x1) {
+            // use arithmetic shift to preserve sign bit
+            int32_t offset = (int32_t)ref >> 1;
+            return (Value *) (stackPtr + offset);
+        }
+        return &values[(ref >> 1) - 1];
     }
 
     Value & VRtoV(ValueRef ref) {
-        if (ref == ValueRefNull)
-            throw std::logic_error("Trying to dereference ValueRefNull!");
-        return values[ref];
+        return *VRtoVP(ref);
     }
 
     ValueRef VPtoVR(Value *v) {
-        // XXX [speed]: sloppy debug statement. clean it up
-        if (v < &values.front() || v > &values.back())
-            std::cout << "trying to convert to invalid ValueRef!" << "\n";
-        ValueRef ref = v ? v - &values.front() : ValueRefNull;
-        return ref;
+        if (v == nullptr)
+            return ValueRefNull;
+        if (v < &values.front() || v > &values.back()) {
+            // assume stack pointer
+            // XXX [speed]: would really be nice if we could error check this properly (i.e. is it on the stack)
+            int32_t offset = (size_t) v - stackPtr;
+            ValueRef ret = (uint32_t) offset << 1 | 0x1;
+            return ret;
+        }
+        // XXX [speed]: do we have to convert to size_t first?
+        // Offset by 1 so we don't overlap with ValueRefNull
+        return (ValueRef) ((v - &values.front() + 1) << 1);
     }
 
     LookupPath getLookupPath()

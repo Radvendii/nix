@@ -402,6 +402,11 @@ EvalState::EvalState(
 #endif
     , staticBaseEnv{std::make_shared<StaticEnv>(nullptr, nullptr)}
 {
+    // grab a pointer to somewhere in the stack for later
+    // XXX [speed] if we make this a (Value *), we can maybe use alignment to make the indexable space even larger
+    char onStack;
+    stackPtr = (size_t) &onStack;
+
     values.reserve(100000);
     corepkgsFS->setPathDisplay("<nix", ">");
     internalFS->setPathDisplay("«nix-internal»", "");
@@ -1816,7 +1821,6 @@ void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes
                 /* We have all the arguments, so call the primop with
                    the previous and new arguments. */
 
-                // XXX [speed]: these Value *s on the stack are trouble
                 ValueRef vArgs[maxPrimOpArity];
                 auto n = argsDone;
                 for (Value * arg = &vCur; arg->isPrimOpApp(); arg = VRtoVP(arg->primOpApp().left))
@@ -2086,13 +2090,12 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, Value & v)
 
 void ExprOpConcatLists::eval(EvalState & state, Env & env, Value & v)
 {
-    nrBytesAdded += 2 * sizeof(Value);
-    nrStackValues += 2;
-    Value * v1 = state.allocValue();
-    e1->eval(state, env, *v1);
-    Value * v2 = state.allocValue();
-    e2->eval(state, env, *v2);
-    ValueRef lists[2] = {state.VPtoVR(v1), state.VPtoVR(v2)};
+    Value v1;
+    e1->eval(state, env, v1);
+    Value v2;
+    e2->eval(state, env, v2);
+    ValueRef lists[2] = {state.VPtoVR(&v1), state.VPtoVR(&v2)};
+    // XXX [speed]: these can be local again
     state.concatLists(v, 2, lists, pos, "while evaluating one of the elements to concatenate");
 }
 
