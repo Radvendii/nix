@@ -280,6 +280,10 @@ public:
     /** `"unknown"` */
     ValueRef vStringUnknown = ValueRefNull;
 
+    /** XXX [speed] add a good description */
+    ValueRef vLineOfPosPrimOp = ValueRefNull;
+    ValueRef vColumnOfPosPrimOp = ValueRefNull;
+
     /**
      * The accessor corresponding to `store`.
      */

@@ -2983,35 +2983,23 @@ static RegisterPrimOp primop_unsafeGetAttrPos(
 // but each type of thunk has an associated runtime cost in the current evaluator.
 // as with black holes this cost is too high to justify another thunk type to check
 // for in the very hot path that is forceValue.
-static struct LazyPosAccessors
-{
-    PrimOp primop_lineOfPos{.arity = 1, .fun = [](EvalState & state, PosIdx pos, ValueRef * args, Value & v) {
-                                v.mkInt(state.positions[PosIdx(state.VRtoVP(args[0])->integer().value)].line);
-                            }};
-    PrimOp primop_columnOfPos{.arity = 1, .fun = [](EvalState & state, PosIdx pos, ValueRef * args, Value & v) {
-                                  v.mkInt(state.positions[PosIdx(state.VRtoVP(args[0])->integer().value)].column);
-                              }};
-
-    Value lineOfPos, columnOfPos;
-
-    LazyPosAccessors()
-    {
-        lineOfPos.mkPrimOp(&primop_lineOfPos);
-        columnOfPos.mkPrimOp(&primop_columnOfPos);
-    }
-
-    void operator()(EvalState & state, const PosIdx pos, Value & line, Value & column)
-    {
-        Value * posV = state.allocValue();
-        posV->mkInt(pos.id);
-        line.mkApp(state, &lineOfPos, posV);
-        column.mkApp(state, &columnOfPos, posV);
-    }
-} makeLazyPosAccessors;
+//
+// XXX [speed] made these non-static so they can be made friend functions. i have no idea what i'm doing send help
+void prim_lineOfPos(EvalState & state, PosIdx pos, ValueRef * args, Value & v) {
+    v.mkInt(state.positions[PosIdx(state.VRtoVP(args[0])->integer().value)].line);
+}
+void prim_columnOfPos(EvalState & state, PosIdx pos, ValueRef * args, Value & v) {
+    v.mkInt(state.positions[PosIdx(state.VRtoVP(args[0])->integer().value)].column);
+}
+PrimOp primop_lineOfPos{.arity = 1, .fun = prim_lineOfPos};
+PrimOp primop_columnOfPos{.arity = 1, .fun = prim_columnOfPos};
 
 void makePositionThunks(EvalState & state, const PosIdx pos, Value & line, Value & column)
 {
-    makeLazyPosAccessors(state, pos, line, column);
+    Value * posV = state.allocValue();
+    posV->mkInt(pos.id);
+    line.mkApp(state, state.VRtoVP(state.vLineOfPosPrimOp), posV);
+    column.mkApp(state, state.VRtoVP(state.vColumnOfPosPrimOp), posV);
 }
 
 /* Dynamic version of the `?' operator. */

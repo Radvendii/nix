@@ -60,4 +60,6 @@ void prim_exec(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
 
 void makePositionThunks(EvalState & state, const PosIdx pos, Value & line, Value & column);
 
+extern PrimOp primop_lineOfPos;
+extern PrimOp primop_columnOfPos;
 } // namespace nix

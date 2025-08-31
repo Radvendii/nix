@@ -420,6 +420,8 @@ EvalState::EvalState(
     VRtoV(vStringDirectory = VPtoVR(allocValue())).mkString("directory");
     VRtoV(vStringSymlink = VPtoVR(allocValue())).mkString("symlink");
     VRtoV(vStringUnknown = VPtoVR(allocValue())).mkString("unknown");
+    VRtoV(vLineOfPosPrimOp = VPtoVR(allocValue())).mkPrimOp(&primop_lineOfPos);
+    VRtoV(vColumnOfPosPrimOp = VPtoVR(allocValue())).mkPrimOp(&primop_columnOfPos);
 
     /* Construct the Nix expression search path. */
     assert(lookupPath.elements.empty());

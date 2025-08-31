@@ -6,9 +6,15 @@
 
 namespace nix {
 
+class EvalState;
+struct Value;
+typedef uint32_t ValueRef;
+
 class PosIdx
 {
-    friend struct LazyPosAccessors;
+    friend void makePositionThunks(EvalState & state, const PosIdx pos, Value & line, Value & column);
+    friend void prim_lineOfPos(EvalState & state, PosIdx pos, ValueRef * args, Value & v);
+    friend void prim_columnOfPos(EvalState & state, PosIdx pos, ValueRef * args, Value & v);
     friend class PosTable;
     friend class std::hash<PosIdx>;
 
