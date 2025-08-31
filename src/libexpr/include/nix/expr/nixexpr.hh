@@ -68,7 +68,7 @@ struct DocComment
  */
 struct AttrName
 {
-    SymbolRef symbol;
+    SymbolRef symbol = ValueRefNull;
     Expr * expr = nullptr;
     AttrName(SymbolRef s)
         : symbol(s) {};
