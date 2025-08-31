@@ -16,7 +16,7 @@ class AttrCursor;
 struct CachedEvalError : EvalError
 {
     const ref<AttrCursor> cursor;
-    const SymbolRef attr;
+    const SymbolRef attr = ValueRefNull;
 
     CachedEvalError(ref<AttrCursor> cursor, SymbolRef attr);
 

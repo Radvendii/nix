@@ -21,7 +21,7 @@ struct Attr
        both of them are uint32 wrappers, they are next to each other
        to make sure that Attr has no padding on 64 bit machines. that
        way we keep Attr size at two words with no wasted space. */
-    SymbolRef name;
+    SymbolRef name = ValueRefNull;
     PosIdx pos;
     ValueRef value = ValueRefNull;
     Attr(SymbolRef name, ValueRef value, PosIdx pos = noPos)

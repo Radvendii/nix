@@ -3113,7 +3113,7 @@ static void prim_listToAttrs(EvalState & state, const PosIdx pos, ValueRef * arg
     });
 
     // Step 2. Unpack the bindings in place and skip name-value pairs with duplicate names
-    SymbolRef prev;
+    SymbolRef prev = ValueRefNull;
     for (size_t n = 0; n < listSize; n++) {
         auto attr = bindings[n];
         if (prev == attr.name) {

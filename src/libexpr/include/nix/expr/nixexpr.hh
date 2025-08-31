@@ -86,6 +86,7 @@ struct Expr
 {
     struct AstSymbols
     {
+        // XXX [speed]: These get initialized in EvalState::EvalState()
         SymbolRef sub, lessThan, mul, div, or_, findFile, nixPath, body;
     };
 
@@ -170,7 +171,7 @@ typedef uint32_t Displacement;
 struct ExprVar : Expr
 {
     PosIdx pos;
-    SymbolRef name;
+    SymbolRef name = ValueRefNull;
 
     /* Whether the variable comes from an environment (e.g. a rec, let
        or function argument) or from a "with".
@@ -366,7 +367,7 @@ struct ExprList : Expr
 struct Formal
 {
     PosIdx pos;
-    SymbolRef name;
+    SymbolRef name = ValueRefNull;
     Expr * def;
 };
 
@@ -400,8 +401,8 @@ struct Formals
 struct ExprLambda : Expr
 {
     PosIdx pos;
-    SymbolRef name;
-    SymbolRef arg;
+    SymbolRef name = ValueRefNull;
+    SymbolRef arg = ValueRefNull;
     Formals * formals;
     Expr * body;
     DocComment docComment;

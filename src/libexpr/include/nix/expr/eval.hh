@@ -238,6 +238,7 @@ public:
     SymbolTable symbols;
     PosTable positions;
 
+    // XXX [speed]: these get initialized in EvalState::EvalState()
     const SymbolRef sWith, sOutPath, sDrvPath, sType, sMeta, sName, sValue, sSystem, sOverrides, sOutputs, sOutputName,
         sIgnoreNulls, sFile, sLine, sColumn, sFunctor, sToString, sRight, sWrong, sStructuredAttrs, sJson,
         sAllowedReferences, sAllowedRequisites, sDisallowedReferences, sDisallowedRequisites, sMaxSize, sMaxClosureSize,
