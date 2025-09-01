@@ -5,12 +5,12 @@
 
 namespace nix {
 
-static void prim_unsafeDiscardStringContext(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_unsafeDiscardStringContext(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     NixStringContext context;
     auto s = state.coerceToString(
         pos, *state.VRtoVP(args[0]), context, "while evaluating the argument passed to builtins.unsafeDiscardStringContext");
-    v.mkString(*s);
+    state.VRtoV(v).mkString(*s);
 }
 
 static RegisterPrimOp primop_unsafeDiscardStringContext({
@@ -22,11 +22,11 @@ static RegisterPrimOp primop_unsafeDiscardStringContext({
     .fun = prim_unsafeDiscardStringContext,
 });
 
-static void prim_hasContext(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_hasContext(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     NixStringContext context;
     state.forceString(*state.VRtoVP(args[0]), context, pos, "while evaluating the argument passed to builtins.hasContext");
-    v.mkBool(!context.empty());
+    state.VRtoV(v).mkBool(!context.empty());
 }
 
 static RegisterPrimOp primop_hasContext(
@@ -52,7 +52,7 @@ static RegisterPrimOp primop_hasContext(
     )",
      .fun = prim_hasContext});
 
-static void prim_unsafeDiscardOutputDependency(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_unsafeDiscardOutputDependency(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     NixStringContext context;
     auto s = state.coerceToString(
@@ -68,7 +68,7 @@ static void prim_unsafeDiscardOutputDependency(EvalState & state, const PosIdx p
         }
     }
 
-    v.mkString(*s, context2);
+    state.VRtoV(v).mkString(*s, context2);
 }
 
 static RegisterPrimOp primop_unsafeDiscardOutputDependency(
@@ -93,7 +93,7 @@ static RegisterPrimOp primop_unsafeDiscardOutputDependency(
     )",
      .fun = prim_unsafeDiscardOutputDependency});
 
-static void prim_addDrvOutputDependencies(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_addDrvOutputDependencies(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     NixStringContext context;
     auto s = state.coerceToString(
@@ -136,7 +136,7 @@ static void prim_addDrvOutputDependencies(EvalState & state, const PosIdx pos, V
             context.begin()->raw)}),
     };
 
-    v.mkString(*s, context2);
+    state.VRtoV(v).mkString(*s, context2);
 }
 
 static RegisterPrimOp primop_addDrvOutputDependencies(
@@ -177,7 +177,7 @@ static RegisterPrimOp primop_addDrvOutputDependencies(
    Note that for a given path any combination of the above attributes
    may be present.
 */
-static void prim_getContext(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_getContext(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     struct ContextInfo
     {
@@ -223,7 +223,7 @@ static void prim_getContext(EvalState & state, const PosIdx pos, ValueRef * args
         attrs.alloc(state.store->printStorePath(info.first)).mkAttrs(infoAttrs);
     }
 
-    v.mkAttrs(attrs);
+    state.VRtoV(v).mkAttrs(attrs);
 }
 
 static RegisterPrimOp primop_getContext(
@@ -255,7 +255,7 @@ static RegisterPrimOp primop_getContext(
    See the commentary above getContext for details of the
    context representation.
 */
-static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     NixStringContext context;
     auto orig = state.forceString(
@@ -320,7 +320,7 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
         }
     }
 
-    v.mkString(orig, context);
+    state.VRtoV(v).mkString(orig, context);
 }
 
 static RegisterPrimOp primop_appendContext({.name = "__appendContext", .arity = 2, .fun = prim_appendContext});

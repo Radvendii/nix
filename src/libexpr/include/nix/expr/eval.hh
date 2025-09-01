@@ -73,7 +73,7 @@ public:
 /**
  * Function that implements a primop.
  */
-using PrimOpFun = void(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
+using PrimOpFun = void(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
 
 /**
  * Info about a primitive operation, and its implementation
@@ -1012,9 +1012,9 @@ private:
     friend struct ExprFloat;
     friend struct ExprPath;
     friend struct ExprSelect;
-    friend void prim_getAttr(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
-    friend void prim_match(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
-    friend void prim_split(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
+    friend void prim_getAttr(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
+    friend void prim_match(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
+    friend void prim_split(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
 
     friend struct Value;
     friend class ListBuilder;

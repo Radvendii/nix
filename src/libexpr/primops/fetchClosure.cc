@@ -21,7 +21,7 @@ static void runFetchClosureWithRewrite(
     Store & fromStore,
     const StorePath & fromPath,
     const std::optional<StorePath> & toPathMaybe,
-    Value & v)
+    ValueRef v)
 {
 
     // establish toPath or throw
@@ -63,14 +63,14 @@ static void runFetchClosureWithRewrite(
              .pos = state.positions[pos]});
     }
 
-    state.mkStorePathString(toPath, v);
+    state.mkStorePathString(toPath, state.VRtoV(v));
 }
 
 /**
  * Fetch the closure and make sure it's content addressed.
  */
 static void runFetchClosureWithContentAddressedPath(
-    EvalState & state, const PosIdx pos, Store & fromStore, const StorePath & fromPath, Value & v)
+    EvalState & state, const PosIdx pos, Store & fromStore, const StorePath & fromPath, ValueRef v)
 {
 
     if (!state.store->isValidPath(fromPath))
@@ -90,14 +90,14 @@ static void runFetchClosureWithContentAddressedPath(
              .pos = state.positions[pos]});
     }
 
-    state.mkStorePathString(fromPath, v);
+    state.mkStorePathString(fromPath, state.VRtoV(v));
 }
 
 /**
  * Fetch the closure and make sure it's input addressed.
  */
 static void runFetchClosureWithInputAddressedPath(
-    EvalState & state, const PosIdx pos, Store & fromStore, const StorePath & fromPath, Value & v)
+    EvalState & state, const PosIdx pos, Store & fromStore, const StorePath & fromPath, ValueRef v)
 {
 
     if (!state.store->isValidPath(fromPath))
@@ -114,12 +114,12 @@ static void runFetchClosureWithInputAddressedPath(
              .pos = state.positions[pos]});
     }
 
-    state.mkStorePathString(fromPath, v);
+    state.mkStorePathString(fromPath, state.VRtoV(v));
 }
 
 typedef std::optional<StorePath> StorePathOrGap;
 
-static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceAttrs(*state.VRtoVP(args[0]), pos, "while evaluating the argument passed to builtins.fetchClosure");
 

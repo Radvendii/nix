@@ -7,15 +7,15 @@
 
 namespace nix {
 
-static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, Value & val)
+static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef val)
 {
     auto toml = state.forceStringNoCtx(*state.VRtoVP(args[0]), pos, "while evaluating the argument passed to builtins.fromTOML");
 
     std::istringstream tomlStream(std::string{toml});
 
-    std::function<void(Value &, toml::value)> visit;
+    std::function<void(ValueRef, toml::value)> visit;
 
-    visit = [&](Value & v, toml::value t) {
+    visit = [&](ValueRef v, toml::value t) {
         switch (t.type()) {
         case toml::value_t::table: {
             auto table = toml::get<toml::table>(t);
@@ -30,10 +30,10 @@ static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, 
 
             for (auto & elem : table) {
                 forceNoNullByte(elem.first);
-                visit(attrs.alloc(elem.first), elem.second);
+                visit(state.VPtoVR(&attrs.alloc(elem.first)), elem.second);
             }
 
-            v.mkAttrs(attrs);
+            state.VRtoV(v).mkAttrs(attrs);
         } break;
             ;
         case toml::value_t::array: {
@@ -41,26 +41,26 @@ static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, 
 
             auto list = state.buildList(array.size());
             for (const auto & [n, v] : enumerate(list))
-                visit(*state.VRtoVP(v = state.allocValue()), array[n]);
-            v.mkList(list);
+                visit(v = state.allocValue(), array[n]);
+            state.VRtoV(v).mkList(list);
         } break;
             ;
         case toml::value_t::boolean:
-            v.mkBool(toml::get<bool>(t));
+            state.VRtoV(v).mkBool(toml::get<bool>(t));
             break;
             ;
         case toml::value_t::integer:
-            v.mkInt(toml::get<int64_t>(t));
+            state.VRtoV(v).mkInt(toml::get<int64_t>(t));
             break;
             ;
         case toml::value_t::floating:
-            v.mkFloat(toml::get<NixFloat>(t));
+            state.VRtoV(v).mkFloat(toml::get<NixFloat>(t));
             break;
             ;
         case toml::value_t::string: {
             auto s = toml::get<std::string_view>(t);
             forceNoNullByte(s);
-            v.mkString(s);
+            state.VRtoV(v).mkString(s);
         } break;
             ;
         case toml::value_t::local_datetime:
@@ -75,21 +75,21 @@ static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, 
                 auto str = toView(s);
                 forceNoNullByte(str);
                 attrs.alloc("value").mkString(str);
-                v.mkAttrs(attrs);
+                state.VRtoV(v).mkAttrs(attrs);
             } else {
                 throw std::runtime_error("Dates and times are not supported");
             }
         } break;
             ;
         case toml::value_t::empty:
-            v.mkNull();
+            state.VRtoV(v).mkNull();
             break;
             ;
         }
     };
 
     try {
-        visit(val, toml::parse(tomlStream, "fromTOML" /* the "filename" */));
+        visit((val), toml::parse(tomlStream, "fromTOML" /* the "filename" */));
     } catch (std::exception & e) { // TODO: toml::syntax_error
         state.error<EvalError>("while parsing TOML: %s", e.what()).atPos(pos).debugThrow();
     }

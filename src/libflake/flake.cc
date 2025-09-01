@@ -909,7 +909,7 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, Value & vRes)
             state,
             storePath,
             lockedNode ? lockedNode->lockedRef.input : lockedFlake.flake.lockedRef.input,
-            vSourceInfo,
+            state.VPtoVR(&vSourceInfo),
             false,
             !lockedNode && lockedFlake.flake.forceDirty);
 

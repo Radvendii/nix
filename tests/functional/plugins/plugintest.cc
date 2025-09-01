@@ -12,12 +12,12 @@ MySettings mySettings;
 
 static GlobalConfig::Register rs(&mySettings);
 
-static void prim_anotherNull(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_anotherNull(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     if (mySettings.settingSet)
-        v.mkNull();
+        state.VRtoV(v).mkNull();
     else
-        v.mkBool(false);
+        state.VRtoV(v).mkBool(false);
 }
 
 static RegisterPrimOp rp({

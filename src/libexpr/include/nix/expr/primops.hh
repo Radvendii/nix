@@ -51,14 +51,14 @@ struct RegisterPrimOp
 /**
  * Load a ValueInitializer from a DSO and return whatever it initializes
  */
-void prim_importNative(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
+void prim_importNative(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
 
 /**
  * Execute a program and parse its output
  */
-void prim_exec(EvalState & state, const PosIdx pos, ValueRef * args, Value & v);
+void prim_exec(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
 
-void makePositionThunks(EvalState & state, const PosIdx pos, Value & line, Value & column);
+void makePositionThunks(EvalState & state, const PosIdx pos, ValueRef line, ValueRef column);
 
 extern PrimOp primop_lineOfPos;
 extern PrimOp primop_columnOfPos;

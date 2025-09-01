@@ -8,7 +8,7 @@
 
 namespace nix {
 
-static void prim_fetchMercurial(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_fetchMercurial(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     std::string url;
     std::optional<Hash> rev;
@@ -94,7 +94,7 @@ static void prim_fetchMercurial(EvalState & state, const PosIdx pos, ValueRef * 
     attrs2.alloc("shortRev").mkString(rev2.gitRev().substr(0, 12));
     if (auto revCount = input2.getRevCount())
         attrs2.alloc("revCount").mkInt(*revCount);
-    v.mkAttrs(attrs2);
+    state.VRtoV(v).mkAttrs(attrs2);
 
     state.allowPath(storePath);
 }

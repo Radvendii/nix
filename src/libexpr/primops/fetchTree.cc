@@ -23,7 +23,7 @@ void emitTreeAttrs(
     EvalState & state,
     const StorePath & storePath,
     const fetchers::Input & input,
-    Value & v,
+    ValueRef v,
     bool emptyRevFallback,
     bool forceDirty)
 {
@@ -67,7 +67,7 @@ void emitTreeAttrs(
         attrs.alloc("lastModifiedDate").mkString(fmt("%s", std::put_time(std::gmtime(&*lastModified), "%Y%m%d%H%M%S")));
     }
 
-    v.mkAttrs(attrs);
+    state.VRtoV(v).mkAttrs(attrs);
 }
 
 struct FetchTreeParams
@@ -79,7 +79,7 @@ struct FetchTreeParams
 };
 
 static void fetchTree(
-    EvalState & state, const PosIdx pos, ValueRef * args, Value & v, const FetchTreeParams & params = FetchTreeParams{})
+    EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v, const FetchTreeParams & params = FetchTreeParams{})
 {
     fetchers::Input input{state.fetchSettings};
     NixStringContext context;
@@ -225,7 +225,7 @@ static void fetchTree(
     emitTreeAttrs(state, storePath, input2, v, params.emptyRevFallback, false);
 }
 
-static void prim_fetchTree(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_fetchTree(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     fetchTree(state, pos, args, v, {});
 }
@@ -460,7 +460,7 @@ static RegisterPrimOp primop_fetchTree({
     .experimentalFeature = Xp::FetchTree,
 });
 
-void prim_fetchFinalTree(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+void prim_fetchFinalTree(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     fetchTree(state, pos, args, v, {.isFinal = true});
 }
@@ -476,7 +476,7 @@ static void fetch(
     EvalState & state,
     const PosIdx pos,
     ValueRef * args,
-    Value & v,
+    ValueRef v,
     const std::string & who,
     bool unpack,
     std::string name)
@@ -562,7 +562,7 @@ static void fetch(
                 .references = {}});
 
         if (state.store->isValidPath(expectedPath)) {
-            state.allowAndSetStorePathString(expectedPath, v);
+            state.allowAndSetStorePathString(expectedPath, state.VRtoV(v));
             return;
         }
     }
@@ -592,10 +592,10 @@ static void fetch(
         }
     }
 
-    state.allowAndSetStorePathString(storePath, v);
+    state.allowAndSetStorePathString(storePath, state.VRtoV(v));
 }
 
-static void prim_fetchurl(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_fetchurl(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     fetch(state, pos, args, v, "fetchurl", false, "");
 }
@@ -621,7 +621,7 @@ static RegisterPrimOp primop_fetchurl({
     .fun = prim_fetchurl,
 });
 
-static void prim_fetchTarball(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_fetchTarball(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     fetch(state, pos, args, v, "fetchTarball", true, "source");
 }
@@ -671,7 +671,7 @@ static RegisterPrimOp primop_fetchTarball({
     .fun = prim_fetchTarball,
 });
 
-static void prim_fetchGit(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void prim_fetchGit(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     fetchTree(
         state, pos, args, v, FetchTreeParams{.emptyRevFallback = true, .allowNameArgument = true, .isFetchGit = true});

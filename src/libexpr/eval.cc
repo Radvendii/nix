@@ -1103,7 +1103,7 @@ void EvalState::mkPos(Value & v, PosIdx p)
     if (auto path = std::get_if<SourcePath>(&origin)) {
         auto attrs = buildBindings(3);
         attrs.alloc(sFile).mkString(path->path.abs());
-        makePositionThunks(*this, p, attrs.alloc(sLine), attrs.alloc(sColumn));
+        makePositionThunks(*this, p, VPtoVR(&attrs.alloc(sLine)), VPtoVR(&attrs.alloc(sColumn)));
         v.mkAttrs(attrs);
     } else
         v.mkNull();
@@ -1780,7 +1780,7 @@ void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes
                     primOpCalls[fn->name]++;
 
                 try {
-                    fn->fun(*this, vCur.determinePos(*this, noPos), args.data(), vCur);
+                    fn->fun(*this, vCur.determinePos(*this, noPos), args.data(), VPtoVR(&vCur));
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
@@ -1830,7 +1830,7 @@ void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes
                     // 2. Create a fake env (arg1, arg2, etc.) and a fake expr (arg1: arg2: etc: builtins.name arg1 arg2
                     // etc)
                     //    so the debugger allows to inspect the wrong parameters passed to the builtin.
-                    fn->fun(*this, vCur.determinePos(*this, noPos), vArgs, vCur);
+                    fn->fun(*this, vCur.determinePos(*this, noPos), vArgs, VPtoVR(&vCur));
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
