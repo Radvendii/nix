@@ -804,7 +804,7 @@ void NixRepl::loadFiles()
 
     for (auto & [i, what] : getValues()) {
         notice("Loading installable '%1%'...", what);
-        addAttrsToScope(*i);
+        addAttrsToScope(*state->VRtoVP(i));
     }
 }
 

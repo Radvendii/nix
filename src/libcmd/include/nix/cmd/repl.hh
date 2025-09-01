@@ -17,7 +17,7 @@ struct AbstractNixRepl
 
     virtual ~AbstractNixRepl() {}
 
-    typedef std::vector<std::pair<Value *, std::string>> AnnotatedValues;
+    typedef std::vector<std::pair<ValueRef, std::string>> AnnotatedValues;
 
     using RunNix = void(Path program, const Strings & args, const std::optional<std::string> & input);
 
