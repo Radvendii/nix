@@ -20,7 +20,7 @@ namespace nix {
  */
  // XXX [speed]: do we actually need size? Can't we construct a string_view with just a c string pointer? is it super slow?
 class SymbolData {
-    ValueRef v;
+    ValueRef v = ValueRefNull;
     uint32_t size;
     // variable length string allocated after the SymbolData in memory
     char c_str[0];

@@ -129,19 +129,15 @@ Symbol::Symbol(const Key & key)
     auto v = key.es.VPtoVR(vp);
 
     // allocate enough bytes at the end of the SymbolData for our string
-    auto str_alloc_bytes = size > 0 ? size + 1 : 0;
-    auto data = (SymbolData *)key.alloc.allocate(sizeof(SymbolData) + str_alloc_bytes);
+    auto data = (SymbolData *)key.alloc.allocate(sizeof(SymbolData) + size + 1);
 
     data->v = v;
     data->size = size;
-    if (size == 0) {
-        vp->mkString("", nullptr);
-    } else {
-        memcpy(data->c_str, key.str.data(), size);
-        data->c_str[size] = '\0';
-        // XXX [speed]: there should either be a tSymbol Value type that fits in 8 bytes, or at least a contextless string type that does
-        vp->mkString(data->c_str, nullptr);
-    }
+    // XXX [speed]: had to remove a special-case for empty string that didn't require any allocation. I'm not sure if that impacts e.g. string comparison times, but the c_str pointer must point back to the SymbolData.
+    memcpy(data->c_str, key.str.data(), size);
+    data->c_str[size] = '\0';
+    // XXX [speed]: there should either be a tSymbol Value type that fits in 8 bytes, or at least a contextless string type that does
+    vp->mkString(data->c_str, nullptr);
     this->data = data;
 }
 
