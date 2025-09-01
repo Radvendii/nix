@@ -144,7 +144,7 @@ NixRepl::NixRepl(
     , debugTraceIndex(0)
     , getValues(getValues)
     , staticEnv(new StaticEnv(nullptr, state->staticBaseEnv))
-    , lastLoaded(state->VPtoVR(state->allocValue()))
+    , lastLoaded(state->allocValue())
     , runNixPtr{runNix}
     , interacter(make_unique<ReadlineLikeInteracter>(getDataDir() + "/repl-history"))
 {
@@ -701,7 +701,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         if (p != std::string::npos && p < line.size() && line[p + 1] != '='
             && isVarName(name = removeWhitespace(line.substr(0, p)))) {
             Expr * e = parseString(line.substr(p + 1));
-            Value & v(*state->allocValue());
+            Value & v(*state->VRtoVP(state->allocValue()));
             v.mkThunk(env, e);
             addVarToScope(state->symbols.create(name), v);
         } else {

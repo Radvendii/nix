@@ -884,8 +884,8 @@ static Value * requireInternalFile(EvalState & state, CanonPath path)
 {
     SourcePath p{internalFS, path};
     auto v = state.allocValue();
-    state.evalFile(p, *v); // has caching
-    return v;
+    state.evalFile(p, *state.VRtoVP(v)); // has caching
+    return state.VRtoVP(v);
 }
 
 void callFlake(EvalState & state, const LockedFlake & lockedFlake, Value & vRes)
@@ -921,17 +921,17 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, Value & vRes)
         overrides.alloc(state.symbols.create(key->second)).mkAttrs(override);
     }
 
-    auto & vOverrides = state.allocValue()->mkAttrs(overrides);
+    auto & vOverrides = state.VRtoVP(state.allocValue())->mkAttrs(overrides);
 
     Value * vCallFlake = requireInternalFile(state, CanonPath("call-flake.nix"));
 
     auto vLocks = state.allocValue();
-    vLocks->mkString(lockFileStr);
+    state.VRtoVP(vLocks)->mkString(lockFileStr);
 
     auto vFetchFinalTree = get(state.internalPrimOps, "fetchFinalTree");
     assert(vFetchFinalTree);
 
-    ValueRef args[] = {state.VPtoVR(vLocks), state.VPtoVR(&vOverrides), *vFetchFinalTree};
+    ValueRef args[] = {vLocks, state.VPtoVR(&vOverrides), *vFetchFinalTree};
     state.callFunction(*vCallFlake, args, vRes, noPos);
 }
 

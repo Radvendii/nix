@@ -235,7 +235,7 @@ static void showHelp(std::vector<std::string> subcommand, NixArgs & toplevel)
         state.parseExprFromString(
 #include "generate-manpage.nix.gen.hh"
             , state.rootPath(CanonPath::root)),
-        *vGenerateManpage);
+        *state.VRtoVP(vGenerateManpage));
 
     state.corepkgsFS->addFile(
         CanonPath("utils.nix"),
@@ -253,13 +253,13 @@ static void showHelp(std::vector<std::string> subcommand, NixArgs & toplevel)
     );
 
     auto vDump = state.allocValue();
-    vDump->mkString(toplevel.dumpCli());
+    state.VRtoVP(vDump)->mkString(toplevel.dumpCli());
 
     auto vRes = state.allocValue();
-    state.callFunction(*vGenerateManpage, state.VPtoVR(&state.getBuiltin("false")), *vRes, noPos);
-    state.callFunction(*vRes, state.VPtoVR(vDump), *vRes, noPos);
+    state.callFunction(*state.VRtoVP(vGenerateManpage), state.VPtoVR(&state.getBuiltin("false")), *state.VRtoVP(vRes), noPos);
+    state.callFunction(*state.VRtoVP(vRes), vDump, *state.VRtoVP(vRes), noPos);
 
-    auto attr = vRes->attrs()->get(state.symbols.create(mdName + ".md"));
+    auto attr = state.VRtoVP(vRes)->attrs()->get(state.symbols.create(mdName + ".md"));
     if (!attr)
         throw UsageError("Nix has no subcommand '%s'", concatStringsSep("", subcommand));
 

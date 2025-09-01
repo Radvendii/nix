@@ -27,8 +27,8 @@ void BindingsBuilder::insert(SymbolRef name, Value * value, PosIdx pos)
 Value & BindingsBuilder::alloc(SymbolRef name, PosIdx pos)
 {
     auto value = state.allocValue();
-    bindings->push_back(Attr(name, state.VPtoVR(value), pos));
-    return *value;
+    bindings->push_back(Attr(name, value, pos));
+    return *state.VRtoVP(value);
 }
 
 Value & BindingsBuilder::alloc(std::string_view name, PosIdx pos)

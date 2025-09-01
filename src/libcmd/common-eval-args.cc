@@ -159,18 +159,18 @@ Bindings * MixEvalArgs::getAutoArgs(EvalState & state)
             overloaded{
                 [&](const AutoArgExpr & arg) {
                     state.mkThunk_(
-                        *v,
+                        *state.VRtoVP(v),
                         state.parseExprFromString(
                             arg.expr,
                             compatibilitySettings.nixShellShebangArgumentsRelativeToScript
                                 ? state.rootPath(absPath(getCommandBaseDir()))
                                 : state.rootPath(".")));
                 },
-                [&](const AutoArgString & arg) { v->mkString(arg.s); },
-                [&](const AutoArgFile & arg) { v->mkString(readFile(arg.path.string())); },
-                [&](const AutoArgStdin & arg) { v->mkString(readFile(STDIN_FILENO)); }},
+                [&](const AutoArgString & arg) { state.VRtoVP(v)->mkString(arg.s); },
+                [&](const AutoArgFile & arg) { state.VRtoVP(v)->mkString(readFile(arg.path.string())); },
+                [&](const AutoArgStdin & arg) { state.VRtoVP(v)->mkString(readFile(STDIN_FILENO)); }},
             arg);
-        res.insert(state.symbols.create(name), v);
+        res.insert(state.symbols.create(name), state.VRtoVP(v));
     }
     return res.finish();
 }

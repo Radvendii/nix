@@ -41,7 +41,7 @@ static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, 
 
             auto list = state.buildList(array.size());
             for (const auto & [n, v] : enumerate(list))
-                visit(*state.VRtoVP(v = state.VPtoVR(state.allocValue())), array[n]);
+                visit(*state.VRtoVP(v = state.allocValue()), array[n]);
             v.mkList(list);
         } break;
             ;

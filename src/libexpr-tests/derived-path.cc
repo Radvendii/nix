@@ -21,9 +21,9 @@ TEST_F(DerivedPathExpressionTest, force_init) {}
 
 RC_GTEST_FIXTURE_PROP(DerivedPathExpressionTest, prop_opaque_path_round_trip, (const SingleDerivedPath::Opaque & o))
 {
-    auto * v = state.allocValue();
-    state.mkStorePathString(o.path, *v);
-    auto d = state.coerceToSingleDerivedPath(noPos, *v, "");
+    auto v = state.allocValue();
+    state.mkStorePathString(o.path, *state.VRtoVP(v));
+    auto d = state.coerceToSingleDerivedPath(noPos, *state.VRtoVP(v), "");
     RC_ASSERT(SingleDerivedPath{o} == d);
 }
 
@@ -40,9 +40,9 @@ RC_GTEST_FIXTURE_PROP(
     ExperimentalFeatureSettings mockXpSettings;
     mockXpSettings.set("experimental-features", "ca-derivations dynamic-derivations");
 
-    auto * v = state.allocValue();
-    state.mkOutputString(*v, b, std::nullopt, mockXpSettings);
-    auto [d, _] = state.coerceToSingleDerivedPathUnchecked(noPos, *v, "", mockXpSettings);
+    auto v = state.allocValue();
+    state.mkOutputString(*state.VRtoVP(v), b, std::nullopt, mockXpSettings);
+    auto [d, _] = state.coerceToSingleDerivedPathUnchecked(noPos, *state.VRtoVP(v), "", mockXpSettings);
     RC_ASSERT(SingleDerivedPath{b} == d);
 }
 
@@ -54,9 +54,9 @@ RC_GTEST_FIXTURE_PROP(
     ExperimentalFeatureSettings mockXpSettings;
     mockXpSettings.set("experimental-features", "dynamic-derivations");
 
-    auto * v = state.allocValue();
-    state.mkOutputString(*v, b, outPath, mockXpSettings);
-    auto [d, _] = state.coerceToSingleDerivedPathUnchecked(noPos, *v, "", mockXpSettings);
+    auto v = state.allocValue();
+    state.mkOutputString(*state.VRtoVP(v), b, outPath, mockXpSettings);
+    auto [d, _] = state.coerceToSingleDerivedPathUnchecked(noPos, *state.VRtoVP(v), "", mockXpSettings);
     RC_ASSERT(SingleDerivedPath{b} == d);
 }
 

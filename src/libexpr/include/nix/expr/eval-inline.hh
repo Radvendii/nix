@@ -26,13 +26,13 @@ inline void * allocBytes(size_t n)
 }
 
 [[gnu::always_inline]]
-Value * EvalState::allocValue()
+ValueRef EvalState::allocValue()
 {
     nrValues++;
     // XXX [speed]: just for now while we debug
     if (values.size() >= 99000)
         std::cout << "PROBLEM: Too many values being allocated!\n";
-    return &values.emplace_back();
+    return VPtoVR(&values.emplace_back());
     // return values.size() - 1;
 // #if NIX_USE_BOEHMGC
 //     /* We use the boehm batch allocator to speed up allocations of Values (of which there are many).

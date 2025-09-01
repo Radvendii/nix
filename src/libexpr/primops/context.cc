@@ -217,7 +217,7 @@ static void prim_getContext(EvalState & state, const PosIdx pos, ValueRef * args
         if (!info.second.outputs.empty()) {
             auto list = state.buildList(info.second.outputs.size());
             for (const auto & [i, output] : enumerate(info.second.outputs))
-                state.VRtoVP(list[i] = state.VPtoVR(state.allocValue()))->mkString(output);
+                state.VRtoVP(list[i] = state.allocValue())->mkString(output);
             infoAttrs.alloc(state.sOutputs).mkList(list);
         }
         attrs.alloc(state.store->printStorePath(info.first)).mkAttrs(infoAttrs);

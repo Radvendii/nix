@@ -94,12 +94,12 @@ struct CmdBundle : InstallableValueCommand
             lockFlags};
 
         auto vRes = evalState->allocValue();
-        evalState->callFunction(*bundler.toValue(*evalState).first, evalState->VPtoVR(val), *vRes, noPos);
+        evalState->callFunction(*bundler.toValue(*evalState).first, evalState->VPtoVR(val), *evalState->VRtoVP(vRes), noPos);
 
-        if (!evalState->isDerivation(*vRes))
+        if (!evalState->isDerivation(*evalState->VRtoVP(vRes)))
             throw Error("the bundler '%s' does not produce a derivation", bundler.what());
 
-        auto attr1 = vRes->attrs()->get(evalState->sDrvPath);
+        auto attr1 = evalState->VRtoVP(vRes)->attrs()->get(evalState->sDrvPath);
         if (!attr1)
             throw Error("the bundler '%s' does not produce a derivation", bundler.what());
 
@@ -108,7 +108,7 @@ struct CmdBundle : InstallableValueCommand
 
         drvPath.requireDerivation();
 
-        auto attr2 = vRes->attrs()->get(evalState->sOutPath);
+        auto attr2 = evalState->VRtoVP(vRes)->attrs()->get(evalState->sOutPath);
         if (!attr2)
             throw Error("the bundler '%s' does not produce a derivation", bundler.what());
 
@@ -122,7 +122,7 @@ struct CmdBundle : InstallableValueCommand
         });
 
         if (!outLink) {
-            auto * attr = vRes->attrs()->get(evalState->sName);
+            auto * attr = evalState->VRtoVP(vRes)->attrs()->get(evalState->sName);
             if (!attr)
                 throw Error("attribute 'name' missing");
             outLink = evalState->forceStringNoCtx(*evalState->VRtoVP(attr->value), attr->pos, "");

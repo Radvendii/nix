@@ -125,8 +125,7 @@ Symbol::Symbol(const Key & key)
     }
     // XXX [speed]: check if this still makes sense
     // for multi-threaded implementations: lock store and allocator here
-    auto vp = key.es.allocValue();
-    auto v = key.es.VPtoVR(vp);
+    auto v = key.es.allocValue();
 
     // allocate enough bytes at the end of the SymbolData for our string
     auto data = (SymbolData *)key.alloc.allocate(sizeof(SymbolData) + size + 1);
@@ -137,7 +136,7 @@ Symbol::Symbol(const Key & key)
     memcpy(data->c_str, key.str.data(), size);
     data->c_str[size] = '\0';
     // XXX [speed]: there should either be a tSymbol Value type that fits in 8 bytes, or at least a contextless string type that does
-    vp->mkString(data->c_str, nullptr);
+    key.es.VRtoVP(v)->mkString(data->c_str, nullptr);
     this->data = data;
 }
 
@@ -413,16 +412,16 @@ EvalState::EvalState(
 
     static_assert(sizeof(Env) <= 16, "environment must be <= 16 bytes");
 
-    VRtoV(vEmptyList = VPtoVR(allocValue())).mkList(buildList(0));
-    VRtoV(vNull = VPtoVR(allocValue())).mkNull();
-    VRtoV(vTrue = VPtoVR(allocValue())).mkBool(true);
-    VRtoV(vFalse = VPtoVR(allocValue())).mkBool(false);
-    VRtoV(vStringRegular = VPtoVR(allocValue())).mkString("regular");
-    VRtoV(vStringDirectory = VPtoVR(allocValue())).mkString("directory");
-    VRtoV(vStringSymlink = VPtoVR(allocValue())).mkString("symlink");
-    VRtoV(vStringUnknown = VPtoVR(allocValue())).mkString("unknown");
-    VRtoV(vLineOfPosPrimOp = VPtoVR(allocValue())).mkPrimOp(&primop_lineOfPos);
-    VRtoV(vColumnOfPosPrimOp = VPtoVR(allocValue())).mkPrimOp(&primop_columnOfPos);
+    VRtoV(vEmptyList = allocValue()).mkList(buildList(0));
+    VRtoV(vNull = allocValue()).mkNull();
+    VRtoV(vTrue = allocValue()).mkBool(true);
+    VRtoV(vFalse = allocValue()).mkBool(false);
+    VRtoV(vStringRegular = allocValue()).mkString("regular");
+    VRtoV(vStringDirectory = allocValue()).mkString("directory");
+    VRtoV(vStringSymlink = allocValue()).mkString("symlink");
+    VRtoV(vStringUnknown = allocValue()).mkString("unknown");
+    VRtoV(vLineOfPosPrimOp = allocValue()).mkPrimOp(&primop_lineOfPos);
+    VRtoV(vColumnOfPosPrimOp = allocValue()).mkPrimOp(&primop_columnOfPos);
 
     /* Construct the Nix expression search path. */
     assert(lookupPath.elements.empty());
@@ -554,10 +553,10 @@ void EvalState::checkURI(const std::string & uri)
 
 Value * EvalState::addConstant(const std::string & name, Value & v, Constant info)
 {
-    Value * v2 = allocValue();
-    *v2 = v;
-    addConstant(name, v2, info);
-    return v2;
+    ValueRef v2 = allocValue();
+    *VRtoVP(v2) = v;
+    addConstant(name, VRtoVP(v2), info);
+    return VRtoVP(v2);
 }
 
 void EvalState::addConstant(const std::string & name, Value * v, Constant info)
@@ -622,9 +621,9 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
     if (primOp.arity == 0) {
         primOp.arity = 1;
         auto vPrimOp = allocValue();
-        vPrimOp->mkPrimOp(new PrimOp(primOp));
+        VRtoVP(vPrimOp)->mkPrimOp(new PrimOp(primOp));
         Value v;
-        v.mkApp(*this, vPrimOp, vPrimOp);
+        v.mkApp(*this, VRtoVP(vPrimOp), VRtoVP(vPrimOp));
         return addConstant(
             primOp.name,
             v,
@@ -638,18 +637,18 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
     if (hasPrefix(primOp.name, "__"))
         primOp.name = primOp.name.substr(2);
 
-    Value * v = allocValue();
-    v->mkPrimOp(new PrimOp(primOp));
+    ValueRef v = allocValue();
+    VRtoVP(v)->mkPrimOp(new PrimOp(primOp));
 
     if (primOp.internal)
-        internalPrimOps.emplace(primOp.name, VPtoVR(v));
+        internalPrimOps.emplace(primOp.name, v);
     else {
         staticBaseEnv->vars.emplace_back(envName, baseEnvDispl);
-        baseEnv.values[baseEnvDispl++] = VPtoVR(v);
-        const_cast<Bindings *>(getBuiltins().attrs())->push_back(Attr(symbols.create(primOp.name), VPtoVR(v)));
+        baseEnv.values[baseEnvDispl++] = v;
+        const_cast<Bindings *>(getBuiltins().attrs())->push_back(Attr(symbols.create(primOp.name), v));
     }
 
-    return v;
+    return VRtoVP(v);
 }
 
 Value & EvalState::getBuiltins()
@@ -1005,42 +1004,37 @@ void Value::mkPrimOpApp(EvalState & es, Value * l, Value * r) noexcept
 
 ExprInt::ExprInt(EvalState & state, NixInt n)
 {
-    auto vp = state.allocValue();
-    vp->mkInt(n);
-    v = state.VPtoVR(vp);
+    v = state.allocValue();
+    state.VRtoVP(v)->mkInt(n);
     // these values used to be stored directly in the Expr. now we have a Value and a ValueRef
     nrBytesAdded += sizeof(ValueRef);
 };
 
 ExprInt::ExprInt(EvalState & state, NixInt::Inner n)
 {
-    auto vp = state.allocValue();
-    vp->mkInt(n);
-    v = state.VPtoVR(vp);
+    v = state.allocValue();
+    state.VRtoVP(v)->mkInt(n);
     nrBytesAdded += sizeof(ValueRef);
 };
 ExprFloat::ExprFloat(EvalState & state, NixFloat nf)
 {
-    auto vp = state.allocValue();
-    vp->mkFloat(nf);
-    v = state.VPtoVR(vp);
+    v = state.allocValue();
+    state.VRtoVP(v)->mkFloat(nf);
     nrBytesAdded += sizeof(ValueRef);
 };
 ExprString::ExprString(EvalState & state, std::string && s)
     : s(std::move(s))
 {
-    auto vp = state.allocValue();
-    vp->mkString(this->s.data());
-    v = state.VPtoVR(vp);
+    v = state.allocValue();
+    state.VRtoVP(v)->mkString(this->s.data());
     nrBytesAdded += sizeof(ValueRef);
 };
 ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string s)
     : accessor(accessor)
     , s(std::move(s))
 {
-    auto vp = state.allocValue();
-    vp->mkPath(&*accessor, this->s.c_str());
-    v = state.VPtoVR(vp);
+    v = state.allocValue();
+    state.VRtoVP(v)->mkPath(&*accessor, this->s.c_str());
     nrBytesAdded += sizeof(ValueRef);
 }
 // XXX [speed]
@@ -1187,9 +1181,9 @@ void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, Value & v
    of thunks allocated. */
 Value * Expr::maybeThunk(EvalState & state, Env & env)
 {
-    Value * v = state.allocValue();
-    mkThunk(*v, env, this);
-    return v;
+    ValueRef v = state.allocValue();
+    mkThunk(*state.VRtoVP(v), env, this);
+    return state.VRtoVP(v);
 }
 
 Value * ExprVar::maybeThunk(EvalState & state, Env & env)
@@ -1383,14 +1377,14 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
            in the original environment. */
         Displacement displ = 0;
         for (auto & i : attrs) {
-            Value * vAttr;
+            ValueRef vAttr;
             if (hasOverrides && i.second.kind != AttrDef::Kind::Inherited) {
                 vAttr = state.allocValue();
-                mkThunk(*vAttr, *i.second.chooseByKind(&env2, &env, inheritEnv), i.second.e);
+                mkThunk(*state.VRtoVP(vAttr), *i.second.chooseByKind(&env2, &env, inheritEnv), i.second.e);
             } else
-                vAttr = i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv));
-            env2.values[displ++] = state.VPtoVR(vAttr);
-            bindings.insert(i.first, vAttr, i.second.pos);
+                vAttr = state.VPtoVR(i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv)));
+            env2.values[displ++] = vAttr;
+            bindings.insert(i.first, state.VRtoVP(vAttr), i.second.pos);
         }
 
         /* If the rec contains an attribute called `__overrides', then
@@ -1654,8 +1648,8 @@ void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes
         vRes = vCur;
         for (auto arg : args) {
             auto fun2 = allocValue();
-            *fun2 = vRes;
-            vRes.mkPrimOpApp(*this, fun2, VRtoVP(arg));
+            *VRtoVP(fun2) = vRes;
+            vRes.mkPrimOpApp(*this, VRtoVP(fun2), VRtoVP(arg));
         }
     };
 
@@ -1851,7 +1845,7 @@ void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes
             /* 'vCur' may be allocated on the stack of the calling
                function, but for functors we may keep a reference, so
                heap-allocate a copy and use that instead. */
-            ValueRef args2[] = {VPtoVR(allocValue()), args[0]};
+            ValueRef args2[] = {allocValue(), args[0]};
             *VRtoVP(args2[0]) = vCur;
             try {
                 callFunction(*VRtoVP(functor->value), args2, vCur, functor->pos);
@@ -1911,10 +1905,10 @@ void EvalState::autoCallFunction(const Bindings & args, Value & fun, Value & res
     if (fun.type() == nAttrs) {
         auto found = fun.attrs()->find(sFunctor);
         if (found != fun.attrs()->end()) {
-            Value * v = allocValue();
-            callFunction(*VRtoVP(found->value), VPtoVR(&fun), *v, pos);
-            forceValue(*v, pos);
-            return autoCallFunction(args, *v, res);
+            ValueRef v = allocValue();
+            callFunction(*VRtoVP(found->value), VPtoVR(&fun), *VRtoVP(v), pos);
+            forceValue(*VRtoVP(v), pos);
+            return autoCallFunction(args, *VRtoVP(v), res);
         }
     }
 
@@ -1952,7 +1946,7 @@ https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
         }
     }
 
-    callFunction(fun, VPtoVR(&allocValue()->mkAttrs(attrs)), res, pos);
+    callFunction(fun, VPtoVR(&VRtoVP(allocValue())->mkAttrs(attrs)), res, pos);
 }
 
 void ExprWith::eval(EvalState & state, Env & env, Value & v)

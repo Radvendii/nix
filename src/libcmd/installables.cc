@@ -449,11 +449,11 @@ ref<eval_cache::EvalCache> openEvalCache(EvalState & state, std::shared_ptr<flak
             throw Error("not everything is cached, but evaluation is not allowed");
 
         auto vFlake = state.allocValue();
-        flake::callFlake(state, *lockedFlake, *vFlake);
+        flake::callFlake(state, *lockedFlake, *state.VRtoVP(vFlake));
 
-        state.forceAttrs(*vFlake, noPos, "while parsing cached flake data");
+        state.forceAttrs(*state.VRtoVP(vFlake), noPos, "while parsing cached flake data");
 
-        auto aOutputs = vFlake->attrs()->get(state.symbols.create("outputs"));
+        auto aOutputs = state.VRtoVP(vFlake)->attrs()->get(state.symbols.create("outputs"));
         assert(aOutputs);
 
         return aOutputs->value;
@@ -493,21 +493,21 @@ Installables SourceExprCommand::parseInstallables(ref<Store> store, std::vector<
 
         if (file == "-") {
             auto e = state->parseStdin();
-            state->eval(e, *vFile);
+            state->eval(e, *state->VRtoVP(vFile));
         } else if (file) {
             auto dir = absPath(getCommandBaseDir());
-            state->evalFile(lookupFileArg(*state, *file, &dir), *vFile);
+            state->evalFile(lookupFileArg(*state, *file, &dir), *state->VRtoVP(vFile));
         } else {
             Path dir = absPath(getCommandBaseDir());
             auto e = state->parseExprFromString(*expr, state->rootPath(dir));
-            state->eval(e, *vFile);
+            state->eval(e, *state->VRtoVP(vFile));
         }
 
         for (auto & s : ss) {
             auto [prefix, extendedOutputsSpec] = ExtendedOutputsSpec::parse(s);
             result.push_back(
                 make_ref<InstallableAttrPath>(InstallableAttrPath::parse(
-                    state, *this, vFile, std::move(prefix), std::move(extendedOutputsSpec))));
+                    state, *this, state->VRtoVP(vFile), std::move(prefix), std::move(extendedOutputsSpec))));
         }
 
     } else {

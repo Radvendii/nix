@@ -40,7 +40,7 @@ class JSONSax : nlohmann::json_sax<json>
         Value & value(EvalState & state)
         {
             if (!v)
-                v = allocRootValue(state.VPtoVR(state.allocValue()));
+                v = allocRootValue(state.allocValue());
             return state.VRtoV(*v);
         }
 

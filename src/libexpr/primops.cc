@@ -42,9 +42,9 @@ namespace nix {
 
 static inline Value * mkString(EvalState & state, const std::csub_match & match)
 {
-    Value * v = state.allocValue();
-    v->mkString({match.first, match.second});
-    return v;
+    ValueRef v = state.allocValue();
+    state.VRtoVP(v)->mkString({match.first, match.second});
+    return state.VRtoVP(v);
 }
 
 std::string EvalState::realiseString(Value & s, StorePathSet * storePathsOutMaybe, bool isIFD, const PosIdx pos)
@@ -224,15 +224,15 @@ void derivationToValue(
     auto list = state.buildList(drv.outputs.size());
     for (const auto & [i, o] : enumerate(drv.outputs)) {
         mkOutputString(state, attrs, storePath, o);
-        state.VRtoVP((list[i] = state.VPtoVR(state.allocValue())))->mkString(o.first);
+        state.VRtoVP((list[i] = state.allocValue()))->mkString(o.first);
     }
     attrs.alloc(state.sOutputs).mkList(list);
 
     auto w = state.allocValue();
-    w->mkAttrs(attrs);
+    state.VRtoVP(w)->mkAttrs(attrs);
 
     if (!state.vImportedDrvToDerivation) {
-        state.vImportedDrvToDerivation = allocRootValue(state.VPtoVR(state.allocValue()));
+        state.vImportedDrvToDerivation = allocRootValue(state.allocValue());
         state.eval(
             state.parseExprFromString(
 #include "imported-drv-to-derivation.nix.gen.hh"
@@ -242,7 +242,7 @@ void derivationToValue(
 
     state.forceFunction(
         state.VRtoV(*state.vImportedDrvToDerivation), pos, "while evaluating imported-drv-to-derivation.nix.gen.hh");
-    v.mkApp(state, state.VRtoVP(*state.vImportedDrvToDerivation), w);
+    v.mkApp(state, state.VRtoVP(*state.vImportedDrvToDerivation), state.VRtoVP(w));
     state.forceAttrs(v, pos, "while calling imported-drv-to-derivation.nix.gen.hh");
 }
 
@@ -2258,10 +2258,10 @@ static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, V
             // detailed node info quickly in this case we produce a thunk to
             // query the file type lazily.
             auto epath = state.allocValue();
-            epath->mkPath(path / name);
+            state.VRtoVP(epath)->mkPath(path / name);
             if (!readFileType)
                 readFileType = &state.getBuiltin("readFileType");
-            attr.mkApp(state, readFileType, epath);
+            attr.mkApp(state, readFileType, state.VRtoVP(epath));
         } else {
             // This branch of the conditional is much more likely.
             // Here we just stringize the directory entry type.
@@ -2993,10 +2993,10 @@ PrimOp primop_columnOfPos{.arity = 1, .fun = prim_columnOfPos};
 
 void makePositionThunks(EvalState & state, const PosIdx pos, Value & line, Value & column)
 {
-    Value * posV = state.allocValue();
-    posV->mkInt(pos.id);
-    line.mkApp(state, state.VRtoVP(state.vLineOfPosPrimOp), posV);
-    column.mkApp(state, state.VRtoVP(state.vColumnOfPosPrimOp), posV);
+    ValueRef posV = state.allocValue();
+    state.VRtoVP(posV)->mkInt(pos.id);
+    line.mkApp(state, state.VRtoVP(state.vLineOfPosPrimOp), state.VRtoVP(posV));
+    column.mkApp(state, state.VRtoVP(state.vColumnOfPosPrimOp), state.VRtoVP(posV));
 }
 
 /* Dynamic version of the `?' operator. */
@@ -3333,9 +3333,9 @@ static void prim_mapAttrs(EvalState & state, const PosIdx pos, ValueRef * args, 
 
     for (auto & i : *state.VRtoVP(args[1])->attrs()) {
         Value * vName = Value::toPtr(state, state.symbols[i.name]);
-        Value * vFun2 = state.allocValue();
-        vFun2->mkApp(state, state.VRtoVP(args[0]), vName);
-        attrs.alloc(i.name).mkApp(state, vFun2, state.VRtoVP(i.value));
+        ValueRef vFun2 = state.allocValue();
+        state.VRtoVP(vFun2)->mkApp(state, state.VRtoVP(args[0]), vName);
+        attrs.alloc(i.name).mkApp(state, state.VRtoVP(vFun2), state.VRtoVP(i.value));
     }
 
     v.mkAttrs(attrs.alreadySorted());
@@ -3400,12 +3400,12 @@ static void prim_zipAttrsWith(EvalState & state, const PosIdx pos, ValueRef * ar
     for (auto & [sym, elem] : attrsSeen) {
         auto name = Value::toPtr(state, state.symbols[sym]);
         auto call1 = state.allocValue();
-        call1->mkApp(state, state.VRtoVP(args[0]), name);
+        state.VRtoVP(call1)->mkApp(state, state.VRtoVP(args[0]), name);
         auto call2 = state.allocValue();
         auto arg = state.allocValue();
-        arg->mkList(*elem.list);
-        call2->mkApp(state, call1, arg);
-        attrs.insert(sym, call2);
+        state.VRtoVP(arg)->mkList(*elem.list);
+        state.VRtoVP(call2)->mkApp(state, state.VRtoVP(call1), state.VRtoVP(arg));
+        attrs.insert(sym, state.VRtoVP(call2));
     }
 
     v.mkAttrs(attrs.alreadySorted());
@@ -3553,7 +3553,7 @@ static void prim_map(EvalState & state, const PosIdx pos, ValueRef * args, Value
 
     auto list = state.buildList(state.VRtoVP(args[1])->listSize());
     for (const auto & [n, v] : enumerate(list))
-        state.VRtoVP(v = state.VPtoVR(state.allocValue()))->mkApp(state, state.VRtoVP(args[0]), state.VRtoVP(state.VRtoVP(args[1])->listView()[n]));
+        state.VRtoVP(v = state.allocValue())->mkApp(state, state.VRtoVP(args[0]), state.VRtoVP(state.VRtoVP(args[1])->listView()[n]));
     v.mkList(list);
 }
 
@@ -3696,7 +3696,7 @@ static void prim_foldlStrict(EvalState & state, const PosIdx pos, ValueRef * arg
         auto listView = state.VRtoVP(args[2])->listView();
         for (auto [n, elem] : enumerate(listView)) {
             ValueRef vs[]{state.VPtoVR(vCur), elem};
-            vCur = n == state.VRtoVP(args[2])->listSize() - 1 ? &v : state.allocValue();
+            vCur = n == state.VRtoVP(args[2])->listSize() - 1 ? &v : state.VRtoVP(state.allocValue());
             // XXX [speed]: this is an example of the optimization where we overwrite an existing value instead of creating a new one (sometimes)
             state.callFunction(*state.VRtoVP(args[0]), vs, *vCur, pos);
         }
@@ -3796,8 +3796,8 @@ static void prim_genList(EvalState & state, const PosIdx pos, ValueRef * args, V
     auto list = state.buildList(len);
     for (const auto & [n, v] : enumerate(list)) {
         auto arg = state.allocValue();
-        arg->mkInt(n);
-        state.VRtoVP(v = state.VPtoVR(state.allocValue()))->mkApp(state, state.VRtoVP(args[0]), arg);
+        state.VRtoVP(arg)->mkInt(n);
+        state.VRtoVP(v = state.allocValue())->mkApp(state, state.VRtoVP(args[0]), state.VRtoVP(arg));
     }
     v.mkList(list);
 }
@@ -4670,7 +4670,7 @@ void prim_split(EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
                     v2 = state.VPtoVR(mkString(state, match[si + 1]));
             }
 
-            state.VRtoVP(list[idx++] = state.VPtoVR(state.allocValue()))->mkList(list2);
+            state.VRtoVP(list[idx++] = state.allocValue())->mkList(list2);
 
             // Add a string for non-matched suffix characters.
             if (idx == 2 * len)
@@ -4921,7 +4921,7 @@ static void prim_splitVersion(EvalState & state, const PosIdx pos, ValueRef * ar
     }
     auto list = state.buildList(components.size());
     for (const auto & [n, component] : enumerate(components))
-        state.VRtoVP(list[n] = state.VPtoVR(state.allocValue()))->mkString(std::move(component));
+        state.VRtoVP(list[n] = state.allocValue())->mkString(std::move(component));
     v.mkList(list);
 }
 
@@ -5190,7 +5190,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
         auto attrs = buildBindings(2);
         attrs.alloc("path").mkString(i.path.s);
         attrs.alloc("prefix").mkString(i.prefix.s);
-        VRtoVP(list[n] = VPtoVR(allocValue()))->mkAttrs(attrs);
+        VRtoVP(list[n] = allocValue())->mkAttrs(attrs);
     }
     v.mkList(list);
     addConstant(
@@ -5247,7 +5247,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     auto vDerivation = allocValue();
     addConstant(
         "derivation",
-        vDerivation,
+        VRtoVP(vDerivation),
         {
             .type = nFunction,
         });
@@ -5260,7 +5260,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
 
     /* Note: we have to initialize the 'derivation' constant *after*
        building baseEnv/staticBaseEnv because it uses 'builtins'. */
-    evalFile(derivationInternal, *vDerivation);
+    evalFile(derivationInternal, *VRtoVP(vDerivation));
 }
 
 } // namespace nix

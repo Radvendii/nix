@@ -845,7 +845,7 @@ public:
     /**
      * Allocation primitives.
      */
-    inline Value * allocValue();
+    inline ValueRef allocValue();
     inline Env & allocEnv(size_t size);
 
     Bindings * allocBindings(size_t capacity);

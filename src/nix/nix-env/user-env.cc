@@ -68,7 +68,7 @@ bool createUserEnv(
         // Copy each output meant for installation.
         auto outputsList = state.buildList(outputs.size());
         for (const auto & [m, j] : enumerate(outputs)) {
-            state.VRtoVP(outputsList[m] = state.VPtoVR(state.allocValue()))->mkString(j.first);
+            state.VRtoVP(outputsList[m] = state.allocValue())->mkString(j.first);
             auto outputAttrs = state.buildBindings(2);
             outputAttrs.alloc(state.sOutPath).mkString(state.store->printStorePath(*j.second));
             attrs.alloc(j.first).mkAttrs(outputAttrs);
@@ -93,7 +93,7 @@ bool createUserEnv(
 
         attrs.alloc(state.sMeta).mkAttrs(meta);
 
-        state.VRtoVP(list[n] = state.VPtoVR(state.allocValue()))->mkAttrs(attrs);
+        state.VRtoVP(list[n] = state.allocValue())->mkAttrs(attrs);
 
         if (drvPath)
             references.insert(*drvPath);

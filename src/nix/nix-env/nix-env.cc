@@ -132,10 +132,10 @@ static void getAllExprs(EvalState & state, const SourcePath & path, StringSet & 
             }
             /* Load the expression on demand. */
             auto vArg = state.allocValue();
-            vArg->mkPath(path2);
+            state.VRtoVP(vArg)->mkPath(path2);
             if (seen.size() == maxAttrs)
                 throw Error("too many Nix expressions in directory '%1%'", path);
-            attrs.alloc(attrName).mkApp(state, &state.getBuiltin("import"), vArg);
+            attrs.alloc(attrName).mkApp(state, &state.getBuiltin("import"), state.VRtoVP(vArg));
         } else if (st.type == SourceAccessor::tDirectory)
             /* `path2' is a directory (with no default.nix in it);
                recurse into it. */
@@ -483,8 +483,8 @@ static bool keep(PackageInfo & drv)
 static void setMetaFlag(EvalState & state, PackageInfo & drv, const std::string & name, const std::string & value)
 {
     auto v = state.allocValue();
-    v->mkString(value);
-    drv.setMeta(name, v);
+    state.VRtoVP(v)->mkString(value);
+    drv.setMeta(name, state.VRtoVP(v));
 }
 
 static void
