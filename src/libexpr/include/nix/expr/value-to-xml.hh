@@ -13,7 +13,7 @@ void printValueAsXML(
     EvalState & state,
     bool strict,
     bool location,
-    Value & v,
+    ValueRef v,
     std::ostream & out,
     NixStringContext & context,
     const PosIdx pos);

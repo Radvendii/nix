@@ -2349,7 +2349,7 @@ static void prim_toXML(EvalState & state, const PosIdx pos, ValueRef * args, Val
 {
     std::ostringstream out;
     NixStringContext context;
-    printValueAsXML(state, true, false, *state.VRtoVP(args[0]), out, context, pos);
+    printValueAsXML(state, true, false, args[0], out, context, pos);
     state.VRtoV(v).mkString(toView(out), context);
 }
 

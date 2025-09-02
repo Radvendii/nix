@@ -60,7 +60,7 @@ void processExpr(
             // We intentionally don't output a newline here. The default PS1 for Bash in NixOS starts with a newline
             // and other interactive shells like Zsh are smart enough to print a missing newline before the prompt.
             else if (output == okXML)
-                printValueAsXML(state, strict, location, vRes, std::cout, context, noPos);
+                printValueAsXML(state, strict, location, state.VPtoVR(&vRes), std::cout, context, noPos);
             else if (output == okJSON) {
                 printValueAsJSON(state, strict, vRes, v.determinePos(state, noPos), std::cout, context);
                 std::cout << std::endl;

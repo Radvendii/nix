@@ -18,7 +18,7 @@ static void printValueAsXML(
     EvalState & state,
     bool strict,
     bool location,
-    Value & v,
+    ValueRef v,
     XMLWriter & doc,
     NixStringContext & context,
     PathSet & drvsSeen,
@@ -50,7 +50,7 @@ static void showAttrs(
             posToXML(state, xmlAttrs, state.positions[a->pos]);
 
         XMLOpenElement _(doc, "attr", xmlAttrs);
-        printValueAsXML(state, strict, location, *state.VRtoVP(a->value), doc, context, drvsSeen, a->pos);
+        printValueAsXML(state, strict, location, a->value, doc, context, drvsSeen, a->pos);
     }
 }
 
@@ -58,7 +58,7 @@ static void printValueAsXML(
     EvalState & state,
     bool strict,
     bool location,
-    Value & v,
+    ValueRef v,
     XMLWriter & doc,
     NixStringContext & context,
     PathSet & drvsSeen,
@@ -67,26 +67,26 @@ static void printValueAsXML(
     checkInterrupt();
 
     if (strict)
-        state.forceValue(state.VPtoVR(&v), pos);
+        state.forceValue(v, pos);
 
-    switch (v.type()) {
+    switch (state.VRtoV(v).type()) {
 
     case nInt:
-        doc.writeEmptyElement("int", singletonAttrs("value", fmt("%1%", v.integer())));
+        doc.writeEmptyElement("int", singletonAttrs("value", fmt("%1%", state.VRtoV(v).integer())));
         break;
 
     case nBool:
-        doc.writeEmptyElement("bool", singletonAttrs("value", v.boolean() ? "true" : "false"));
+        doc.writeEmptyElement("bool", singletonAttrs("value", state.VRtoV(v).boolean() ? "true" : "false"));
         break;
 
     case nString:
         /* !!! show the context? */
-        copyContext(state, state.VPtoVR(&v), context);
-        doc.writeEmptyElement("string", singletonAttrs("value", v.c_str()));
+        copyContext(state, v, context);
+        doc.writeEmptyElement("string", singletonAttrs("value", state.VRtoV(v).c_str()));
         break;
 
     case nPath:
-        doc.writeEmptyElement("path", singletonAttrs("value", v.path().to_string()));
+        doc.writeEmptyElement("path", singletonAttrs("value", state.VRtoV(v).path().to_string()));
         break;
 
     case nNull:
@@ -94,18 +94,18 @@ static void printValueAsXML(
         break;
 
     case nAttrs:
-        if (state.isDerivation(state.VPtoVR(&v))) {
+        if (state.isDerivation(v)) {
             XMLAttrs xmlAttrs;
 
             Path drvPath;
-            if (auto a = v.attrs()->get(state.sDrvPath)) {
+            if (auto a = state.VRtoV(v).attrs()->get(state.sDrvPath)) {
                 if (strict)
                     state.forceValue(a->value, a->pos);
                 if (state.VRtoVP(a->value)->type() == nString)
                     xmlAttrs["drvPath"] = drvPath = state.VRtoVP(a->value)->c_str();
             }
 
-            if (auto a = v.attrs()->get(state.sOutPath)) {
+            if (auto a = state.VRtoV(v).attrs()->get(state.sOutPath)) {
                 if (strict)
                     state.forceValue(a->value, a->pos);
                 if (state.VRtoVP(a->value)->type() == nString)
@@ -115,57 +115,57 @@ static void printValueAsXML(
             XMLOpenElement _(doc, "derivation", xmlAttrs);
 
             if (drvPath != "" && drvsSeen.insert(drvPath).second)
-                showAttrs(state, strict, location, *v.attrs(), doc, context, drvsSeen);
+                showAttrs(state, strict, location, *state.VRtoV(v).attrs(), doc, context, drvsSeen);
             else
                 doc.writeEmptyElement("repeated");
         }
 
         else {
             XMLOpenElement _(doc, "attrs");
-            showAttrs(state, strict, location, *v.attrs(), doc, context, drvsSeen);
+            showAttrs(state, strict, location, *state.VRtoV(v).attrs(), doc, context, drvsSeen);
         }
 
         break;
 
     case nList: {
         XMLOpenElement _(doc, "list");
-        for (auto v2 : v.listView())
-            printValueAsXML(state, strict, location, *state.VRtoVP(v2), doc, context, drvsSeen, pos);
+        for (auto v2 : state.VRtoV(v).listView())
+            printValueAsXML(state, strict, location, v2, doc, context, drvsSeen, pos);
         break;
     }
 
     case nFunction: {
-        if (!v.isLambda()) {
+        if (!state.VRtoV(v).isLambda()) {
             // FIXME: Serialize primops and primopapps
             doc.writeEmptyElement("unevaluated");
             break;
         }
         XMLAttrs xmlAttrs;
         if (location)
-            posToXML(state, xmlAttrs, state.positions[v.lambda().fun->pos]);
+            posToXML(state, xmlAttrs, state.positions[state.VRtoV(v).lambda().fun->pos]);
         XMLOpenElement _(doc, "function", xmlAttrs);
 
-        if (v.lambda().fun->hasFormals()) {
+        if (state.VRtoV(v).lambda().fun->hasFormals()) {
             XMLAttrs attrs;
-            if (v.lambda().fun->arg)
-                attrs["name"] = state.symbols[v.lambda().fun->arg];
-            if (v.lambda().fun->formals->ellipsis)
+            if (state.VRtoV(v).lambda().fun->arg)
+                attrs["name"] = state.symbols[state.VRtoV(v).lambda().fun->arg];
+            if (state.VRtoV(v).lambda().fun->formals->ellipsis)
                 attrs["ellipsis"] = "1";
             XMLOpenElement _(doc, "attrspat", attrs);
-            for (auto & i : v.lambda().fun->formals->lexicographicOrder(state.symbols))
+            for (auto & i : state.VRtoV(v).lambda().fun->formals->lexicographicOrder(state.symbols))
                 doc.writeEmptyElement("attr", singletonAttrs("name", state.symbols[i.name]));
         } else
-            doc.writeEmptyElement("varpat", singletonAttrs("name", state.symbols[v.lambda().fun->arg]));
+            doc.writeEmptyElement("varpat", singletonAttrs("name", state.symbols[state.VRtoV(v).lambda().fun->arg]));
 
         break;
     }
 
     case nExternal:
-        v.external()->printValueAsXML(state, strict, location, doc, context, drvsSeen, pos);
+        state.VRtoV(v).external()->printValueAsXML(state, strict, location, doc, context, drvsSeen, pos);
         break;
 
     case nFloat:
-        doc.writeEmptyElement("float", singletonAttrs("value", fmt("%1%", v.fpoint())));
+        doc.writeEmptyElement("float", singletonAttrs("value", fmt("%1%", state.VRtoV(v).fpoint())));
         break;
 
     case nThunk:
@@ -189,7 +189,7 @@ void printValueAsXML(
     EvalState & state,
     bool strict,
     bool location,
-    Value & v,
+    ValueRef v,
     std::ostream & out,
     NixStringContext & context,
     const PosIdx pos)
