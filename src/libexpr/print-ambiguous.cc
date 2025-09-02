@@ -7,7 +7,7 @@ namespace nix {
 
 // See: https://github.com/NixOS/nix/issues/9730
 void printAmbiguous(
-    EvalState & state, Value & v, const SymbolTable & symbols, std::ostream & str, std::set<const void *> * seen, int depth)
+    EvalState & state, ValueRef v, const SymbolTable & symbols, std::ostream & str, std::set<size_t> * seen, int depth)
 {
     checkInterrupt();
 
@@ -15,30 +15,30 @@ void printAmbiguous(
         str << "«too deep»";
         return;
     }
-    switch (v.type()) {
+    switch (state.VRtoV(v).type()) {
     case nInt:
-        str << v.integer();
+        str << state.VRtoV(v).integer();
         break;
     case nBool:
-        printLiteralBool(str, v.boolean());
+        printLiteralBool(str, state.VRtoV(v).boolean());
         break;
     case nString:
-        printLiteralString(str, v.string_view());
+        printLiteralString(str, state.VRtoV(v).string_view());
         break;
     case nPath:
-        str << v.path().to_string(); // !!! escaping?
+        str << state.VRtoV(v).path().to_string(); // !!! escaping?
         break;
     case nNull:
         str << "null";
         break;
     case nAttrs: {
-        if (seen && !v.attrs()->empty() && !seen->insert(v.attrs()).second)
+        if (seen && !state.VRtoV(v).attrs()->empty() && !seen->insert((size_t) state.VRtoV(v).attrs()).second)
             str << "«repeated»";
         else {
             str << "{ ";
-            for (auto & i : v.attrs()->lexicographicOrder(symbols)) {
+            for (auto & i : state.VRtoV(v).attrs()->lexicographicOrder(symbols)) {
                 str << symbols[i->name] << " = ";
-                printAmbiguous(state, *state.VRtoVP(i->value), symbols, str, seen, depth - 1);
+                printAmbiguous(state, i->value, symbols, str, seen, depth - 1);
                 str << "; ";
             }
             str << "}";
@@ -48,13 +48,13 @@ void printAmbiguous(
     case nList:
         /* Use pointer to the Value instead of pointer to the elements, because
            that would need to explicitly handle the case of SmallList. */
-        if (seen && v.listSize() && !seen->insert(&v).second)
+        if (seen && state.VRtoV(v).listSize() && !seen->insert((size_t) v).second)
             str << "«repeated»";
         else {
             str << "[ ";
-            for (auto v2 : v.listView()) {
+            for (auto v2 : state.VRtoV(v).listView()) {
                 if (v2)
-                    printAmbiguous(state, *state.VRtoVP(v2), symbols, str, seen, depth - 1);
+                    printAmbiguous(state, v2, symbols, str, seen, depth - 1);
                 else
                     str << "(nullptr)";
                 str << " ";
@@ -63,7 +63,7 @@ void printAmbiguous(
         }
         break;
     case nThunk:
-        if (!v.isBlackhole()) {
+        if (!state.VRtoV(v).isBlackhole()) {
             str << "<CODE>";
         } else {
             // Although we know for sure that it's going to be an infinite recursion
@@ -76,19 +76,19 @@ void printAmbiguous(
         }
         break;
     case nFunction:
-        if (v.isLambda()) {
+        if (state.VRtoV(v).isLambda()) {
             str << "<LAMBDA>";
-        } else if (v.isPrimOp()) {
+        } else if (state.VRtoV(v).isPrimOp()) {
             str << "<PRIMOP>";
-        } else if (v.isPrimOpApp()) {
+        } else if (state.VRtoV(v).isPrimOpApp()) {
             str << "<PRIMOP-APP>";
         }
         break;
     case nExternal:
-        str << *v.external();
+        str << *state.VRtoV(v).external();
         break;
     case nFloat:
-        str << v.fpoint();
+        str << state.VRtoV(v).fpoint();
         break;
     default:
         printError("Nix evaluator internal error: printAmbiguous: invalid value type");

@@ -67,8 +67,8 @@ void processExpr(
             } else {
                 if (strict)
                     state.forceValueDeep(state.VPtoVR(&vRes));
-                std::set<const void *> seen;
-                printAmbiguous(state, vRes, state.symbols, std::cout, &seen, std::numeric_limits<int>::max());
+                std::set<size_t> seen;
+                printAmbiguous(state, state.VPtoVR(&vRes), state.symbols, std::cout, &seen, std::numeric_limits<int>::max());
                 std::cout << std::endl;
             }
         } else {
