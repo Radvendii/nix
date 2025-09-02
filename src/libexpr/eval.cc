@@ -154,7 +154,7 @@ Value * Value::toPtr(EvalState & es, Symbol sym) noexcept
 
 void Value::print(EvalState & state, std::ostream & str, PrintOptions options)
 {
-    printValue(state, str, *this, options);
+    printValue(state, str, state.VPtoVR(this), options);
 }
 
 std::string_view showType(ValueType type, bool withArticle)
@@ -1294,7 +1294,7 @@ inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::stri
         e->eval(*this, env, VPtoVR(&v));
         if (v.type() != nBool)
             error<TypeError>(
-                "expected a Boolean but found %1%: %2%", showType(*this, VPtoVR(&v)), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a Boolean but found %1%: %2%", showType(*this, VPtoVR(&v)), ValuePrinter(*this, VPtoVR(&v), errorPrintOptions))
                 .atPos(pos)
                 .withFrame(env, *e)
                 .debugThrow();
@@ -1311,7 +1311,7 @@ inline void EvalState::evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx p
         e->eval(*this, env, v);
         if (VRtoV(v).type() != nAttrs)
             error<TypeError>(
-                "expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .withFrame(env, *e)
                 .debugThrow();
     } catch (Error & e) {
@@ -1862,7 +1862,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
             error<TypeError>(
                 "attempt to call something which is not a function but %1%: %2%",
                 showType(*this, VPtoVR(&vCur)),
-                ValuePrinter(*this, vCur, errorPrintOptions))
+                ValuePrinter(*this, VPtoVR(&vCur), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
     }
@@ -2305,7 +2305,7 @@ NixInt EvalState::forceInt(ValueRef v, const PosIdx pos, std::string_view errorC
         forceValue(v, pos);
         if (VRtoV(v).type() != nInt)
             error<TypeError>(
-                "expected an integer but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected an integer but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return VRtoV(v).integer();
@@ -2325,7 +2325,7 @@ NixFloat EvalState::forceFloat(ValueRef v, const PosIdx pos, std::string_view er
             return VRtoV(v).integer().value;
         else if (VRtoV(v).type() != nFloat)
             error<TypeError>(
-                "expected a float but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a float but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return VRtoV(v).fpoint();
@@ -2341,7 +2341,7 @@ bool EvalState::forceBool(ValueRef v, const PosIdx pos, std::string_view errorCt
         forceValue(v, pos);
         if (VRtoV(v).type() != nBool)
             error<TypeError>(
-                "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return VRtoV(v).boolean();
@@ -2373,7 +2373,7 @@ void EvalState::forceFunction(ValueRef v, const PosIdx pos, std::string_view err
         forceValue(v, pos);
         if (VRtoV(v).type() != nFunction && !isFunctor(v))
             error<TypeError>(
-                "expected a function but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a function but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
     } catch (Error & e) {
@@ -2388,7 +2388,7 @@ std::string_view EvalState::forceString(ValueRef v, const PosIdx pos, std::strin
         forceValue(v, pos);
         if (VRtoV(v).type() != nString)
             error<TypeError>(
-                "expected a string but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a string but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return VRtoV(v).string_view();
@@ -2494,7 +2494,7 @@ BackedStringView EvalState::coerceToString(
         auto i = VRtoV(v).attrs()->find(sOutPath);
         if (i == VRtoV(v).attrs()->end()) {
             error<TypeError>(
-                "cannot coerce %1% to a string: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "cannot coerce %1% to a string: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .withTrace(pos, errorCtx)
                 .debugThrow();
         }
@@ -2550,7 +2550,7 @@ BackedStringView EvalState::coerceToString(
         }
     }
 
-    error<TypeError>("cannot coerce %1% to a string: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+    error<TypeError>("cannot coerce %1% to a string: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
         .withTrace(pos, errorCtx)
         .debugThrow();
 }
@@ -2702,9 +2702,9 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
             error<AssertionError>(
                 "%s with value '%s' is not equal to %s with value '%s'",
                 showType(*this, v1),
-                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                ValuePrinter(*this, v1, errorPrintOptions),
                 showType(*this, v2),
-                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
     }
@@ -2713,9 +2713,9 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         error<AssertionError>(
             "%s of value '%s' is not equal to %s of value '%s'",
             showType(*this, v1),
-            ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+            ValuePrinter(*this, v1, errorPrintOptions),
             showType(*this, v2),
-            ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+            ValuePrinter(*this, v2, errorPrintOptions))
             .debugThrow();
     }
 
@@ -2730,8 +2730,8 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         if (VRtoV(v1).boolean() != VRtoV(v2).boolean()) {
             error<AssertionError>(
                 "boolean '%s' is not equal to boolean '%s'",
-                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                ValuePrinter(*this, v1, errorPrintOptions),
+                ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
         return;
@@ -2740,8 +2740,8 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         if (strcmp(VRtoV(v1).c_str(), VRtoV(v2).c_str()) != 0) {
             error<AssertionError>(
                 "string '%s' is not equal to string '%s'",
-                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                ValuePrinter(*this, v1, errorPrintOptions),
+                ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
         return;
@@ -2750,15 +2750,15 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         if (VRtoV(v1).pathAccessor() != VRtoV(v2).pathAccessor()) {
             error<AssertionError>(
                 "path '%s' is not equal to path '%s' because their accessors are different",
-                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                ValuePrinter(*this, v1, errorPrintOptions),
+                ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
         if (strcmp(VRtoV(v1).pathStr(), VRtoV(v2).pathStr()) != 0) {
             error<AssertionError>(
                 "path '%s' is not equal to path '%s'",
-                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                ValuePrinter(*this, v1, errorPrintOptions),
+                ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
         return;
@@ -2772,8 +2772,8 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
                 "list of size '%d' is not equal to list of size '%d', left hand side is '%s', right hand side is '%s'",
                 VRtoV(v1).listSize(),
                 VRtoV(v2).listSize(),
-                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                ValuePrinter(*this, v1, errorPrintOptions),
+                ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
         for (size_t n = 0; n < VRtoV(v1).listSize(); ++n) {
@@ -2805,8 +2805,8 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         if (VRtoV(v1).attrs()->size() != VRtoV(v2).attrs()->size()) {
             error<AssertionError>(
                 "attribute names of attribute set '%s' differs from attribute set '%s'",
-                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                ValuePrinter(*this, v1, errorPrintOptions),
+                ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
 
@@ -2823,16 +2823,16 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
                     error<AssertionError>(
                         "attribute name '%s' is contained in '%s', but not in '%s'",
                         symbols[i->name],
-                        ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                        ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                        ValuePrinter(*this, v1, errorPrintOptions),
+                        ValuePrinter(*this, v2, errorPrintOptions))
                         .debugThrow();
                 }
                 if (!VRtoV(v1).attrs()->get(j->name)) {
                     error<AssertionError>(
                         "attribute name '%s' is missing in '%s', but is contained in '%s'",
                         symbols[j->name],
-                        ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                        ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                        ValuePrinter(*this, v1, errorPrintOptions),
+                        ValuePrinter(*this, v2, errorPrintOptions))
                         .debugThrow();
                 }
                 assert(false);
@@ -2865,8 +2865,8 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         if (!(*VRtoV(v1).external() == *VRtoV(v2).external())) {
             error<AssertionError>(
                 "external value '%s' is not equal to external value '%s'",
-                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
+                ValuePrinter(*this, v1, errorPrintOptions),
+                ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
         return;

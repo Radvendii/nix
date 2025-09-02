@@ -139,7 +139,7 @@ bool isImportantAttrName(const std::string & attrName)
     return attrName == "type" || attrName == "_type";
 }
 
-typedef std::pair<std::string, Value *> AttrPair;
+typedef std::pair<std::string, ValueRef> AttrPair;
 
 struct ImportantFirstAttrNameCmp
 {
@@ -152,8 +152,10 @@ struct ImportantFirstAttrNameCmp
     }
 };
 
-typedef std::set<const void *> ValuesSeen;
-typedef std::vector<std::pair<std::string, Value *>> AttrVec;
+// Values seen can contain either a ValueRef or a Bindings *
+typedef std::set<size_t> ValuesSeen;
+// XXX [speed]: why is this not std::vector<AttrPair>?
+typedef std::vector<std::pair<std::string, ValueRef>> AttrVec;
 
 class Printer
 {
@@ -219,43 +221,43 @@ private:
         ::nix::printElided(output, value, single, plural, options.ansiColors);
     }
 
-    void printInt(Value & v)
+    void printInt(ValueRef v)
     {
         if (options.ansiColors)
             output << ANSI_CYAN;
-        output << v.integer();
+        output << state.VRtoV(v).integer();
         if (options.ansiColors)
             output << ANSI_NORMAL;
     }
 
-    void printFloat(Value & v)
+    void printFloat(ValueRef v)
     {
         if (options.ansiColors)
             output << ANSI_CYAN;
-        output << v.fpoint();
+        output << state.VRtoV(v).fpoint();
         if (options.ansiColors)
             output << ANSI_NORMAL;
     }
 
-    void printBool(Value & v)
+    void printBool(ValueRef v)
     {
         if (options.ansiColors)
             output << ANSI_CYAN;
-        printLiteralBool(output, v.boolean());
+        printLiteralBool(output, state.VRtoV(v).boolean());
         if (options.ansiColors)
             output << ANSI_NORMAL;
     }
 
-    void printString(Value & v)
+    void printString(ValueRef v)
     {
-        printLiteralString(output, v.string_view(), options.maxStringLength, options.ansiColors);
+        printLiteralString(output, state.VRtoV(v).string_view(), options.maxStringLength, options.ansiColors);
     }
 
-    void printPath(Value & v)
+    void printPath(ValueRef v)
     {
         if (options.ansiColors)
             output << ANSI_GREEN;
-        output << v.path().to_string(); // !!! escaping?
+        output << state.VRtoV(v).path().to_string(); // !!! escaping?
         if (options.ansiColors)
             output << ANSI_NORMAL;
     }
@@ -269,10 +271,10 @@ private:
             output << ANSI_NORMAL;
     }
 
-    void printDerivation(Value & v)
+    void printDerivation(ValueRef v)
     {
         std::optional<StorePath> storePath;
-        if (auto i = v.attrs()->get(state.sDrvPath)) {
+        if (auto i = state.VRtoV(v).attrs()->get(state.sDrvPath)) {
             NixStringContext context;
             storePath =
                 state.coerceToStorePath(i->pos, i->value, context, "while evaluating the drvPath of a derivation");
@@ -319,30 +321,30 @@ private:
         }
 
         // It is ok to force the item(s) here, because they will be printed anyway.
-        state.forceValue(state.VPtoVR(item), item->determinePos(state, noPos));
+        state.forceValue(item, state.VRtoVP(item)->determinePos(state, noPos));
 
         // Pretty-print single-item attrsets only if they contain nested
         // structures.
-        auto itemType = item->type();
+        auto itemType = state.VRtoVP(item)->type();
         return itemType == nList || itemType == nAttrs || itemType == nThunk;
     }
 
-    void printAttrs(Value & v, size_t depth)
+    void printAttrs(ValueRef v, size_t depth)
     {
-        if (seen && !seen->insert(v.attrs()).second) {
+        if (seen && !seen->insert((size_t) state.VRtoVP(v)->attrs()).second) {
             printRepeated();
             return;
         }
 
-        if (options.force && options.derivationPaths && state.isDerivation(state.VPtoVR(&v))) {
+        if (options.force && options.derivationPaths && state.isDerivation(v)) {
             printDerivation(v);
         } else if (depth < options.maxDepth) {
             increaseIndent();
             output << "{";
 
             AttrVec sorted;
-            for (auto & i : *v.attrs())
-                sorted.emplace_back(std::pair(state.symbols[i.name], state.VRtoVP(i.value)));
+            for (auto & i : *state.VRtoV(v).attrs())
+                sorted.emplace_back(std::pair(state.symbols[i.name], i.value));
 
             if (options.maxAttrs == std::numeric_limits<size_t>::max())
                 std::sort(sorted.begin(), sorted.end());
@@ -363,7 +365,7 @@ private:
 
                 printAttributeName(output, i.first);
                 output << " = ";
-                print(*i.second, depth + 1);
+                print(i.second, depth + 1);
                 output << ";";
                 totalAttrsPrinted++;
                 currentAttrsPrinted++;
@@ -405,9 +407,9 @@ private:
         return itemType == nList || itemType == nAttrs || itemType == nThunk;
     }
 
-    void printList(Value & v, size_t depth)
+    void printList(ValueRef v, size_t depth)
     {
-        if (seen && v.listSize() && !seen->insert(&v).second) {
+        if (seen && state.VRtoV(v).listSize() && !seen->insert(v).second) {
             printRepeated();
             return;
         }
@@ -415,7 +417,7 @@ private:
         if (depth < options.maxDepth) {
             increaseIndent();
             output << "[";
-            auto listItems = v.listView();
+            auto listItems = state.VRtoV(v).listView();
             auto prettyPrint = shouldPrettyPrintList(listItems.span());
 
             size_t currentListItemsPrinted = 0;
@@ -429,7 +431,7 @@ private:
                 }
 
                 if (elem) {
-                    print(*state.VRtoVP(elem), depth + 1);
+                    print(elem, depth + 1);
                 } else {
                     printNullptr();
                 }
@@ -445,31 +447,31 @@ private:
         }
     }
 
-    void printFunction(Value & v)
+    void printFunction(ValueRef v)
     {
         if (options.ansiColors)
             output << ANSI_BLUE;
         output << "«";
 
-        if (v.isLambda()) {
+        if (state.VRtoV(v).isLambda()) {
             output << "lambda";
-            if (v.lambda().fun) {
-                if (v.lambda().fun->name) {
-                    output << " " << state.symbols[v.lambda().fun->name];
+            if (state.VRtoV(v).lambda().fun) {
+                if (state.VRtoV(v).lambda().fun->name) {
+                    output << " " << state.symbols[state.VRtoV(v).lambda().fun->name];
                 }
 
                 std::ostringstream s;
-                s << state.positions[v.lambda().fun->pos];
+                s << state.positions[state.VRtoV(v).lambda().fun->pos];
                 output << " @ " << filterANSIEscapes(toView(s));
             }
-        } else if (v.isPrimOp()) {
-            if (v.primOp())
-                output << *v.primOp();
+        } else if (state.VRtoV(v).isPrimOp()) {
+            if (state.VRtoV(v).primOp())
+                output << *state.VRtoV(v).primOp();
             else
                 output << "primop";
-        } else if (v.isPrimOpApp()) {
+        } else if (state.VRtoV(v).isPrimOpApp()) {
             output << "partially applied ";
-            auto primOp = v.primOpAppPrimOp(state);
+            auto primOp = state.VRtoV(v).primOpAppPrimOp(state);
             if (primOp)
                 output << *primOp;
             else
@@ -483,9 +485,9 @@ private:
             output << ANSI_NORMAL;
     }
 
-    void printThunk(Value & v)
+    void printThunk(ValueRef v)
     {
-        if (v.isBlackhole()) {
+        if (state.VRtoV(v).isBlackhole()) {
             // Although we know for sure that it's going to be an infinite recursion
             // when this value is accessed _in the current context_, it's likely
             // that the user will misinterpret a simpler «infinite recursion» output
@@ -497,7 +499,7 @@ private:
             output << "«potential infinite recursion»";
             if (options.ansiColors)
                 output << ANSI_NORMAL;
-        } else if (v.isThunk() || v.isApp()) {
+        } else if (state.VRtoV(v).isThunk() || state.VRtoV(v).isApp()) {
             if (options.ansiColors)
                 output << ANSI_MAGENTA;
             output << "«thunk»";
@@ -508,9 +510,9 @@ private:
         }
     }
 
-    void printExternal(Value & v)
+    void printExternal(ValueRef v)
     {
-        v.external()->print(output);
+        state.VRtoV(v).external()->print(output);
     }
 
     void printUnknown()
@@ -531,17 +533,17 @@ private:
             output << ANSI_NORMAL;
     }
 
-    void print(Value & v, size_t depth)
+    void print(ValueRef v, size_t depth)
     {
         output.flush();
         checkInterrupt();
 
         try {
             if (options.force) {
-                state.forceValue(state.VPtoVR(&v), v.determinePos(state, noPos));
+                state.forceValue(v, state.VRtoV(v).determinePos(state, noPos));
             }
 
-            switch (v.type()) {
+            switch (state.VRtoV(v).type()) {
 
             case nInt:
                 printInt(v);
@@ -608,7 +610,7 @@ public:
     {
     }
 
-    void print(Value & v)
+    void print(ValueRef v)
     {
         totalAttrsPrinted = 0;
         totalListItemsPrinted = 0;
@@ -620,12 +622,13 @@ public:
             seen.reset();
         }
 
+        // XXX [speed]: is this a mistake? huh?
         ValuesSeen seen;
         print(v, 0);
     }
 };
 
-void printValue(EvalState & state, std::ostream & output, Value & v, PrintOptions options)
+void printValue(EvalState & state, std::ostream & output, ValueRef v, PrintOptions options)
 {
     Printer(output, state, options).print(v);
 }

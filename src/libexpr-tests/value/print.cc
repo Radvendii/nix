@@ -272,7 +272,7 @@ struct StringPrintingTests : LibExprTest
         v.mkString(literal);
 
         std::stringstream out;
-        printValue(state, out, v, PrintOptions{.maxStringLength = maxLength});
+        printValue(state, out, state.VPtoVR(&v), PrintOptions{.maxStringLength = maxLength});
         ASSERT_EQ(out.str(), expected);
     }
 };

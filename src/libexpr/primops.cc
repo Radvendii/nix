@@ -1186,7 +1186,7 @@ static void prim_trace(EvalState & state, const PosIdx pos, ValueRef * args, Val
     if (state.VRtoVP(args[0])->type() == nString)
         printError("trace: %1%", state.VRtoVP(args[0])->string_view());
     else
-        printError("trace: %1%", ValuePrinter(state, *state.VRtoVP(args[0])));
+        printError("trace: %1%", ValuePrinter(state, args[0]));
     if (state.settings.builtinsTraceDebugger) {
         state.runDebugRepl(nullptr);
     }

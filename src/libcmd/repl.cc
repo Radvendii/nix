@@ -113,7 +113,7 @@ struct NixRepl : AbstractNixRepl, detail::ReplCompleterMixin, gc
         ::nix::printValue(
             *state,
             str,
-            v,
+            state->VPtoVR(&v),
             PrintOptions{
                 .ansiColors = true,
                 .force = true,

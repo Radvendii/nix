@@ -9,6 +9,7 @@
 
 #include <iostream>
 
+#include "nix/expr/value.hh"
 #include "nix/util/fmt.hh"
 #include "nix/expr/print-options.hh"
 
@@ -64,7 +65,7 @@ bool isReservedKeyword(const std::string_view str);
  */
 std::ostream & printIdentifier(std::ostream & o, std::string_view s);
 
-void printValue(EvalState & state, std::ostream & str, Value & v, PrintOptions options = PrintOptions{});
+void printValue(EvalState & state, std::ostream & str, ValueRef v, PrintOptions options = PrintOptions{});
 
 /**
  * A partially-applied form of `printValue` which can be formatted using `<<`
@@ -75,11 +76,11 @@ class ValuePrinter
     friend std::ostream & operator<<(std::ostream & output, const ValuePrinter & printer);
 private:
     EvalState & state;
-    Value & value;
+    ValueRef value;
     PrintOptions options;
 
 public:
-    ValuePrinter(EvalState & state, Value & value, PrintOptions options = PrintOptions{})
+    ValuePrinter(EvalState & state, ValueRef value, PrintOptions options = PrintOptions{})
         : state(state)
         , value(value)
         , options(options)

@@ -128,7 +128,7 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
         }
 
         else {
-            logger->cout("%s", ValuePrinter(*state, *v, PrintOptions{.force = true, .derivationPaths = true}));
+            logger->cout("%s", ValuePrinter(*state, state->VPtoVR(v), PrintOptions{.force = true, .derivationPaths = true}));
         }
     }
 };
