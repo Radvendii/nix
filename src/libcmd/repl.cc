@@ -505,7 +505,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
                     throw Error("'%s' cannot be shown in an editor", pos);
             } else {
                 // assume it's a derivation
-                return findPackageFilename(*state, v, arg);
+                return findPackageFilename(*state, state->VPtoVR(&v), arg);
             }
         }();
 

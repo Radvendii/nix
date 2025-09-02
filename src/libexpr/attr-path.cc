@@ -39,11 +39,11 @@ std::vector<SymbolRef> parseAttrPath(EvalState & state, std::string_view s)
 }
 
 std::pair<Value *, PosIdx>
-findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & autoArgs, Value & vIn)
+findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & autoArgs, ValueRef vIn)
 {
     Strings tokens = parseAttrPath(attrPath);
 
-    Value * v = &vIn;
+    Value * v = state.VRtoVP(vIn);
     PosIdx pos = noPos;
 
     for (auto & attr : tokens) {
@@ -106,7 +106,7 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
     return {v, pos};
 }
 
-std::pair<SourcePath, uint32_t> findPackageFilename(EvalState & state, Value & v, std::string what)
+std::pair<SourcePath, uint32_t> findPackageFilename(EvalState & state, ValueRef v, std::string what)
 {
     Value * v2;
     try {

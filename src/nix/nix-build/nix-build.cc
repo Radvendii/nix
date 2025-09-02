@@ -429,7 +429,7 @@ static void main_nix_build(int argc, char ** argv)
 
         for (auto & i : attrPaths) {
             Value & v(
-                *findAlongAttrPath(*state, i, takesNixShellAttr(vRoot) ? *autoArgsWithInNixShell : *autoArgs, vRoot)
+                *findAlongAttrPath(*state, i, takesNixShellAttr(vRoot) ? *autoArgsWithInNixShell : *autoArgs, state->VPtoVR(&vRoot))
                      .first);
             state->forceValue(state->VPtoVR(&v), v.determinePos(*state, noPos));
             getDerivations(*state, v, "", takesNixShellAttr(v) ? *autoArgsWithInNixShell : *autoArgs, drvs, false);

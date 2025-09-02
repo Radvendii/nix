@@ -36,7 +36,7 @@ struct CmdEdit : InstallableValueCommand
             auto [v, pos] = installable->toValue(*state);
 
             try {
-                return findPackageFilename(*state, *v, installable->what());
+                return findPackageFilename(*state, state->VPtoVR(v), installable->what());
             } catch (NoPositionInfo &) {
                 throw Error("cannot find position information for '%s", installable->what());
             }
