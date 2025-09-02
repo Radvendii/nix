@@ -243,7 +243,7 @@ static SymbolRef getName(const AttrName & name, EvalState & state, Env & env)
         return name.symbol;
     } else {
         Value nameValue;
-        name.expr->eval(state, env, nameValue);
+        name.expr->eval(state, env, state.VPtoVR(&nameValue));
         state.forceStringNoCtx(state.VPtoVR(&nameValue), name.expr->getPos(), "while evaluating an attribute name");
         return state.symbols.create(nameValue.string_view());
     }
@@ -1284,14 +1284,14 @@ void EvalState::resetFileCache()
 
 void EvalState::eval(Expr * e, ValueRef v)
 {
-    e->eval(*this, baseEnv, VRtoV(v));
+    e->eval(*this, baseEnv, v);
 }
 
 inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::string_view errorCtx)
 {
     try {
         Value v;
-        e->eval(*this, env, v);
+        e->eval(*this, env, VPtoVR(&v));
         if (v.type() != nBool)
             error<TypeError>(
                 "expected a Boolean but found %1%: %2%", showType(*this, VPtoVR(&v)), ValuePrinter(*this, v, errorPrintOptions))
@@ -1308,7 +1308,7 @@ inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::stri
 inline void EvalState::evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        e->eval(*this, env, VRtoV(v));
+        e->eval(*this, env, v);
         if (VRtoV(v).type() != nAttrs)
             error<TypeError>(
                 "expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
@@ -1320,29 +1320,29 @@ inline void EvalState::evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx p
     }
 }
 
-void Expr::eval(EvalState & state, Env & env, Value & v)
+void Expr::eval(EvalState & state, Env & env, ValueRef v)
 {
     unreachable();
 }
 
-void ExprInt::eval(EvalState & state, Env & env, Value & v)
+void ExprInt::eval(EvalState & state, Env & env, ValueRef v)
 {
-    v = state.VRtoV(this->v);
+    state.VRtoV(v) = state.VRtoV(this->v);
 }
 
-void ExprFloat::eval(EvalState & state, Env & env, Value & v)
+void ExprFloat::eval(EvalState & state, Env & env, ValueRef v)
 {
-    v = state.VRtoV(this->v);
+    state.VRtoV(v) = state.VRtoV(this->v);
 }
 
-void ExprString::eval(EvalState & state, Env & env, Value & v)
+void ExprString::eval(EvalState & state, Env & env, ValueRef v)
 {
-    v = state.VRtoV(this->v);
+    state.VRtoV(v) = state.VRtoV(this->v);
 }
 
-void ExprPath::eval(EvalState & state, Env & env, Value & v)
+void ExprPath::eval(EvalState & state, Env & env, ValueRef v)
 {
-    v = state.VRtoV(this->v);
+    state.VRtoV(v) = state.VRtoV(this->v);
 }
 
 Env * ExprAttrs::buildInheritFromEnv(EvalState & state, Env & up)
@@ -1357,7 +1357,7 @@ Env * ExprAttrs::buildInheritFromEnv(EvalState & state, Env & up)
     return &inheritEnv;
 }
 
-void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
+void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
 {
     auto bindings = state.buildBindings(attrs.size() + dynamicAttrs.size());
     auto dynamicEnv = &env;
@@ -1426,7 +1426,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
     /* Dynamic attrs apply *after* rec and __overrides. */
     for (auto & i : dynamicAttrs) {
         Value nameVal;
-        i.nameExpr->eval(state, *dynamicEnv, nameVal);
+        i.nameExpr->eval(state, *dynamicEnv, state.VPtoVR(&nameVal));
         state.forceValue(state.VPtoVR(&nameVal), i.pos);
         if (nameVal.type() == nNull)
             continue;
@@ -1451,10 +1451,10 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
 
     bindings.bindings->pos = pos;
 
-    v.mkAttrs(sort ? bindings.finish() : bindings.alreadySorted());
+    state.VRtoV(v).mkAttrs(sort ? bindings.finish() : bindings.alreadySorted());
 }
 
-void ExprLet::eval(EvalState & state, Env & env, Value & v)
+void ExprLet::eval(EvalState & state, Env & env, ValueRef v)
 {
     /* Create a new environment that contains the attributes in this
        `let'. */
@@ -1478,12 +1478,12 @@ void ExprLet::eval(EvalState & state, Env & env, Value & v)
     body->eval(state, env2, v);
 }
 
-void ExprList::eval(EvalState & state, Env & env, Value & v)
+void ExprList::eval(EvalState & state, Env & env, ValueRef v)
 {
     auto list = state.buildList(elems.size());
     for (const auto & [n, v2] : enumerate(list))
         v2 = state.VPtoVR(elems[n]->maybeThunk(state, env));
-    v.mkList(list);
+    state.VRtoV(v).mkList(list);
 }
 
 Value * ExprList::maybeThunk(EvalState & state, Env & env)
@@ -1494,11 +1494,11 @@ Value * ExprList::maybeThunk(EvalState & state, Env & env)
     return Expr::maybeThunk(state, env);
 }
 
-void ExprVar::eval(EvalState & state, Env & env, Value & v)
+void ExprVar::eval(EvalState & state, Env & env, ValueRef v)
 {
     ValueRef v2 = state.lookupVar(&env, *this, false);
     state.forceValue(v2, pos);
-    v = *state.VRtoVP(v2);
+    state.VRtoV(v) = *state.VRtoVP(v2);
 }
 
 static std::string showAttrPath(EvalState & state, Env & env, const AttrPath & attrPath)
@@ -1522,13 +1522,13 @@ static std::string showAttrPath(EvalState & state, Env & env, const AttrPath & a
     return out.str();
 }
 
-void ExprSelect::eval(EvalState & state, Env & env, Value & v)
+void ExprSelect::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value vTmp;
     PosIdx pos2;
     ValueRef vAttrs = state.VPtoVR(&vTmp);
 
-    e->eval(state, env, vTmp);
+    e->eval(state, env, state.VPtoVR(&vTmp));
 
     try {
         auto dts = state.debugRepl ? makeDebugTraceStacker(
@@ -1583,31 +1583,31 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
         throw;
     }
 
-    v = *state.VRtoVP(vAttrs);
+    state.VRtoV(v) = *state.VRtoVP(vAttrs);
 }
 
-SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, Value & attrs)
+SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, ValueRef attrs)
 {
     Value vTmp;
     SymbolRef name = getName(attrPath[attrPath.size() - 1], state, env);
 
     if (attrPath.size() == 1) {
-        e->eval(state, env, vTmp);
+        e->eval(state, env, state.VPtoVR(&vTmp));
     } else {
         ExprSelect init(*this);
         init.attrPath.pop_back();
-        init.eval(state, env, vTmp);
+        init.eval(state, env, state.VPtoVR(&vTmp));
     }
-    attrs = vTmp;
+    state.VRtoV(attrs) = vTmp;
     return name;
 }
 
-void ExprOpHasAttr::eval(EvalState & state, Env & env, Value & v)
+void ExprOpHasAttr::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value vTmp;
     ValueRef vAttrs = state.VPtoVR(&vTmp);
 
-    e->eval(state, env, vTmp);
+    e->eval(state, env, state.VPtoVR(&vTmp));
 
     for (auto & i : attrPath) {
         state.forceValue(vAttrs, getPos());
@@ -1616,17 +1616,17 @@ void ExprOpHasAttr::eval(EvalState & state, Env & env, Value & v)
         if (state.VRtoVP(vAttrs)->type() == nAttrs && (j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
             vAttrs = j->value;
         } else {
-            v.mkBool(false);
+            state.VRtoV((v)).mkBool(false);
             return;
         }
     }
 
-    v.mkBool(true);
+    state.VRtoV(v).mkBool(true);
 }
 
-void ExprLambda::eval(EvalState & state, Env & env, Value & v)
+void ExprLambda::eval(EvalState & state, Env & env, ValueRef v)
 {
-    v.mkLambda(&env, this);
+    state.VRtoV(v).mkLambda(&env, this);
 }
 
 void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vRes, const PosIdx pos)
@@ -1748,7 +1748,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                                      lambda.name ? concatStrings("'", symbols[lambda.name], "'") : "anonymous lambda")
                                : nullptr;
 
-                lambda.body->eval(*this, env2, vCur);
+                lambda.body->eval(*this, env2, VPtoVR(&vCur));
             } catch (Error & e) {
                 if (loggerSettings.showTrace.get()) {
                     addErrorTrace(
@@ -1870,13 +1870,13 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
     VRtoV(vRes) = vCur;
 }
 
-void ExprCall::eval(EvalState & state, Env & env, Value & v)
+void ExprCall::eval(EvalState & state, Env & env, ValueRef v)
 {
     auto dts =
         state.debugRepl ? makeDebugTraceStacker(state, *this, env, getPos(), "while calling a function") : nullptr;
 
     Value vFun;
-    fun->eval(state, env, vFun);
+    fun->eval(state, env, state.VPtoVR(&vFun));
 
     // Empirical arity of Nixpkgs lambdas by regex e.g. ([a-zA-Z]+:(\s|(/\*.*\/)|(#.*\n))*){5}
     // 2: over 4000
@@ -1888,7 +1888,7 @@ void ExprCall::eval(EvalState & state, Env & env, Value & v)
     for (size_t i = 0; i < args.size(); ++i)
         vArgs[i] = state.VPtoVR(args[i]->maybeThunk(state, env));
 
-    state.callFunction(state.VPtoVR(&vFun), vArgs, state.VPtoVR(&v), pos);
+    state.callFunction(state.VPtoVR(&vFun), vArgs, v, pos);
 }
 
 // Lifted out of callFunction() because it creates a temporary that
@@ -1951,7 +1951,7 @@ https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
     callFunction(fun, VPtoVR(&VRtoVP(allocValue())->mkAttrs(attrs)), res, pos);
 }
 
-void ExprWith::eval(EvalState & state, Env & env, Value & v)
+void ExprWith::eval(EvalState & state, Env & env, ValueRef v)
 {
     Env & env2(state.allocEnv(1));
     env2.up = &env;
@@ -1960,13 +1960,13 @@ void ExprWith::eval(EvalState & state, Env & env, Value & v)
     body->eval(state, env2, v);
 }
 
-void ExprIf::eval(EvalState & state, Env & env, Value & v)
+void ExprIf::eval(EvalState & state, Env & env, ValueRef v)
 {
     // We cheat in the parser, and pass the position of the condition as the position of the if itself.
     (state.evalBool(env, cond, pos, "while evaluating a branch condition") ? then : else_)->eval(state, env, v);
 }
 
-void ExprAssert::eval(EvalState & state, Env & env, Value & v)
+void ExprAssert::eval(EvalState & state, Env & env, ValueRef v)
 {
     if (!state.evalBool(env, cond, pos, "in the condition of the assert statement")) {
         std::ostringstream out;
@@ -1976,9 +1976,9 @@ void ExprAssert::eval(EvalState & state, Env & env, Value & v)
         if (auto eq = dynamic_cast<ExprOpEq *>(cond)) {
             try {
                 Value v1;
-                eq->e1->eval(state, env, v1);
+                eq->e1->eval(state, env, state.VPtoVR(&v1));
                 Value v2;
-                eq->e2->eval(state, env, v2);
+                eq->e2->eval(state, env, state.VPtoVR(&v2));
                 state.assertEqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), eq->pos, "in an equality assertion");
             } catch (AssertionError & e) {
                 e.addTrace(state.positions[pos], "while evaluating the condition of the assertion '%s'", exprStr);
@@ -1991,51 +1991,51 @@ void ExprAssert::eval(EvalState & state, Env & env, Value & v)
     body->eval(state, env, v);
 }
 
-void ExprOpNot::eval(EvalState & state, Env & env, Value & v)
+void ExprOpNot::eval(EvalState & state, Env & env, ValueRef v)
 {
-    v.mkBool(!state.evalBool(env, e, getPos(), "in the argument of the not operator")); // XXX: FIXME: !
+    state.VRtoV(v).mkBool(!state.evalBool(env, e, getPos(), "in the argument of the not operator")); // XXX: FIXME: !
 }
 
-void ExprOpEq::eval(EvalState & state, Env & env, Value & v)
+void ExprOpEq::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value v1;
-    e1->eval(state, env, v1);
+    e1->eval(state, env, state.VPtoVR(&v1));
     Value v2;
-    e2->eval(state, env, v2);
-    v.mkBool(state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for equality"));
+    e2->eval(state, env, state.VPtoVR(&v2));
+    state.VRtoV(v).mkBool(state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for equality"));
 }
 
-void ExprOpNEq::eval(EvalState & state, Env & env, Value & v)
+void ExprOpNEq::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value v1;
-    e1->eval(state, env, v1);
+    e1->eval(state, env, state.VPtoVR(&v1));
     Value v2;
-    e2->eval(state, env, v2);
-    v.mkBool(!state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for inequality"));
+    e2->eval(state, env, state.VPtoVR(&v2));
+    state.VRtoV(v).mkBool(!state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for inequality"));
 }
 
-void ExprOpAnd::eval(EvalState & state, Env & env, Value & v)
+void ExprOpAnd::eval(EvalState & state, Env & env, ValueRef v)
 {
-    v.mkBool(
+    state.VRtoV(v).mkBool(
         state.evalBool(env, e1, pos, "in the left operand of the AND (&&) operator")
         && state.evalBool(env, e2, pos, "in the right operand of the AND (&&) operator"));
 }
 
-void ExprOpOr::eval(EvalState & state, Env & env, Value & v)
+void ExprOpOr::eval(EvalState & state, Env & env, ValueRef v)
 {
-    v.mkBool(
+    state.VRtoV(v).mkBool(
         state.evalBool(env, e1, pos, "in the left operand of the OR (||) operator")
         || state.evalBool(env, e2, pos, "in the right operand of the OR (||) operator"));
 }
 
-void ExprOpImpl::eval(EvalState & state, Env & env, Value & v)
+void ExprOpImpl::eval(EvalState & state, Env & env, ValueRef v)
 {
-    v.mkBool(
+    state.VRtoV(v).mkBool(
         !state.evalBool(env, e1, pos, "in the left operand of the IMPL (->) operator")
         || state.evalBool(env, e2, pos, "in the right operand of the IMPL (->) operator"));
 }
 
-void ExprOpUpdate::eval(EvalState & state, Env & env, Value & v)
+void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value v1, v2;
     state.evalAttrs(env, e1, state.VPtoVR(&v1), pos, "in the left operand of the update (//) operator");
@@ -2044,11 +2044,11 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, Value & v)
     state.nrOpUpdates++;
 
     if (v1.attrs()->size() == 0) {
-        v = v2;
+        state.VRtoV(v) = v2;
         return;
     }
     if (v2.attrs()->size() == 0) {
-        v = v1;
+        state.VRtoV(v) = v1;
         return;
     }
 
@@ -2075,19 +2075,19 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, Value & v)
     while (j != v2.attrs()->end())
         attrs.insert(*j++);
 
-    v.mkAttrs(attrs.alreadySorted());
+    state.VRtoV(v).mkAttrs(attrs.alreadySorted());
 
-    state.nrOpUpdateValuesCopied += v.attrs()->size();
+    state.nrOpUpdateValuesCopied += state.VRtoV(v).attrs()->size();
 }
 
-void ExprOpConcatLists::eval(EvalState & state, Env & env, Value & v)
+void ExprOpConcatLists::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value v1;
-    e1->eval(state, env, v1);
+    e1->eval(state, env, state.VPtoVR(&v1));
     Value v2;
-    e2->eval(state, env, v2);
+    e2->eval(state, env, state.VPtoVR(&v2));
     ValueRef lists[2] = {state.VPtoVR(&v1), state.VPtoVR(&v2)};
-    state.concatLists(state.VPtoVR(&v), 2, lists, pos, "while evaluating one of the elements to concatenate");
+    state.concatLists(v, 2, lists, pos, "while evaluating one of the elements to concatenate");
 }
 
 void EvalState::concatLists(
@@ -2122,7 +2122,7 @@ void EvalState::concatLists(
     VRtoV(v).mkList(list);
 }
 
-void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
+void ExprConcatStrings::eval(EvalState & state, Env & env, ValueRef v)
 {
     NixStringContext context;
     std::vector<BackedStringView> s;
@@ -2157,7 +2157,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
     for (auto & [i_pos, i] : *es) {
         Value vTmp;
 
-        i->eval(state, env, vTmp);
+        i->eval(state, env, state.VPtoVR(&vTmp));
 
         /* If the first element is a path, then the result will also
            be a path, we don't copy anything (yet - that's done later,
@@ -2213,33 +2213,33 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
     }
 
     if (firstType == nInt)
-        v.mkInt(n);
+        state.VRtoV(v).mkInt(n);
     else if (firstType == nFloat)
-        v.mkFloat(nf);
+        state.VRtoV(v).mkFloat(nf);
     else if (firstType == nPath) {
         if (!context.empty())
             state.error<EvalError>("a string that refers to a store path cannot be appended to a path")
                 .atPos(pos)
                 .withFrame(env, *this)
                 .debugThrow();
-        v.mkPath(state.rootPath(CanonPath(str())));
+        state.VRtoV(v).mkPath(state.rootPath(CanonPath(str())));
     } else
-        v.mkStringMove(c_str(), context);
+        state.VRtoV(v).mkStringMove(c_str(), context);
 }
 
-void ExprPos::eval(EvalState & state, Env & env, Value & v)
+void ExprPos::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.mkPos(state.VPtoVR(&v), pos);
+    state.mkPos(v, pos);
 }
 
-void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] Env & env, Value & v)
+void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] Env & env, ValueRef v)
 {
     throwInfiniteRecursionError(state, v);
 }
 
-[[gnu::noinline]] [[noreturn]] void ExprBlackHole::throwInfiniteRecursionError(EvalState & state, Value & v)
+[[gnu::noinline]] [[noreturn]] void ExprBlackHole::throwInfiniteRecursionError(EvalState & state, ValueRef v)
 {
-    state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(v.determinePos(state, noPos)).debugThrow();
+    state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(state.VRtoV(v).determinePos(state, noPos)).debugThrow();
 }
 
 // always force this to be separate, otherwise forceValue may inline it and take

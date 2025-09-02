@@ -99,9 +99,9 @@ void EvalState::forceValue(ValueRef v, const PosIdx pos)
             VRtoV(v).mkBlackhole();
             // checkInterrupt();
             if (env) [[likely]]
-                expr->eval(*this, *env, VRtoV(v));
+                expr->eval(*this, *env, v);
             else
-                ExprBlackHole::throwInfiniteRecursionError(*this, VRtoV(v));
+                ExprBlackHole::throwInfiniteRecursionError(*this, v);
         } catch (...) {
             VRtoV(v).mkThunk(env, expr);
             tryFixupBlackHolePos(v, pos);

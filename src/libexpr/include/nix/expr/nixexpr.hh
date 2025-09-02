@@ -100,7 +100,7 @@ struct Expr
     virtual ~Expr() {};
     virtual void show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const;
     virtual void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
-    virtual void eval(EvalState & state, Env & env, Value & v);
+    virtual void eval(EvalState & state, Env & env, ValueRef v);
     virtual Value * maybeThunk(EvalState & state, Env & env);
     virtual void setName(SymbolRef name);
     virtual void setDocComment(DocComment docComment) {};
@@ -117,7 +117,7 @@ struct Expr
 
 #define COMMON_METHODS                                                                            \
     void show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const override; \
-    void eval(EvalState & state, Env & env, Value & v) override;                                  \
+    void eval(EvalState & state, Env & env, ValueRef v) override;                                  \
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override;
 
 struct ExprInt : Expr
@@ -255,7 +255,7 @@ struct ExprSelect : Expr
      * @note This does *not* evaluate the final attribute, and does not fail if that's the only attribute that does not
      * exist.
      */
-    SymbolRef evalExceptFinalSelect(EvalState & state, Env & env, Value & attrs);
+    SymbolRef evalExceptFinalSelect(EvalState & state, Env & env, ValueRef attrs);
 
     COMMON_METHODS
 };
@@ -573,7 +573,7 @@ struct ExprOpNot : Expr
             e1->bindVars(es, env);                                                                   \
             e2->bindVars(es, env);                                                                   \
         }                                                                                            \
-        void eval(EvalState & state, Env & env, Value & v) override;                                 \
+        void eval(EvalState & state, Env & env, ValueRef v) override;                                 \
         PosIdx getPos() const override                                                               \
         {                                                                                            \
             return pos;                                                                              \
@@ -620,11 +620,11 @@ struct ExprBlackHole : Expr
 {
     void show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const override {}
 
-    void eval(EvalState & state, Env & env, Value & v) override;
+    void eval(EvalState & state, Env & env, ValueRef v) override;
 
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override {}
 
-    [[noreturn]] static void throwInfiniteRecursionError(EvalState & state, Value & v);
+    [[noreturn]] static void throwInfiniteRecursionError(EvalState & state, ValueRef v);
 };
 
 extern ExprBlackHole eBlackHole;

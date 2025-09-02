@@ -287,7 +287,7 @@ StringSet NixRepl::completePrefix(const std::string & prefix)
 
             Expr * e = parseString(expr);
             Value v;
-            e->eval(*state, *env, v);
+            e->eval(*state, *env, state->VPtoVR(&v));
             state->forceAttrs(
                 state->VPtoVR(&v),
                 noPos,
@@ -625,7 +625,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         DocComment fallbackDoc;
         if (auto select = dynamic_cast<ExprSelect *>(expr)) {
             Value vAttrs;
-            auto name = select->evalExceptFinalSelect(*state, *env, vAttrs);
+            auto name = select->evalExceptFinalSelect(*state, *env, state->VPtoVR(&vAttrs));
             fallbackName = state->symbols[name];
 
             state->forceAttrs(state->VPtoVR(&vAttrs), noPos, "while evaluating an attribute set to look for documentation");
@@ -889,7 +889,7 @@ void NixRepl::evalString(std::string s, Value & v)
         else
             throw;
     }
-    e->eval(*state, *env, v);
+    e->eval(*state, *env, state->VPtoVR(&v));
     state->forceValue(state->VPtoVR(&v), v.determinePos(*state, noPos));
 }
 
