@@ -517,6 +517,21 @@ TEST_F(PrimOpTest, concatMap)
         ASSERT_THAT(*state.VRtoVP(elem), IsIntEq(numbers[n]));
 }
 
+// XXX [speed] I don't know if this is really the right place for this test
+TEST_F(PrimOpTest, concatMapBig)
+{
+    // test big concatMap invocation (exceeds conservativeStackReservation)
+    auto v = eval("builtins.concatMap (x: [ x ]) (builtins.genList (x: x) 100)");
+    ASSERT_EQ(v.type(), nList);
+    ASSERT_EQ(v.listSize(), 100u);
+
+    auto listView = v.listView();
+    for (const auto [n, elem] : enumerate(listView)) {
+        state.forceValue(elem, noPos);
+        ASSERT_THAT(*state.VRtoVP(elem), IsIntEq((int) n));
+    }
+}
+
 TEST_F(PrimOpTest, addInt)
 {
     auto v = eval("builtins.add 3 5");

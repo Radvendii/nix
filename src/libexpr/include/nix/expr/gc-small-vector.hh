@@ -19,12 +19,9 @@ template<size_t nItems>
 using SmallValueVector = SmallVector<ValueRef, nItems>;
 
 /**
- * A vector of values that must not be ever be referenced. They are not in
- * EvalState's values vector, so they cannot have a valid ValueRef.
- *
- * See also `SmallValueVector`.
+ * A vector of ListViews. See `SmallVector`.
  */
 template<size_t nItems>
-using SmallTemporaryValueVector = SmallVector<Value, nItems>;
+using SmallListViewVector = SmallVector<ListView, nItems>;
 
 } // namespace nix

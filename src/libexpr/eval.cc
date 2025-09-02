@@ -2154,14 +2154,9 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
         return result;
     };
 
-    // List of returned strings. It is illegal to create a ValueRef to these Values.
-    if (es->size() > 500)
-        std::cout << "too many strings! (" << es->size() << ")";
-    SmallTemporaryValueVector<500> values(es->size());
-    Value * vTmpP = values.data();
-
     for (auto & [i_pos, i] : *es) {
-        Value & vTmp = *vTmpP++;
+        Value vTmp;
+
         i->eval(state, env, vTmp);
 
         /* If the first element is a path, then the result will also

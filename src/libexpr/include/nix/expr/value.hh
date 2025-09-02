@@ -397,6 +397,10 @@ class ListView
     std::variant<SmallList, List> raw;
 
 public:
+
+    // XXX [speed]: default-constructing this is generally a bad idea, but in prim_concatMap we actually don't need it to be initialized at all.
+    ListView() {};
+
     ListView(SmallList list)
         : raw(list)
     {

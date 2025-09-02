@@ -4033,28 +4033,30 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, ValueRef * args,
     auto nrLists = state.VRtoVP(args[1])->listSize();
 
     // List of returned lists before concatenation. It is illegal to create a ValueRef to these Values.
-    if (nrLists > 5000)
-        std::cout << "too many lists! (" << nrLists << ")\n";
-    SmallTemporaryValueVector<5000> lists(nrLists);
+    // XXX [speed]: this is a misuse of conservativeStackReservation. it's meant to be multiplied by sizeof(Value) not sizeof(ListView)
+    // XXX [speed]: does this makes GC harder, since we can't cleanup a Value's auxillary data necessarily when we clean up the Value. But maybe that was alread true? We always run the risk of holding onto the pointer to the data without the Value being live.
+    // XXX [speed]: should we name this SmallVector?
+    SmallListViewVector<conservativeStackReservation> lists(nrLists);
     size_t len = 0;
 
     for (size_t n = 0; n < nrLists; ++n) {
+        Value listValue;
         ValueRef vElem = state.VRtoVP(args[1])->listView()[n];
-        state.callFunction(args[0], vElem, state.VPtoVR(&lists[n]), pos);
+        state.callFunction(args[0], vElem, state.VPtoVR(&listValue), pos);
         state.forceList(
-            state.VPtoVR(&lists[n]),
-            lists[n].determinePos(state, state.VRtoVP(args[0])->determinePos(state, pos)),
+            state.VPtoVR(&listValue),
+            listValue.determinePos(state, state.VRtoVP(args[0])->determinePos(state, pos)),
             "while evaluating the return value of the function passed to builtins.concatMap");
-        len += lists[n].listSize();
+        len += listValue.listSize();
+        lists[n] = listValue.listView();
     }
 
     auto list = state.buildList(len);
     auto out = list.elems;
     for (size_t n = 0, pos = 0; n < nrLists; ++n) {
-        auto listView = lists[n].listView();
-        auto l = listView.size();
+        auto l = lists[n].size();
         if (l)
-            memcpy(out + pos, listView.data(), l * sizeof(ValueRef));
+            memcpy(out + pos, lists[n].data(), l * sizeof(ValueRef));
         pos += l;
     }
     state.VRtoV(v).mkList(list);
