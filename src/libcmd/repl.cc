@@ -91,7 +91,7 @@ struct NixRepl : AbstractNixRepl, detail::ReplCompleterMixin, gc
     void initEnv() override;
 
     virtual StringSet completePrefix(const std::string & prefix) override;
-    StorePath getDerivationPath(Value & v);
+    StorePath getDerivationPath(ValueRef v);
     ProcessLineResult processLine(std::string line);
 
     void loadFile(const Path & path);
@@ -100,20 +100,20 @@ struct NixRepl : AbstractNixRepl, detail::ReplCompleterMixin, gc
     void loadFlakes();
     void reloadFilesAndFlakes();
     void showLastLoaded();
-    void addAttrsToScope(Value & attrs);
-    void addVarToScope(const SymbolRef name, Value & v);
+    void addAttrsToScope(ValueRef attrs);
+    void addVarToScope(const SymbolRef name, ValueRef v);
     Expr * parseString(std::string s);
-    void evalString(std::string s, Value & v);
+    void evalString(std::string s, ValueRef v);
     void loadDebugTraceEnv(DebugTrace & dt);
 
-    void printValue(std::ostream & str, Value & v, unsigned int maxDepth = std::numeric_limits<unsigned int>::max())
+    void printValue(std::ostream & str, ValueRef v, unsigned int maxDepth = std::numeric_limits<unsigned int>::max())
     {
         // Hide the progress bar during printing because it might interfere
         auto suspension = logger->suspend();
         ::nix::printValue(
             *state,
             str,
-            state->VPtoVR(&v),
+            v,
             PrintOptions{
                 .ansiColors = true,
                 .force = true,
@@ -329,9 +329,9 @@ static bool isVarName(std::string_view s)
     return true;
 }
 
-StorePath NixRepl::getDerivationPath(Value & v)
+StorePath NixRepl::getDerivationPath(ValueRef v)
 {
-    auto packageInfo = getDerivation(*state, v, false);
+    auto packageInfo = getDerivation(*state, state->VRtoV(v), false);
     if (!packageInfo)
         throw Error("expression does not evaluate to a derivation, so I can't build it");
     auto drvPath = packageInfo->queryDrvPath();
@@ -352,7 +352,7 @@ void NixRepl::loadDebugTraceEnv(DebugTrace & dt)
 
         // add staticenv vars.
         for (auto & [name, value] : *(vm.get()))
-            addVarToScope(state->symbols.create(name), *state->VRtoVP(value));
+            addVarToScope(state->symbols.create(name), value);
     }
 }
 
@@ -466,8 +466,8 @@ ProcessLineResult NixRepl::processLine(std::string line)
 
     else if (command == ":a" || command == ":add") {
         Value v;
-        evalString(arg, v);
-        addAttrsToScope(v);
+        evalString(arg, state->VPtoVR(&v));
+        addAttrsToScope(state->VPtoVR(&v));
     }
 
     else if (command == ":l" || command == ":load") {
@@ -490,7 +490,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
 
     else if (command == ":e" || command == ":edit") {
         Value v;
-        evalString(arg, v);
+        evalString(arg, state->VPtoVR(&v));
 
         const auto [path, line] = [&]() -> std::pair<SourcePath, uint32_t> {
             if (v.type() == nPath || v.type() == nString) {
@@ -525,25 +525,25 @@ ProcessLineResult NixRepl::processLine(std::string line)
 
     else if (command == ":t") {
         Value v;
-        evalString(arg, v);
+        evalString(arg, state->VPtoVR(&v));
         logger->cout(showType(*state, state->VPtoVR(&v)));
     }
 
     else if (command == ":u") {
         Value v, f, result;
-        evalString(arg, v);
-        evalString("drv: (import <nixpkgs> {}).runCommand \"shell\" { buildInputs = [ drv ]; } \"\"", f);
+        evalString(arg, state->VPtoVR(&v));
+        evalString("drv: (import <nixpkgs> {}).runCommand \"shell\" { buildInputs = [ drv ]; } \"\"", state->VPtoVR(&f));
         // XXX [speed]: illegal conversion to ValueRef
         state->callFunction(state->VPtoVR(&f), state->VPtoVR(&v), state->VPtoVR(&result), PosIdx());
 
-        StorePath drvPath = getDerivationPath(result);
+        StorePath drvPath = getDerivationPath(state->VPtoVR(&result));
         runNix("nix-shell", {state->store->printStorePath(drvPath)});
     }
 
     else if (command == ":b" || command == ":bl" || command == ":i" || command == ":sh" || command == ":log") {
         Value v;
-        evalString(arg, v);
-        StorePath drvPath = getDerivationPath(v);
+        evalString(arg, state->VPtoVR(&v));
+        StorePath drvPath = getDerivationPath(state->VPtoVR(&v));
         Path drvPathRaw = state->store->printStorePath(drvPath);
 
         if (command == ":b" || command == ":bl") {
@@ -601,12 +601,12 @@ ProcessLineResult NixRepl::processLine(std::string line)
 
     else if (command == ":p" || command == ":print") {
         Value v;
-        evalString(arg, v);
+        evalString(arg, state->VPtoVR(&v));
         auto suspension = logger->suspend();
         if (v.type() == nString) {
             std::cout << v.string_view();
         } else {
-            printValue(std::cout, v);
+            printValue(std::cout, state->VPtoVR(&v));
         }
         std::cout << std::endl;
     }
@@ -638,7 +638,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
                 // behaves like
                 // nix-repl> builtins.foo<tab>
                 // error: attribute 'foo' missing
-                evalString(arg, v);
+                evalString(arg, state->VPtoVR(&v));
                 assert(false);
             }
             if (attr->pos) {
@@ -647,7 +647,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
             }
         }
 
-        evalString(arg, v);
+        evalString(arg, state->VPtoVR(&v));
         if (auto doc = state->getDoc(state->VPtoVR(&v))) {
             std::string markdown;
 
@@ -703,12 +703,12 @@ ProcessLineResult NixRepl::processLine(std::string line)
             Expr * e = parseString(line.substr(p + 1));
             Value & v(*state->VRtoVP(state->allocValue()));
             v.mkThunk(env, e);
-            addVarToScope(state->symbols.create(name), v);
+            addVarToScope(state->symbols.create(name), state->VPtoVR(&v));
         } else {
             Value v;
-            evalString(line, v);
+            evalString(line, state->VPtoVR(&v));
             auto suspension = logger->suspend();
-            printValue(std::cout, v, 1);
+            printValue(std::cout, state->VPtoVR(&v), 1);
             std::cout << std::endl;
         }
     }
@@ -723,7 +723,7 @@ void NixRepl::loadFile(const Path & path)
     Value v, v2;
     state->evalFile(lookupFileArg(*state, path), state->VPtoVR(&v));
     state->autoCallFunction(*autoArgs, state->VPtoVR(&v), state->VPtoVR(&v2));
-    addAttrsToScope(v2);
+    addAttrsToScope(state->VPtoVR(&v2));
 }
 
 void NixRepl::loadFlake(const std::string & flakeRefS)
@@ -759,7 +759,7 @@ void NixRepl::loadFlake(const std::string & flakeRefS)
                 .allowUnlocked = !evalSettings.pureEval,
             }),
         v);
-    addAttrsToScope(v);
+    addAttrsToScope(state->VPtoVR(&v));
 }
 
 void NixRepl::initEnv()
@@ -804,7 +804,7 @@ void NixRepl::loadFiles()
 
     for (auto & [i, what] : getValues()) {
         notice("Loading installable '%1%'...", what);
-        addAttrsToScope(*state->VRtoVP(i));
+        addAttrsToScope(i);
     }
 }
 
@@ -819,30 +819,30 @@ void NixRepl::loadFlakes()
     }
 }
 
-void NixRepl::addAttrsToScope(Value & attrs)
+void NixRepl::addAttrsToScope(ValueRef attrs)
 {
     state->forceAttrs(
-        state->VPtoVR(&attrs),
-        [&]() { return attrs.determinePos(*state, noPos); },
+        attrs,
+        [&]() { return state->VRtoV(attrs).determinePos(*state, noPos); },
         "while evaluating an attribute set to be merged in the global scope");
-    if (displ + attrs.attrs()->size() >= envSize)
+    if (displ + state->VRtoV(attrs).attrs()->size() >= envSize)
         throw Error("environment full; cannot add more variables");
 
-    for (auto & i : *attrs.attrs()) {
+    for (auto & i : *state->VRtoV(attrs).attrs()) {
         staticEnv->vars.emplace_back(i.name, displ);
         env->values[displ++] = i.value;
         varNames.emplace(state->symbols[i.name]);
     }
     staticEnv->sort();
     staticEnv->deduplicate();
-    notice("Added %1% variables.", attrs.attrs()->size());
+    notice("Added %1% variables.", state->VRtoV(attrs).attrs()->size());
 
-    *state->VRtoVP(lastLoaded) = attrs;
+    *state->VRtoVP(lastLoaded) = state->VRtoV(attrs);
 
     const int max_print = 20;
     int counter = 0;
     std::ostringstream loaded;
-    for (auto & i : attrs.attrs()->lexicographicOrder(state->symbols)) {
+    for (auto & i : state->VRtoV(attrs).attrs()->lexicographicOrder(state->symbols)) {
         if (counter >= max_print)
             break;
 
@@ -855,11 +855,11 @@ void NixRepl::addAttrsToScope(Value & attrs)
 
     notice("%1%", loaded.str());
 
-    if (attrs.attrs()->size() > max_print)
-        notice("... and %1% more; view with :ll", attrs.attrs()->size() - max_print);
+    if (state->VRtoV(attrs).attrs()->size() > max_print)
+        notice("... and %1% more; view with :ll", state->VRtoV(attrs).attrs()->size() - max_print);
 }
 
-void NixRepl::addVarToScope(const SymbolRef name, Value & v)
+void NixRepl::addVarToScope(const SymbolRef name, ValueRef v)
 {
     if (displ >= envSize)
         throw Error("environment full; cannot add more variables");
@@ -867,7 +867,7 @@ void NixRepl::addVarToScope(const SymbolRef name, Value & v)
         staticEnv->vars.erase(oldVar);
     staticEnv->vars.emplace_back(name, displ);
     staticEnv->sort();
-    env->values[displ++] = state->VPtoVR(&v);
+    env->values[displ++] = v;
     varNames.emplace(state->symbols[name]);
 }
 
@@ -876,7 +876,7 @@ Expr * NixRepl::parseString(std::string s)
     return state->parseExprFromString(std::move(s), state->rootPath("."), staticEnv);
 }
 
-void NixRepl::evalString(std::string s, Value & v)
+void NixRepl::evalString(std::string s, ValueRef v)
 {
     Expr * e;
     try {
@@ -889,8 +889,8 @@ void NixRepl::evalString(std::string s, Value & v)
         else
             throw;
     }
-    e->eval(*state, *env, state->VPtoVR(&v));
-    state->forceValue(state->VPtoVR(&v), v.determinePos(*state, noPos));
+    e->eval(*state, *env, v);
+    state->forceValue(v, state->VRtoV(v).determinePos(*state, noPos));
 }
 
 void NixRepl::runNix(Path program, const Strings & args, const std::optional<std::string> & input)
@@ -931,7 +931,7 @@ ReplExitStatus AbstractNixRepl::runSimple(ref<EvalState> evalState, const ValMap
 
     // add 'extra' vars.
     for (auto & [name, value] : extraEnv)
-        repl->addVarToScope(repl->state->symbols.create(name), *evalState->VRtoVP(value));
+        repl->addVarToScope(repl->state->symbols.create(name), value);
 
     return repl->mainLoop();
 }
