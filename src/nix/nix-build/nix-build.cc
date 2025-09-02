@@ -328,7 +328,7 @@ static void main_nix_build(int argc, char ** argv)
     auto autoArgsWithInNixShell = autoArgs;
     if (isNixShell) {
         auto newArgs = state->buildBindings(autoArgsWithInNixShell->size() + 1);
-        newArgs.alloc("inNixShell").mkBool(true);
+        state->VRtoV(newArgs.alloc("inNixShell")).mkBool(true);
         for (auto & i : *autoArgs)
             newArgs.insert(i);
         autoArgsWithInNixShell = newArgs.finish();

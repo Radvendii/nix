@@ -190,7 +190,7 @@ static void mkOutputString(
     const std::pair<std::string, DerivationOutput> & o)
 {
     state.mkOutputString(
-        state.VPtoVR(&attrs.alloc(o.first)),
+        attrs.alloc(o.first),
         SingleDerivedPath::Built{
             .drvPath = makeConstantStorePathRef(drvPath),
             .output = o.first,
@@ -213,20 +213,20 @@ void derivationToValue(
     auto path2 = path.path.abs();
     Derivation drv = state.store->readDerivation(storePath);
     auto attrs = state.buildBindings(3 + drv.outputs.size());
-    attrs.alloc(state.sDrvPath)
+    state.VRtoV(attrs.alloc(state.sDrvPath))
         .mkString(
             path2,
             {
                 NixStringContextElem::DrvDeep{.drvPath = storePath},
             });
-    attrs.alloc(state.sName).mkString(drv.env["name"]);
+    state.VRtoV(attrs.alloc(state.sName)).mkString(drv.env["name"]);
 
     auto list = state.buildList(drv.outputs.size());
     for (const auto & [i, o] : enumerate(drv.outputs)) {
         mkOutputString(state, attrs, storePath, o);
         state.VRtoVP((list[i] = state.allocValue()))->mkString(o.first);
     }
-    attrs.alloc(state.sOutputs).mkList(list);
+    state.VRtoV(attrs.alloc(state.sOutputs)).mkList(list);
 
     auto w = state.allocValue();
     state.VRtoVP(w)->mkAttrs(attrs);
@@ -1722,7 +1722,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
     }
 
     auto result = state.buildBindings(1 + drv.outputs.size());
-    result.alloc(state.sDrvPath)
+    state.VRtoV(result.alloc(state.sDrvPath))
         .mkString(
             drvPathS,
             {
@@ -2253,7 +2253,7 @@ static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, V
 
     for (auto & [name, type] : entries) {
         if (!type) {
-            auto & attr = attrs.alloc(name);
+            auto attr = attrs.alloc(name);
             // Some filesystems or operating systems may not be able to return
             // detailed node info quickly in this case we produce a thunk to
             // query the file type lazily.
@@ -2261,7 +2261,7 @@ static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, V
             state.VRtoVP(epath)->mkPath(path / name);
             if (!readFileType)
                 readFileType = state.getBuiltin("readFileType");
-            attr.mkApp(state, state.VRtoVP(readFileType), state.VRtoVP(epath));
+            state.VRtoV(attr).mkApp(state, state.VRtoVP(readFileType), state.VRtoVP(epath));
         } else {
             // This branch of the conditional is much more likely.
             // Here we just stringize the directory entry type.
@@ -3335,7 +3335,7 @@ static void prim_mapAttrs(EvalState & state, const PosIdx pos, ValueRef * args, 
         Value * vName = Value::toPtr(state, state.symbols[i.name]);
         ValueRef vFun2 = state.allocValue();
         state.VRtoVP(vFun2)->mkApp(state, state.VRtoVP(args[0]), vName);
-        attrs.alloc(i.name).mkApp(state, state.VRtoVP(vFun2), state.VRtoVP(i.value));
+        state.VRtoV(attrs.alloc(i.name)).mkApp(state, state.VRtoVP(vFun2), state.VRtoVP(i.value));
     }
 
     state.VRtoV(v).mkAttrs(attrs.alreadySorted());
@@ -3939,13 +3939,13 @@ static void prim_partition(EvalState & state, const PosIdx pos, ValueRef * args,
     auto rlist = state.buildList(rsize);
     if (rsize)
         memcpy(rlist.elems, right.data(), sizeof(ValueRef) * rsize);
-    attrs.alloc(state.sRight).mkList(rlist);
+    state.VRtoV(attrs.alloc(state.sRight)).mkList(rlist);
 
     auto wsize = wrong.size();
     auto wlist = state.buildList(wsize);
     if (wsize)
         memcpy(wlist.elems, wrong.data(), sizeof(ValueRef) * wsize);
-    attrs.alloc(state.sWrong).mkList( wlist);
+    state.VRtoV(attrs.alloc(state.sWrong)).mkList( wlist);
 
     state.VRtoV(v).mkAttrs(attrs);
 }
@@ -3996,7 +3996,7 @@ static void prim_groupBy(EvalState & state, const PosIdx pos, ValueRef * args, V
         auto size = i.second.size();
         auto list = state.buildList(size);
         memcpy(list.elems, i.second.data(), sizeof(ValueRef) * size);
-        attrs2.alloc(i.first).mkList(list);
+        state.VRtoV(attrs2.alloc(i.first)).mkList(list);
     }
 
     state.VRtoV(v).mkAttrs(attrs2.alreadySorted());
@@ -4868,8 +4868,8 @@ static void prim_parseDrvName(EvalState & state, const PosIdx pos, ValueRef * ar
         state.forceStringNoCtx(args[0], pos, "while evaluating the first argument passed to builtins.parseDrvName");
     DrvName parsed(name);
     auto attrs = state.buildBindings(2);
-    attrs.alloc(state.sName).mkString(parsed.name);
-    attrs.alloc("version").mkString(parsed.version);
+    state.VRtoV(attrs.alloc(state.sName)).mkString(parsed.name);
+    state.VRtoV(attrs.alloc("version")).mkString(parsed.version);
     state.VRtoV(v).mkAttrs(attrs);
 }
 
@@ -5191,8 +5191,8 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     auto list = buildList(lookupPath.elements.size());
     for (const auto & [n, i] : enumerate(lookupPath.elements)) {
         auto attrs = buildBindings(2);
-        attrs.alloc("path").mkString(i.path.s);
-        attrs.alloc("prefix").mkString(i.prefix.s);
+        VRtoV(attrs.alloc("path")).mkString(i.path.s);
+        VRtoV(attrs.alloc("prefix")).mkString(i.prefix.s);
         VRtoVP(list[n] = allocValue())->mkAttrs(attrs);
     }
     v.mkList(list);

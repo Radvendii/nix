@@ -194,9 +194,9 @@ public:
         bindings->push_back(attr);
     }
 
-    Value & alloc(SymbolRef name, PosIdx pos = noPos);
+    ValueRef alloc(SymbolRef name, PosIdx pos = noPos);
 
-    Value & alloc(std::string_view name, PosIdx pos = noPos);
+    ValueRef alloc(std::string_view name, PosIdx pos = noPos);
 
     Bindings * finish()
     {

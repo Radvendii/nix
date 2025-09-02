@@ -1104,8 +1104,8 @@ void EvalState::mkPos(ValueRef v, PosIdx p)
     auto origin = positions.originOf(p);
     if (auto path = std::get_if<SourcePath>(&origin)) {
         auto attrs = buildBindings(3);
-        attrs.alloc(sFile).mkString(path->path.abs());
-        makePositionThunks(*this, p, VPtoVR(&attrs.alloc(sLine)), VPtoVR(&attrs.alloc(sColumn)));
+        VRtoV(attrs.alloc(sFile)).mkString(path->path.abs());
+        makePositionThunks(*this, p, attrs.alloc(sLine), attrs.alloc(sColumn));
         VRtoV(v).mkAttrs(attrs);
     } else
         VRtoV(v).mkNull();

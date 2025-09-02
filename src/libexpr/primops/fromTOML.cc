@@ -30,7 +30,7 @@ static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, 
 
             for (auto & elem : table) {
                 forceNoNullByte(elem.first);
-                visit(state.VPtoVR(&attrs.alloc(elem.first)), elem.second);
+                visit(attrs.alloc(elem.first), elem.second);
             }
 
             state.VRtoV(v).mkAttrs(attrs);
@@ -69,12 +69,12 @@ static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, 
         case toml::value_t::local_time: {
             if (experimentalFeatureSettings.isEnabled(Xp::ParseTomlTimestamps)) {
                 auto attrs = state.buildBindings(2);
-                attrs.alloc("_type").mkString("timestamp");
+                state.VRtoV(attrs.alloc("_type")).mkString("timestamp");
                 std::ostringstream s;
                 s << t;
                 auto str = toView(s);
                 forceNoNullByte(str);
-                attrs.alloc("value").mkString(str);
+                state.VRtoV(attrs.alloc("value")).mkString(str);
                 state.VRtoV(v).mkAttrs(attrs);
             } else {
                 throw std::runtime_error("Dates and times are not supported");

@@ -84,16 +84,16 @@ static void prim_fetchMercurial(EvalState & state, const PosIdx pos, ValueRef * 
     auto [storePath, input2] = input.fetchToStore(state.store);
 
     auto attrs2 = state.buildBindings(8);
-    state.mkStorePathString(storePath, state.VPtoVR(&attrs2.alloc(state.sOutPath)));
+    state.mkStorePathString(storePath, attrs2.alloc(state.sOutPath));
     if (input2.getRef())
-        attrs2.alloc("branch").mkString(*input2.getRef());
+        state.VRtoV(attrs2.alloc("branch")).mkString(*input2.getRef());
     // Backward compatibility: set 'rev' to
     // 0000000000000000000000000000000000000000 for a dirty tree.
     auto rev2 = input2.getRev().value_or(Hash(HashAlgorithm::SHA1));
-    attrs2.alloc("rev").mkString(rev2.gitRev());
-    attrs2.alloc("shortRev").mkString(rev2.gitRev().substr(0, 12));
+    state.VRtoV(attrs2.alloc("rev")).mkString(rev2.gitRev());
+    state.VRtoV(attrs2.alloc("shortRev")).mkString(rev2.gitRev().substr(0, 12));
     if (auto revCount = input2.getRevCount())
-        attrs2.alloc("revCount").mkInt(*revCount);
+        state.VRtoV(attrs2.alloc("revCount")).mkInt(*revCount);
     state.VRtoV(v).mkAttrs(attrs2);
 
     state.allowPath(storePath);

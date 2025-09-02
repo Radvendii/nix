@@ -24,14 +24,14 @@ void BindingsBuilder::insert(SymbolRef name, Value * value, PosIdx pos)
     insert(Attr(name, state.VPtoVR(value), pos));
 }
 
-Value & BindingsBuilder::alloc(SymbolRef name, PosIdx pos)
+ValueRef BindingsBuilder::alloc(SymbolRef name, PosIdx pos)
 {
     auto value = state.allocValue();
     bindings->push_back(Attr(name, value, pos));
-    return *state.VRtoVP(value);
+    return value;
 }
 
-Value & BindingsBuilder::alloc(std::string_view name, PosIdx pos)
+ValueRef BindingsBuilder::alloc(std::string_view name, PosIdx pos)
 {
     return alloc(state.symbols.create(name), pos);
 }

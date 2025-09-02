@@ -899,7 +899,7 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, Value & vRes)
     for (auto & [node, sourcePath] : lockedFlake.nodePaths) {
         auto override = state.buildBindings(2);
 
-        auto & vSourceInfo = override.alloc(state.symbols.create("sourceInfo"));
+        auto vSourceInfo = override.alloc(state.symbols.create("sourceInfo"));
 
         auto lockedNode = node.dynamic_pointer_cast<const LockedNode>();
 
@@ -909,16 +909,16 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, Value & vRes)
             state,
             storePath,
             lockedNode ? lockedNode->lockedRef.input : lockedFlake.flake.lockedRef.input,
-            state.VPtoVR(&vSourceInfo),
+            vSourceInfo,
             false,
             !lockedNode && lockedFlake.flake.forceDirty);
 
         auto key = keyMap.find(node);
         assert(key != keyMap.end());
 
-        override.alloc(state.symbols.create("dir")).mkString(CanonPath(subdir).rel());
+        state.VRtoV(override.alloc(state.symbols.create("dir"))).mkString(CanonPath(subdir).rel());
 
-        overrides.alloc(state.symbols.create(key->second)).mkAttrs(override);
+        state.VRtoV(overrides.alloc(state.symbols.create(key->second))).mkAttrs(override);
     }
 
     auto & vOverrides = state.VRtoVP(state.allocValue())->mkAttrs(overrides);

@@ -64,12 +64,12 @@ static void prim_parseFlakeRef(EvalState & state, const PosIdx pos, ValueRef * a
     auto binds = state.buildBindings(attrs.size());
     for (const auto & [key, value] : attrs) {
         auto s = state.symbols.create(key);
-        auto & vv = binds.alloc(s);
+        auto vv = binds.alloc(s);
         std::visit(
             overloaded{
-                [&vv](const std::string & value) { vv.mkString(value); },
-                [&vv](const uint64_t & value) { vv.mkInt(value); },
-                [&vv](const Explicit<bool> & value) { vv.mkBool(value.t); }},
+                [&vv, &state](const std::string & value) { state.VRtoV(vv).mkString(value); },
+                [&vv, &state](const uint64_t & value) { state.VRtoV(vv).mkInt(value); },
+                [&vv, &state](const Explicit<bool> & value) { state.VRtoV(vv).mkBool(value.t); }},
             value);
     }
     state.VRtoV(v).mkAttrs(binds);

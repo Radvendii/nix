@@ -56,22 +56,22 @@ bool createUserEnv(
 
         auto attrs = state.buildBindings(7 + outputs.size());
 
-        attrs.alloc(state.sType).mkString("derivation");
-        attrs.alloc(state.sName).mkString(i.queryName());
+        state.VRtoV(attrs.alloc(state.sType)).mkString("derivation");
+        state.VRtoV(attrs.alloc(state.sName)).mkString(i.queryName());
         auto system = i.querySystem();
         if (!system.empty())
-            attrs.alloc(state.sSystem).mkString(system);
-        attrs.alloc(state.sOutPath).mkString(state.store->printStorePath(i.queryOutPath()));
+            state.VRtoV(attrs.alloc(state.sSystem)).mkString(system);
+        state.VRtoV(attrs.alloc(state.sOutPath)).mkString(state.store->printStorePath(i.queryOutPath()));
         if (drvPath)
-            attrs.alloc(state.sDrvPath).mkString(state.store->printStorePath(*drvPath));
+            state.VRtoV(attrs.alloc(state.sDrvPath)).mkString(state.store->printStorePath(*drvPath));
 
         // Copy each output meant for installation.
         auto outputsList = state.buildList(outputs.size());
         for (const auto & [m, j] : enumerate(outputs)) {
             state.VRtoVP(outputsList[m] = state.allocValue())->mkString(j.first);
             auto outputAttrs = state.buildBindings(2);
-            outputAttrs.alloc(state.sOutPath).mkString(state.store->printStorePath(*j.second));
-            attrs.alloc(j.first).mkAttrs(outputAttrs);
+            state.VRtoV(outputAttrs.alloc(state.sOutPath)).mkString(state.store->printStorePath(*j.second));
+            state.VRtoV(attrs.alloc(j.first)).mkAttrs(outputAttrs);
 
             /* This is only necessary when installing store paths, e.g.,
                `nix-env -i /nix/store/abcd...-foo'. */
@@ -80,7 +80,7 @@ bool createUserEnv(
 
             references.insert(*j.second);
         }
-        attrs.alloc(state.sOutputs).mkList(outputsList);
+        state.VRtoV(attrs.alloc(state.sOutputs)).mkList(outputsList);
 
         // Copy the meta attributes.
         auto meta = state.buildBindings(metaNames.size());
@@ -91,7 +91,7 @@ bool createUserEnv(
             meta.insert(state.symbols.create(j), v);
         }
 
-        attrs.alloc(state.sMeta).mkAttrs(meta);
+        state.VRtoV(attrs.alloc(state.sMeta)).mkAttrs(meta);
 
         state.VRtoVP(list[n] = state.allocValue())->mkAttrs(attrs);
 
@@ -129,7 +129,7 @@ bool createUserEnv(
     /* Construct a Nix expression that calls the user environment
        builder with the manifest as argument. */
     auto attrs = state.buildBindings(3);
-    state.mkStorePathString(manifestFile, state.VPtoVR(&attrs.alloc("manifest")));
+    state.mkStorePathString(manifestFile, attrs.alloc("manifest"));
     attrs.insert(state.symbols.create("derivations"), &manifest);
     Value args;
     args.mkAttrs(attrs);

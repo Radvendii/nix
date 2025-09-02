@@ -211,16 +211,16 @@ static void prim_getContext(EvalState & state, const PosIdx pos, ValueRef * args
     for (const auto & info : contextInfos) {
         auto infoAttrs = state.buildBindings(3);
         if (info.second.path)
-            infoAttrs.alloc(sPath).mkBool(true);
+            state.VRtoV(infoAttrs.alloc(sPath)).mkBool(true);
         if (info.second.allOutputs)
-            infoAttrs.alloc(sAllOutputs).mkBool(true);
+            state.VRtoV(infoAttrs.alloc(sAllOutputs)).mkBool(true);
         if (!info.second.outputs.empty()) {
             auto list = state.buildList(info.second.outputs.size());
             for (const auto & [i, output] : enumerate(info.second.outputs))
                 state.VRtoVP(list[i] = state.allocValue())->mkString(output);
-            infoAttrs.alloc(state.sOutputs).mkList(list);
+            state.VRtoV(infoAttrs.alloc(state.sOutputs)).mkList(list);
         }
-        attrs.alloc(state.store->printStorePath(info.first)).mkAttrs(infoAttrs);
+        state.VRtoV(attrs.alloc(state.store->printStorePath(info.first))).mkAttrs(infoAttrs);
     }
 
     state.VRtoV(v).mkAttrs(attrs);

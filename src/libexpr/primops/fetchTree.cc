@@ -29,42 +29,42 @@ void emitTreeAttrs(
 {
     auto attrs = state.buildBindings(100);
 
-    state.mkStorePathString(storePath, state.VPtoVR(&attrs.alloc(state.sOutPath)));
+    state.mkStorePathString(storePath, attrs.alloc(state.sOutPath));
 
     // FIXME: support arbitrary input attributes.
 
     if (auto narHash = input.getNarHash())
-        attrs.alloc("narHash").mkString(narHash->to_string(HashFormat::SRI, true));
+        state.VRtoV(attrs.alloc("narHash")).mkString(narHash->to_string(HashFormat::SRI, true));
 
     if (input.getType() == "git")
-        attrs.alloc("submodules").mkBool(fetchers::maybeGetBoolAttr(input.attrs, "submodules").value_or(false));
+        state.VRtoV(attrs.alloc("submodules")).mkBool(fetchers::maybeGetBoolAttr(input.attrs, "submodules").value_or(false));
 
     if (!forceDirty) {
 
         if (auto rev = input.getRev()) {
-            attrs.alloc("rev").mkString(rev->gitRev());
-            attrs.alloc("shortRev").mkString(rev->gitShortRev());
+            state.VRtoV(attrs.alloc("rev")).mkString(rev->gitRev());
+            state.VRtoV(attrs.alloc("shortRev")).mkString(rev->gitShortRev());
         } else if (emptyRevFallback) {
             // Backwards compat for `builtins.fetchGit`: dirty repos return an empty sha1 as rev
             auto emptyHash = Hash(HashAlgorithm::SHA1);
-            attrs.alloc("rev").mkString(emptyHash.gitRev());
-            attrs.alloc("shortRev").mkString(emptyHash.gitShortRev());
+            state.VRtoV(attrs.alloc("rev")).mkString(emptyHash.gitRev());
+            state.VRtoV(attrs.alloc("shortRev")).mkString(emptyHash.gitShortRev());
         }
 
         if (auto revCount = input.getRevCount())
-            attrs.alloc("revCount").mkInt(*revCount);
+            state.VRtoV(attrs.alloc("revCount")).mkInt(*revCount);
         else if (emptyRevFallback)
-            attrs.alloc("revCount").mkInt(0);
+            state.VRtoV(attrs.alloc("revCount")).mkInt(0);
     }
 
     if (auto dirtyRev = fetchers::maybeGetStrAttr(input.attrs, "dirtyRev")) {
-        attrs.alloc("dirtyRev").mkString(*dirtyRev);
-        attrs.alloc("dirtyShortRev").mkString(*fetchers::maybeGetStrAttr(input.attrs, "dirtyShortRev"));
+        state.VRtoV(attrs.alloc("dirtyRev")).mkString(*dirtyRev);
+        state.VRtoV(attrs.alloc("dirtyShortRev")).mkString(*fetchers::maybeGetStrAttr(input.attrs, "dirtyShortRev"));
     }
 
     if (auto lastModified = input.getLastModified()) {
-        attrs.alloc("lastModified").mkInt(*lastModified);
-        attrs.alloc("lastModifiedDate").mkString(fmt("%s", std::put_time(std::gmtime(&*lastModified), "%Y%m%d%H%M%S")));
+        state.VRtoV(attrs.alloc("lastModified")).mkInt(*lastModified);
+        state.VRtoV(attrs.alloc("lastModifiedDate")).mkString(fmt("%s", std::put_time(std::gmtime(&*lastModified), "%Y%m%d%H%M%S")));
     }
 
     state.VRtoV(v).mkAttrs(attrs);
