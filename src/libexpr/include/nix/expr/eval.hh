@@ -465,6 +465,12 @@ public:
         if (v < &values.front() || v > &values.back()) {
             // assume stack pointer
             // XXX [speed]: would really be nice if we could error check this properly (i.e. is it on the stack)
+            size_t offset_64 = (size_t) v - stackPtr;
+            size_t int31_max = 0x3FFFFFFF;
+            if (offset_64 > int31_max && -offset_64 > int31_max)
+            {
+              std::cout << "value pointer out of range: " << std::hex << v << " (" << stackPtr << ")" << "\n";
+            }
             int32_t offset = (size_t) v - stackPtr;
             ValueRef ret = (uint32_t) offset << 1 | 0x1;
             return ret;
