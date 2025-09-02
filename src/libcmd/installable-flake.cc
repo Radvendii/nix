@@ -90,14 +90,14 @@ DerivedPathsWithInfo InstallableFlake::toDerivedPaths()
         auto v = attr->forceValue();
 
         if (std::optional derivedPathWithInfo = trySinglePathToDerivedPaths(
-                v, noPos, fmt("while evaluating the flake output attribute '%s'", attrPath))) {
+                state->VRtoV(v), noPos, fmt("while evaluating the flake output attribute '%s'", attrPath))) {
             return {*derivedPathWithInfo};
         } else {
             throw Error(
                 "expected flake output attribute '%s' to be a derivation or path but found %s: %s",
                 attrPath,
-                showType(*this->state, state->VPtoVR(&v)),
-                ValuePrinter(*this->state, this->state->VPtoVR(&v), errorPrintOptions));
+                showType(*this->state, v),
+                ValuePrinter(*this->state, v, errorPrintOptions));
         }
     }
 
@@ -154,7 +154,7 @@ DerivedPathsWithInfo InstallableFlake::toDerivedPaths()
 
 std::pair<Value *, PosIdx> InstallableFlake::toValue(EvalState & state)
 {
-    return {&getCursor(state)->forceValue(), noPos};
+    return {state.VRtoVP(getCursor(state)->forceValue()), noPos};
 }
 
 std::vector<ref<eval_cache::AttrCursor>> InstallableFlake::getCursors(EvalState & state)

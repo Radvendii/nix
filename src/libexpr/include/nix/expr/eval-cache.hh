@@ -107,7 +107,7 @@ class AttrCursor : public std::enable_shared_from_this<AttrCursor>
 
     AttrKey getKey();
 
-    Value & getValue();
+    ValueRef getValue();
 
     /**
      * If `cachedValue` is unset, try to initialize it from the
@@ -163,7 +163,7 @@ public:
 
     bool isDerivation();
 
-    Value & forceValue();
+    ValueRef forceValue();
 
     /**
      * Force creation of the .drv file in the Nix store.

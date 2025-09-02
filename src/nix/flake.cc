@@ -852,7 +852,7 @@ struct CmdFlakeInitCommon : virtual Args, EvalCommand
 
         auto templateDirAttr = cursor->getAttr("path")->forceValue();
         NixStringContext context;
-        auto templateDir = evalState->coerceToPath(noPos, evalState->VPtoVR(&templateDirAttr), context, "");
+        auto templateDir = evalState->coerceToPath(noPos, templateDirAttr, context, "");
 
         std::vector<std::filesystem::path> changedFiles;
         std::vector<std::filesystem::path> conflictedFiles;
