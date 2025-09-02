@@ -63,7 +63,7 @@ struct EvalSettings : Config
           Opens dynamic shared object (DSO) at *path*, loads the function with the symbol name *symbol* from it and runs it.
           The loaded function must have the following signature:
           ```cpp
-          extern "C" typedef void (*ValueInitialiser) (EvalState & state, Value & v);
+          extern "C" typedef void (*ValueInitialiser) (EvalState & state, ValueRef v);
           ```
 
           The [Nix C++ API documentation](@docroot@/development/documentation.md#api-documentation) has more details on evaluator internals.
