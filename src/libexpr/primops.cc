@@ -1416,7 +1416,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
                     ingestionMethod = ContentAddressMethod::parse(s);
                 } catch (UsageError &) {
                     state.error<EvalError>("invalid value '%s' for 'outputHashMode' attribute", s)
-                        .atPos(state, state.VRtoV(v))
+                        .atPos(state, v)
                         .debugThrow();
                 }
             if (ingestionMethod == ContentAddressMethod::Raw::Text)
@@ -1429,18 +1429,18 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
             outputs.clear();
             for (auto & j : ss) {
                 if (outputs.find(j) != outputs.end())
-                    state.error<EvalError>("duplicate derivation output '%1%'", j).atPos(state, state.VRtoV(v)).debugThrow();
+                    state.error<EvalError>("duplicate derivation output '%1%'", j).atPos(state, v).debugThrow();
                 /* !!! Check whether j is a valid attribute
                    name. */
                 /* Derivations cannot be named ‘drvPath’, because
                    we already have an attribute ‘drvPath’ in
                    the resulting set (see state.sDrvPath). */
                 if (j == "drvPath")
-                    state.error<EvalError>("invalid derivation output name 'drvPath'").atPos(state, state.VRtoV(v)).debugThrow();
+                    state.error<EvalError>("invalid derivation output name 'drvPath'").atPos(state, v).debugThrow();
                 outputs.insert(j);
             }
             if (outputs.empty())
-                state.error<EvalError>("derivation cannot have an empty set of outputs").atPos(state, state.VRtoV(v)).debugThrow();
+                state.error<EvalError>("derivation cannot have an empty set of outputs").atPos(state, v).debugThrow();
         };
 
         try {
@@ -1603,10 +1603,10 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
 
     /* Do we have all required attributes? */
     if (drv.builder == "")
-        state.error<EvalError>("required attribute 'builder' missing").atPos(state, state.VRtoV(v)).debugThrow();
+        state.error<EvalError>("required attribute 'builder' missing").atPos(state, v).debugThrow();
 
     if (drv.platform == "")
-        state.error<EvalError>("required attribute 'system' missing").atPos(state, state.VRtoV(v)).debugThrow();
+        state.error<EvalError>("required attribute 'system' missing").atPos(state, v).debugThrow();
 
     /* Check whether the derivation name is valid. */
     if (isDerivation(drvName)
@@ -1616,7 +1616,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
             .error<EvalError>(
                 "derivation names are allowed to end in '%s' only if they produce a single derivation file",
                 drvExtension)
-            .atPos(state, state.VRtoV(v))
+            .atPos(state, v)
             .debugThrow();
     }
 
@@ -1627,7 +1627,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
            already content addressed. */
         if (outputs.size() != 1 || *(outputs.begin()) != "out")
             state.error<EvalError>("multiple outputs are not supported in fixed-output derivations")
-                .atPos(state, state.VRtoV(v))
+                .atPos(state, v)
                 .debugThrow();
 
         auto h = newHashAllowEmpty(*outputHash, outputHashAlgo);
@@ -1648,7 +1648,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
 
     else if (contentAddressed || isImpure) {
         if (contentAddressed && isImpure)
-            state.error<EvalError>("derivation cannot be both content-addressed and impure").atPos(state, state.VRtoV(v)).debugThrow();
+            state.error<EvalError>("derivation cannot be both content-addressed and impure").atPos(state, v).debugThrow();
 
         auto ha = outputHashAlgo.value_or(HashAlgorithm::SHA256);
         auto method = ingestionMethod.value_or(ContentAddressMethod::Raw::NixArchive);
@@ -1690,7 +1690,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
             for (auto & i : outputs) {
                 auto h = get(hashModulo.hashes, i);
                 if (!h)
-                    state.error<AssertionError>("derivation produced no hash for output '%s'", i).atPos(state, state.VRtoV(v)).debugThrow();
+                    state.error<AssertionError>("derivation produced no hash for output '%s'", i).atPos(state, v).debugThrow();
                 auto outPath = state.store->makeOutputPath(i, *h, drvName);
                 drv.env[i] = state.store->printStorePath(outPath);
                 drv.outputs.insert_or_assign(
