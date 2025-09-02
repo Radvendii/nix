@@ -580,7 +580,7 @@ struct CmdFlakeCheck : FlakeCommand
             Activity act(*logger, lvlInfo, actUnknown, "evaluating flake");
 
             auto vFlake = state->allocValue();
-            flake::callFlake(*state, flake, *state->VRtoVP(vFlake));
+            flake::callFlake(*state, flake, vFlake);
 
             enumerateOutputs(*state, *state->VRtoVP(vFlake), [&](std::string_view name, Value & vOutput, const PosIdx pos) {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking flake output '%s'", name));

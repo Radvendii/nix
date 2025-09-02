@@ -39,22 +39,22 @@ static StorePath copyInputToStore(
     return storePath;
 }
 
-static void forceTrivialValue(EvalState & state, Value & value, const PosIdx pos)
+static void forceTrivialValue(EvalState & state, ValueRef value, const PosIdx pos)
 {
-    if (value.isThunk() && value.isTrivial())
-        state.forceValue(state.VPtoVR(&value), pos);
+    if (state.VRtoV(value).isThunk() && state.VRtoV(value).isTrivial())
+        state.forceValue(value, pos);
 }
 
-static void expectType(EvalState & state, ValueType type, Value & value, const PosIdx pos)
+static void expectType(EvalState & state, ValueType type, ValueRef value, const PosIdx pos)
 {
     forceTrivialValue(state, value, pos);
-    if (value.type() != type)
-        throw Error("expected %s but got %s at %s", showType(type), showType(value.type()), state.positions[pos]);
+    if (state.VRtoV(value).type() != type)
+        throw Error("expected %s but got %s at %s", showType(type), showType(state.VRtoV(value).type()), state.positions[pos]);
 }
 
 static std::pair<std::map<FlakeId, FlakeInput>, fetchers::Attrs> parseFlakeInputs(
     EvalState & state,
-    Value * value,
+    ValueRef value,
     const PosIdx pos,
     const InputAttrPath & lockRootAttrPath,
     const SourcePath & flakeDir,
@@ -101,12 +101,12 @@ static void parseFlakeInputAttr(EvalState & state, const Attr & attr, fetchers::
 
 static FlakeInput parseFlakeInput(
     EvalState & state,
-    Value * value,
+    ValueRef value,
     const PosIdx pos,
     const InputAttrPath & lockRootAttrPath,
     const SourcePath & flakeDir)
 {
-    expectType(state, nAttrs, *value, pos);
+    expectType(state, nAttrs, value, pos);
 
     FlakeInput input;
 
@@ -118,10 +118,10 @@ static FlakeInput parseFlakeInput(
     fetchers::Attrs attrs;
     std::optional<std::string> url;
 
-    for (auto & attr : *value->attrs()) {
+    for (auto & attr : *state.VRtoVP(value)->attrs()) {
         try {
             if (attr.name == sUrl) {
-                forceTrivialValue(state, *state.VRtoVP(attr.value), pos);
+                forceTrivialValue(state, attr.value, pos);
                 if (state.VRtoVP(attr.value)->type() == nString)
                     url = state.VRtoVP(attr.value)->string_view();
                 else if (state.VRtoVP(attr.value)->type() == nPath) {
@@ -140,13 +140,13 @@ static FlakeInput parseFlakeInput(
                         state.positions[attr.pos]);
                 attrs.emplace("url", *url);
             } else if (attr.name == sFlake) {
-                expectType(state, nBool, *state.VRtoVP(attr.value), attr.pos);
+                expectType(state, nBool, attr.value, attr.pos);
                 input.isFlake = state.VRtoVP(attr.value)->boolean();
             } else if (attr.name == sInputs) {
                 input.overrides =
-                    parseFlakeInputs(state, state.VRtoVP(attr.value), attr.pos, lockRootAttrPath, flakeDir, false).first;
+                    parseFlakeInputs(state, attr.value, attr.pos, lockRootAttrPath, flakeDir, false).first;
             } else if (attr.name == sFollows) {
-                expectType(state, nString, *state.VRtoVP(attr.value), attr.pos);
+                expectType(state, nString, attr.value, attr.pos);
                 auto follows(parseInputAttrPath(state.VRtoVP(attr.value)->c_str()));
                 follows.insert(follows.begin(), lockRootAttrPath.begin(), lockRootAttrPath.end());
                 input.follows = follows;
@@ -182,7 +182,7 @@ static FlakeInput parseFlakeInput(
 
 static std::pair<std::map<FlakeId, FlakeInput>, fetchers::Attrs> parseFlakeInputs(
     EvalState & state,
-    Value * value,
+    ValueRef value,
     const PosIdx pos,
     const InputAttrPath & lockRootAttrPath,
     const SourcePath & flakeDir,
@@ -191,19 +191,19 @@ static std::pair<std::map<FlakeId, FlakeInput>, fetchers::Attrs> parseFlakeInput
     std::map<FlakeId, FlakeInput> inputs;
     fetchers::Attrs selfAttrs;
 
-    expectType(state, nAttrs, *value, pos);
+    expectType(state, nAttrs, value, pos);
 
-    for (auto & inputAttr : *value->attrs()) {
+    for (auto & inputAttr : *state.VRtoVP(value)->attrs()) {
         auto inputName = state.symbols[inputAttr.name];
         if (inputName == "self") {
             if (!allowSelf)
                 throw Error("'self' input attribute not allowed at %s", state.positions[inputAttr.pos]);
-            expectType(state, nAttrs, *state.VRtoVP(inputAttr.value), inputAttr.pos);
+            expectType(state, nAttrs, inputAttr.value, inputAttr.pos);
             for (auto & attr : *state.VRtoVP(inputAttr.value)->attrs())
                 parseFlakeInputAttr(state, attr, selfAttrs);
         } else {
             inputs.emplace(
-                inputName, parseFlakeInput(state, state.VRtoVP(inputAttr.value), inputAttr.pos, lockRootAttrPath, flakeDir));
+                inputName, parseFlakeInput(state, inputAttr.value, inputAttr.pos, lockRootAttrPath, flakeDir));
         }
     }
 
@@ -233,7 +233,7 @@ static Flake readFlake(
     };
 
     if (auto description = vInfo.attrs()->get(state.sDescription)) {
-        expectType(state, nString, *state.VRtoVP(description->value), description->pos);
+        expectType(state, nString, description->value, description->pos);
         flake.description = state.VRtoVP(description->value)->c_str();
     }
 
@@ -241,7 +241,7 @@ static Flake readFlake(
 
     if (auto inputs = vInfo.attrs()->get(sInputs)) {
         auto [flakeInputs, selfAttrs] =
-            parseFlakeInputs(state, state.VRtoVP(inputs->value), inputs->pos, lockRootAttrPath, flakeDir, true);
+            parseFlakeInputs(state, inputs->value, inputs->pos, lockRootAttrPath, flakeDir, true);
         flake.inputs = std::move(flakeInputs);
         flake.selfAttrs = std::move(selfAttrs);
     }
@@ -249,7 +249,7 @@ static Flake readFlake(
     auto sOutputs = state.symbols.create("outputs");
 
     if (auto outputs = vInfo.attrs()->get(sOutputs)) {
-        expectType(state, nFunction, *state.VRtoVP(outputs->value), outputs->pos);
+        expectType(state, nFunction, outputs->value, outputs->pos);
 
         if (state.VRtoVP(outputs->value)->isLambda() && state.VRtoVP(outputs->value)->lambda().fun->hasFormals()) {
             for (auto & formal : state.VRtoVP(outputs->value)->lambda().fun->formals->formals) {
@@ -266,10 +266,10 @@ static Flake readFlake(
     auto sNixConfig = state.symbols.create("nixConfig");
 
     if (auto nixConfig = vInfo.attrs()->get(sNixConfig)) {
-        expectType(state, nAttrs, *state.VRtoVP(nixConfig->value), nixConfig->pos);
+        expectType(state, nAttrs, nixConfig->value, nixConfig->pos);
 
         for (auto & setting : *state.VRtoVP(nixConfig->value)->attrs()) {
-            forceTrivialValue(state, *state.VRtoVP(setting.value), setting.pos);
+            forceTrivialValue(state, setting.value, setting.pos);
             if (state.VRtoVP(setting.value)->type() == nString)
                 flake.config.settings.emplace(
                     state.symbols[setting.name], std::string(state.forceStringNoCtx(setting.value, setting.pos, "")));
@@ -888,7 +888,7 @@ static Value * requireInternalFile(EvalState & state, CanonPath path)
     return state.VRtoVP(v);
 }
 
-void callFlake(EvalState & state, const LockedFlake & lockedFlake, Value & vRes)
+void callFlake(EvalState & state, const LockedFlake & lockedFlake, ValueRef vRes)
 {
     experimentalFeatureSettings.require(Xp::Flakes);
 
@@ -932,7 +932,7 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, Value & vRes)
     assert(vFetchFinalTree);
 
     ValueRef args[] = {vLocks, state.VPtoVR(&vOverrides), *vFetchFinalTree};
-    state.callFunction(state.VPtoVR(vCallFlake), args, state.VPtoVR(&vRes), noPos);
+    state.callFunction(state.VPtoVR(vCallFlake), args, vRes, noPos);
 }
 
 } // namespace flake

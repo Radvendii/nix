@@ -758,7 +758,7 @@ void NixRepl::loadFlake(const std::string & flakeRefS)
                 .useRegistries = !evalSettings.pureEval,
                 .allowUnlocked = !evalSettings.pureEval,
             }),
-        v);
+        state->VPtoVR(&v));
     addAttrsToScope(state->VPtoVR(&v));
 }
 

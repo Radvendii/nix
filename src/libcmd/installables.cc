@@ -449,7 +449,7 @@ ref<eval_cache::EvalCache> openEvalCache(EvalState & state, std::shared_ptr<flak
             throw Error("not everything is cached, but evaluation is not allowed");
 
         auto vFlake = state.allocValue();
-        flake::callFlake(state, *lockedFlake, *state.VRtoVP(vFlake));
+        flake::callFlake(state, *lockedFlake, vFlake);
 
         state.forceAttrs(vFlake, noPos, "while parsing cached flake data");
 

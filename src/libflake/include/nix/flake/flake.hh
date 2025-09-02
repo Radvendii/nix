@@ -216,7 +216,7 @@ struct LockFlags
 LockedFlake
 lockFlake(const Settings & settings, EvalState & state, const FlakeRef & flakeRef, const LockFlags & lockFlags);
 
-void callFlake(EvalState & state, const LockedFlake & lockedFlake, Value & v);
+void callFlake(EvalState & state, const LockedFlake & lockedFlake, ValueRef v);
 
 } // namespace flake
 

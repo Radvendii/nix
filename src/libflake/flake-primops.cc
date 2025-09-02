@@ -30,7 +30,7 @@ PrimOp getFlake(const Settings & settings)
                     .useRegistries = !state.settings.pureEval && settings.useRegistries,
                     .allowUnlocked = !state.settings.pureEval,
                 }),
-            state.VRtoV(v));
+            v);
     };
 
     return PrimOp{
