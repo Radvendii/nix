@@ -964,7 +964,7 @@ public:
     realiseString(ValueRef str, StorePathSet * storePathsOutMaybe, bool isIFD = true, const PosIdx pos = noPos);
 
     /* Call the binary path filter predicate used builtins.path etc. */
-    bool callPathFilter(Value * filterFun, const SourcePath & path, PosIdx pos);
+    bool callPathFilter(ValueRef filterFun, const SourcePath & path, PosIdx pos);
 
     DocComment getDocCommentForPos(PosIdx pos);
 

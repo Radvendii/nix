@@ -150,12 +150,12 @@ StringMap EvalState::realiseContext(const NixStringContext & context, StorePathS
 static SourcePath realisePath(
     EvalState & state,
     const PosIdx pos,
-    Value & v,
+    ValueRef v,
     std::optional<SymlinkResolution> resolveSymlinks = SymlinkResolution::Full)
 {
     NixStringContext context;
 
-    auto path = state.coerceToPath(noPos, state.VPtoVR(&v), context, "while realising the context of a path");
+    auto path = state.coerceToPath(noPos, v, context, "while realising the context of a path");
 
     try {
         if (!context.empty() && path.accessor == state.rootFS) {
@@ -255,17 +255,17 @@ void derivationToValue(
  * @param vScope The base scope to use for the import.
  * @param v Return value
  */
-static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path, Value * vScope, ValueRef v)
+static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path, ValueRef vScope, ValueRef v)
 {
-    state.forceAttrs(state.VPtoVR(vScope), pos, "while evaluating the first argument passed to builtins.scopedImport");
+    state.forceAttrs(vScope, pos, "while evaluating the first argument passed to builtins.scopedImport");
 
-    Env * env = &state.allocEnv(vScope->attrs()->size());
+    Env * env = &state.allocEnv(state.VRtoVP(vScope)->attrs()->size());
     env->up = &state.baseEnv;
 
-    auto staticEnv = std::make_shared<StaticEnv>(nullptr, state.staticBaseEnv, vScope->attrs()->size());
+    auto staticEnv = std::make_shared<StaticEnv>(nullptr, state.staticBaseEnv, state.VRtoVP(vScope)->attrs()->size());
 
     unsigned int displ = 0;
-    for (auto & attr : *vScope->attrs()) {
+    for (auto & attr : *state.VRtoVP(vScope)->attrs()) {
         staticEnv->vars.emplace_back(attr.name, displ);
         env->values[displ++] = attr.value;
     }
@@ -281,7 +281,8 @@ static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path,
 
 /* Load and evaluate an expression from path specified by the
    argument. */
-static void import(EvalState & state, const PosIdx pos, Value & vPath, Value * vScope, ValueRef v)
+ // XXX [speed]: why was vPath a Value & while vScope was a Value *??? I hate references.
+static void import(EvalState & state, const PosIdx pos, ValueRef vPath, ValueRef vScope, ValueRef v)
 {
     auto path = realisePath(state, pos, vPath, std::nullopt);
     auto path2 = path.path.abs();
@@ -308,7 +309,7 @@ static void import(EvalState & state, const PosIdx pos, Value & vPath, Value * v
 static RegisterPrimOp primop_scopedImport(
     PrimOp{
         .name = "scopedImport", .arity = 2, .fun = [](EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v) {
-            import(state, pos, *state.VRtoVP(args[1]), state.VRtoVP(args[0]), v);
+            import(state, pos, args[1], args[0], v);
         }});
 
 static RegisterPrimOp primop_import(
@@ -383,19 +384,19 @@ static RegisterPrimOp primop_import(
       >  The function argument doesn’t have to be called `x` in `foo.nix`; any name would work.
     )",
      .fun = [](EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v) {
-         import(state, pos, *state.VRtoVP(args[0]), nullptr, v);
+         import(state, pos, args[0], ValueRefNull, v);
      }});
 
 #ifndef _WIN32 // TODO implement via DLL loading on Windows
 
 /* Want reasonable symbol names, so extern C */
 /* !!! Should we pass the Pos or the file name too? */
-extern "C" typedef void (*ValueInitializer)(EvalState & state, Value & v);
+extern "C" typedef void (*ValueInitializer)(EvalState & state, ValueRef v);
 
 /* Load a ValueInitializer from a DSO and return whatever it initializes */
 void prim_importNative(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
-    auto path = realisePath(state, pos, *state.VRtoVP(args[0]));
+    auto path = realisePath(state, pos, args[0]);
 
     std::string sym(
         state.forceStringNoCtx(args[1], pos, "while evaluating the second argument passed to builtins.importNative"));
@@ -417,7 +418,7 @@ void prim_importNative(EvalState & state, const PosIdx pos, ValueRef * args, Val
                 .debugThrow();
     }
 
-    (func)(state, state.VRtoV(v));
+    (func)(state, v);
 
     /* We don't dlclose because v may be a primop referencing a function in the shared object file */
 }
@@ -1276,7 +1277,7 @@ static void prim_second(EvalState & state, const PosIdx pos, ValueRef * args, Va
  * Derivations
  *************************************************************/
 
-static void derivationStrictInternal(EvalState & state, std::string_view name, const Bindings * attrs, Value & v);
+static void derivationStrictInternal(EvalState & state, std::string_view name, const Bindings * attrs, ValueRef v);
 
 /* Construct (as a unobservable side effect) a Nix derivation
    expression that performs the derivation described by the argument
@@ -1304,7 +1305,7 @@ static void prim_derivationStrict(EvalState & state, const PosIdx pos, ValueRef 
     }
 
     try {
-        derivationStrictInternal(state, drvName, attrs, state.VRtoV(v));
+        derivationStrictInternal(state, drvName, attrs, v);
     } catch (Error & e) {
         Pos pos = state.positions[nameAttr->pos];
         /*
@@ -1358,14 +1359,14 @@ static void checkDerivationName(EvalState & state, std::string_view drvName)
     }
 }
 
-static void derivationStrictInternal(EvalState & state, std::string_view drvName, const Bindings * attrs, Value & v)
+static void derivationStrictInternal(EvalState & state, std::string_view drvName, const Bindings * attrs, ValueRef v)
 {
     checkDerivationName(state, drvName);
 
     /* Check whether attributes should be passed as a JSON file. */
     using nlohmann::json;
     std::optional<StructuredAttrs> jsonObject;
-    auto pos = v.determinePos(state, noPos);
+    auto pos = state.VRtoV(v).determinePos(state, noPos);
     auto attr = attrs->find(state.sStructuredAttrs);
     if (attr != attrs->end()
         && state.forceBool(
@@ -1415,7 +1416,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
                     ingestionMethod = ContentAddressMethod::parse(s);
                 } catch (UsageError &) {
                     state.error<EvalError>("invalid value '%s' for 'outputHashMode' attribute", s)
-                        .atPos(state, v)
+                        .atPos(state, state.VRtoV(v))
                         .debugThrow();
                 }
             if (ingestionMethod == ContentAddressMethod::Raw::Text)
@@ -1428,18 +1429,18 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
             outputs.clear();
             for (auto & j : ss) {
                 if (outputs.find(j) != outputs.end())
-                    state.error<EvalError>("duplicate derivation output '%1%'", j).atPos(state, v).debugThrow();
+                    state.error<EvalError>("duplicate derivation output '%1%'", j).atPos(state, state.VRtoV(v)).debugThrow();
                 /* !!! Check whether j is a valid attribute
                    name. */
                 /* Derivations cannot be named ‘drvPath’, because
                    we already have an attribute ‘drvPath’ in
                    the resulting set (see state.sDrvPath). */
                 if (j == "drvPath")
-                    state.error<EvalError>("invalid derivation output name 'drvPath'").atPos(state, v).debugThrow();
+                    state.error<EvalError>("invalid derivation output name 'drvPath'").atPos(state, state.VRtoV(v)).debugThrow();
                 outputs.insert(j);
             }
             if (outputs.empty())
-                state.error<EvalError>("derivation cannot have an empty set of outputs").atPos(state, v).debugThrow();
+                state.error<EvalError>("derivation cannot have an empty set of outputs").atPos(state, state.VRtoV(v)).debugThrow();
         };
 
         try {
@@ -1602,10 +1603,10 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
 
     /* Do we have all required attributes? */
     if (drv.builder == "")
-        state.error<EvalError>("required attribute 'builder' missing").atPos(state, v).debugThrow();
+        state.error<EvalError>("required attribute 'builder' missing").atPos(state, state.VRtoV(v)).debugThrow();
 
     if (drv.platform == "")
-        state.error<EvalError>("required attribute 'system' missing").atPos(state, v).debugThrow();
+        state.error<EvalError>("required attribute 'system' missing").atPos(state, state.VRtoV(v)).debugThrow();
 
     /* Check whether the derivation name is valid. */
     if (isDerivation(drvName)
@@ -1615,7 +1616,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
             .error<EvalError>(
                 "derivation names are allowed to end in '%s' only if they produce a single derivation file",
                 drvExtension)
-            .atPos(state, v)
+            .atPos(state, state.VRtoV(v))
             .debugThrow();
     }
 
@@ -1626,7 +1627,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
            already content addressed. */
         if (outputs.size() != 1 || *(outputs.begin()) != "out")
             state.error<EvalError>("multiple outputs are not supported in fixed-output derivations")
-                .atPos(state, v)
+                .atPos(state, state.VRtoV(v))
                 .debugThrow();
 
         auto h = newHashAllowEmpty(*outputHash, outputHashAlgo);
@@ -1647,7 +1648,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
 
     else if (contentAddressed || isImpure) {
         if (contentAddressed && isImpure)
-            state.error<EvalError>("derivation cannot be both content-addressed and impure").atPos(state, v).debugThrow();
+            state.error<EvalError>("derivation cannot be both content-addressed and impure").atPos(state, state.VRtoV(v)).debugThrow();
 
         auto ha = outputHashAlgo.value_or(HashAlgorithm::SHA256);
         auto method = ingestionMethod.value_or(ContentAddressMethod::Raw::NixArchive);
@@ -1689,7 +1690,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
             for (auto & i : outputs) {
                 auto h = get(hashModulo.hashes, i);
                 if (!h)
-                    state.error<AssertionError>("derivation produced no hash for output '%s'", i).atPos(state, v).debugThrow();
+                    state.error<AssertionError>("derivation produced no hash for output '%s'", i).atPos(state, state.VRtoV(v)).debugThrow();
                 auto outPath = state.store->makeOutputPath(i, *h, drvName);
                 drv.env[i] = state.store->printStorePath(outPath);
                 drv.outputs.insert_or_assign(
@@ -1731,7 +1732,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
     for (auto & i : drv.outputs)
         mkOutputString(state, result, drvPath, i);
 
-    v.mkAttrs(result);
+    state.VRtoV(v).mkAttrs(result);
 }
 
 static RegisterPrimOp primop_derivationStrict(
@@ -1857,7 +1858,7 @@ static void prim_pathExists(EvalState & state, const PosIdx pos, ValueRef * args
             state.VRtoV(arg).type() == nString && (state.VRtoV(arg).string_view().ends_with("/") || state.VRtoV(arg).string_view().ends_with("/."));
 
         auto symlinkResolution = mustBeDir ? SymlinkResolution::Full : SymlinkResolution::Ancestors;
-        auto path = realisePath(state, pos, state.VRtoV(arg), symlinkResolution);
+        auto path = realisePath(state, pos, arg, symlinkResolution);
 
         auto st = path.maybeLstat();
         auto exists = st && (!mustBeDir || st->type == SourceAccessor::tDirectory);
@@ -1958,7 +1959,7 @@ static RegisterPrimOp primop_dirOf({
 /* Return the contents of a file as a string. */
 static void prim_readFile(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
-    auto path = realisePath(state, pos, *state.VRtoVP(args[0]));
+    auto path = realisePath(state, pos, args[0]);
     auto s = path.readFile();
     if (s.find((char) 0) != std::string::npos)
         state.error<EvalError>("the contents of the file '%1%' cannot be represented as a Nix string", path)
@@ -2193,7 +2194,7 @@ static void prim_hashFile(EvalState & state, const PosIdx pos, ValueRef * args, 
     if (!ha)
         state.error<EvalError>("unknown hash algorithm '%1%'", algo).atPos(pos).debugThrow();
 
-    auto path = realisePath(state, pos, *state.VRtoVP(args[1]));
+    auto path = realisePath(state, pos, args[1]);
 
     state.VRtoV(v).mkString(hashString(*ha, path.readFile()).to_string(HashFormat::Base16, false));
 }
@@ -2219,7 +2220,7 @@ static Value * fileTypeToString(EvalState & state, SourceAccessor::Type type)
 
 static void prim_readFileType(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
-    auto path = realisePath(state, pos, *state.VRtoVP(args[0]), std::nullopt);
+    auto path = realisePath(state, pos, args[0], std::nullopt);
     /* Retrieve the directory entry type and stringize it. */
     state.VRtoV(v) = *fileTypeToString(state, path.lstat().type);
 }
@@ -2237,7 +2238,7 @@ static RegisterPrimOp primop_readFileType({
 /* Read a directory (without . or ..) */
 static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
-    auto path = realisePath(state, pos, *state.VRtoVP(args[0]));
+    auto path = realisePath(state, pos, args[0]);
 
     // Retrieve directory entries for all nodes in a directory.
     // This is similar to `getFileType` but is optimized to reduce system calls
@@ -2630,7 +2631,7 @@ static RegisterPrimOp primop_toFile({
     .fun = prim_toFile,
 });
 
-bool EvalState::callPathFilter(Value * filterFun, const SourcePath & path, PosIdx pos)
+bool EvalState::callPathFilter(ValueRef filterFun, const SourcePath & path, PosIdx pos)
 {
     auto st = path.lstat();
 
@@ -2642,7 +2643,7 @@ bool EvalState::callPathFilter(Value * filterFun, const SourcePath & path, PosId
     // assert that type is not "unknown"
     ValueRef args[]{VPtoVR(&arg1), VPtoVR(fileTypeToString(*this, st.type))};
     Value res;
-    callFunction(VPtoVR(filterFun), args, VPtoVR(&res), pos);
+    callFunction(filterFun, args, VPtoVR(&res), pos);
 
     return forceBool(VPtoVR(&res), pos, "while evaluating the return value of the path filter function");
 }
@@ -2652,10 +2653,10 @@ static void addPath(
     const PosIdx pos,
     std::string_view name,
     SourcePath path,
-    Value * filterFun,
+    ValueRef filterFun,
     ContentAddressMethod method,
     const std::optional<Hash> expectedHash,
-    Value & v,
+    ValueRef v,
     const NixStringContext & context)
 {
     try {
@@ -2692,9 +2693,9 @@ static void addPath(
                 state.error<EvalError>("store path mismatch in (possibly filtered) path added from '%s'", path)
                     .atPos(pos)
                     .debugThrow();
-            state.allowAndSetStorePathString(dstPath, state.VPtoVR(&v));
+            state.allowAndSetStorePathString(dstPath, v);
         } else
-            state.allowAndSetStorePathString(*expectedStorePath, state.VPtoVR(&v));
+            state.allowAndSetStorePathString(*expectedStorePath, v);
     } catch (Error & e) {
         e.addTrace(state.positions[pos], "while adding path '%s'", path);
         throw;
@@ -2712,7 +2713,7 @@ static void prim_filterSource(EvalState & state, const PosIdx pos, ValueRef * ar
     state.forceFunction(args[0], pos, "while evaluating the first argument passed to builtins.filterSource");
 
     addPath(
-        state, pos, path.baseName(), path, state.VRtoVP(args[0]), ContentAddressMethod::Raw::NixArchive, std::nullopt, state.VRtoV(v), context);
+        state, pos, path.baseName(), path, args[0], ContentAddressMethod::Raw::NixArchive, std::nullopt, v, context);
 }
 
 static RegisterPrimOp primop_filterSource({
@@ -2814,7 +2815,7 @@ static void prim_path(EvalState & state, const PosIdx pos, ValueRef * args, Valu
     if (name.empty())
         name = path->baseName();
 
-    addPath(state, pos, name, *path, state.VRtoVP(filterFun), method, expectedHash, state.VRtoV(v), context);
+    addPath(state, pos, name, *path, filterFun, method, expectedHash, v, context);
 }
 
 static RegisterPrimOp primop_path({
@@ -3727,7 +3728,7 @@ static RegisterPrimOp primop_foldlStrict({
     .fun = prim_foldlStrict,
 });
 
-static void anyOrAll(bool any, EvalState & state, const PosIdx pos, ValueRef * args, Value & v)
+static void anyOrAll(bool any, EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceFunction(
         args[0], pos, std::string("while evaluating the first argument passed to builtins.") + (any ? "any" : "all"));
@@ -3742,17 +3743,17 @@ static void anyOrAll(bool any, EvalState & state, const PosIdx pos, ValueRef * a
         state.callFunction(args[0], elem, state.VPtoVR(&vTmp), pos);
         bool res = state.forceBool(state.VPtoVR(&vTmp), pos, errorCtx);
         if (res == any) {
-            v.mkBool(any);
+            state.VRtoV(v).mkBool(any);
             return;
         }
     }
 
-    v.mkBool(!any);
+    state.VRtoV(v).mkBool(!any);
 }
 
 static void prim_any(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
-    anyOrAll(true, state, pos, args, state.VRtoV(v));
+    anyOrAll(true, state, pos, args, v);
 }
 
 static RegisterPrimOp primop_any({
@@ -3767,7 +3768,7 @@ static RegisterPrimOp primop_any({
 
 static void prim_all(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
-    anyOrAll(false, state, pos, args, state.VRtoV(v));
+    anyOrAll(false, state, pos, args, v);
 }
 
 static RegisterPrimOp primop_all({
