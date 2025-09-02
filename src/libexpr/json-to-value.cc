@@ -37,11 +37,11 @@ class JSONSax : nlohmann::json_sax<json>
 
         JSONState(JSONState & p) = delete;
 
-        Value & value(EvalState & state)
+        ValueRef value(EvalState & state)
         {
             if (!v)
                 v = allocRootValue(state.allocValue());
-            return state.VRtoV(*v);
+            return *v;
         }
 
         virtual ~JSONState() {}
@@ -59,7 +59,7 @@ class JSONSax : nlohmann::json_sax<json>
             auto attrs2 = state.buildBindings(attrs.size());
             for (auto & i : attrs)
                 attrs2.insert(i.first, state.VRtoVP(i.second));
-            parent->value(state).mkAttrs(attrs2);
+            state.VRtoV(parent->value(state)).mkAttrs(attrs2);
             return std::move(parent);
         }
 
@@ -71,7 +71,7 @@ class JSONSax : nlohmann::json_sax<json>
         void key(string_t & name, EvalState & state)
         {
             forceNoNullByte(name);
-            attrs.insert_or_assign(state.symbols.create(name), state.VPtoVR(&value(state)));
+            attrs.insert_or_assign(state.symbols.create(name), value(state));
         }
     };
 
@@ -84,7 +84,7 @@ class JSONSax : nlohmann::json_sax<json>
             auto list = state.buildList(values.size());
             for (const auto & [n, v2] : enumerate(list))
                 v2 = values[n];
-            parent->value(state).mkList(list);
+            state.VRtoV(parent->value(state)).mkList(list);
             return std::move(parent);
         }
 
@@ -105,27 +105,27 @@ class JSONSax : nlohmann::json_sax<json>
     std::unique_ptr<JSONState> rs;
 
 public:
-    JSONSax(EvalState & state, Value & v)
+    JSONSax(EvalState & state, ValueRef v)
         : state(state)
-        , rs(new JSONState(state.VPtoVR(&v))) {};
+        , rs(new JSONState(v)) {};
 
     bool null() override
     {
-        rs->value(state).mkNull();
+        state.VRtoV(rs->value(state)).mkNull();
         rs->add(state);
         return true;
     }
 
     bool boolean(bool val) override
     {
-        rs->value(state).mkBool(val);
+        state.VRtoV(rs->value(state)).mkBool(val);
         rs->add(state);
         return true;
     }
 
     bool number_integer(number_integer_t val) override
     {
-        rs->value(state).mkInt(val);
+        state.VRtoV(rs->value(state)).mkInt(val);
         rs->add(state);
         return true;
     }
@@ -136,14 +136,14 @@ public:
             throw Error("unsigned json number %1% outside of Nix integer range", val_);
         }
         NixInt::Inner val = val_;
-        rs->value(state).mkInt(val);
+        state.VRtoV(rs->value(state)).mkInt(val);
         rs->add(state);
         return true;
     }
 
     bool number_float(number_float_t val, const string_t & s) override
     {
-        rs->value(state).mkFloat(val);
+        state.VRtoV(rs->value(state)).mkFloat(val);
         rs->add(state);
         return true;
     }
@@ -151,7 +151,7 @@ public:
     bool string(string_t & val) override
     {
         forceNoNullByte(val);
-        rs->value(state).mkString(val);
+        state.VRtoV(rs->value(state)).mkString(val);
         rs->add(state);
         return true;
     }
@@ -201,7 +201,7 @@ public:
     }
 };
 
-void parseJSON(EvalState & state, const std::string_view & s_, Value & v)
+void parseJSON(EvalState & state, const std::string_view & s_, ValueRef v)
 {
     JSONSax parser(state, v);
     bool res = json::sax_parse(s_, &parser);

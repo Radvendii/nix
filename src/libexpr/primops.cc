@@ -2480,7 +2480,7 @@ static void prim_fromJSON(EvalState & state, const PosIdx pos, ValueRef * args, 
 {
     auto s = state.forceStringNoCtx(args[0], pos, "while evaluating the first argument passed to builtins.fromJSON");
     try {
-        parseJSON(state, s, state.VRtoV(v));
+        parseJSON(state, s, v);
     } catch (JSONParseError & e) {
         e.addTrace(state.positions[pos], "while decoding a JSON string");
         throw;
