@@ -401,7 +401,7 @@ struct CmdFlakeCheck : FlakeCommand
             [&](const std::string & attrPath, Value & v, const PosIdx pos) -> std::optional<StorePath> {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking derivation %s", attrPath));
-                auto packageInfo = getDerivation(*state, v, false);
+                auto packageInfo = getDerivation(*state, state->VPtoVR(&v), false);
                 if (!packageInfo)
                     throw Error("flake attribute '%s' is not a derivation", attrPath);
                 else {

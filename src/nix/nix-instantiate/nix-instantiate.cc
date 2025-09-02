@@ -73,7 +73,7 @@ void processExpr(
             }
         } else {
             PackageInfos drvs;
-            getDerivations(state, v, "", autoArgs, drvs, false);
+            getDerivations(state, state.VPtoVR(&v), "", autoArgs, drvs, false);
             for (auto & i : drvs) {
                 auto drvPath = i.requireDrvPath();
                 auto drvPathS = state.store->printStorePath(drvPath);

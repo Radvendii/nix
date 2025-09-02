@@ -432,7 +432,7 @@ static void main_nix_build(int argc, char ** argv)
                 *findAlongAttrPath(*state, i, takesNixShellAttr(vRoot) ? *autoArgsWithInNixShell : *autoArgs, state->VPtoVR(&vRoot))
                      .first);
             state->forceValue(state->VPtoVR(&v), v.determinePos(*state, noPos));
-            getDerivations(*state, v, "", takesNixShellAttr(v) ? *autoArgsWithInNixShell : *autoArgs, drvs, false);
+            getDerivations(*state, state->VPtoVR(&v), "", takesNixShellAttr(v) ? *autoArgsWithInNixShell : *autoArgs, drvs, false);
         }
     }
 
@@ -470,7 +470,7 @@ static void main_nix_build(int argc, char ** argv)
                 Value v;
                 state->eval(expr, state->VPtoVR(&v));
 
-                auto drv = getDerivation(*state, v, false);
+                auto drv = getDerivation(*state, state->VPtoVR(&v), false);
                 if (!drv)
                     throw Error("the 'bashInteractive' attribute in <nixpkgs> did not evaluate to a derivation");
 

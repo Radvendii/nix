@@ -25,7 +25,7 @@ PackageInfos queryInstalled(EvalState & state, const Path & userEnv)
         Value v;
         state.evalFile(state.rootPath(CanonPath(manifestFile)).resolveSymlinks(), state.VPtoVR(&v));
         Bindings & bindings(*state.allocBindings(0));
-        getDerivations(state, v, "", bindings, elems, false);
+        getDerivations(state, state.VPtoVR(&v), "", bindings, elems, false);
     }
     return elems;
 }

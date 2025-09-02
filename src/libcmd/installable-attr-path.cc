@@ -57,7 +57,7 @@ DerivedPathsWithInfo InstallableAttrPath::toDerivedPaths()
     Bindings & autoArgs = *cmd.getAutoArgs(*state);
 
     PackageInfos packageInfos;
-    getDerivations(*state, *v, "", autoArgs, packageInfos, false);
+    getDerivations(*state, state->VPtoVR(v), "", autoArgs, packageInfos, false);
 
     // Backward compatibility hack: group results by drvPath. This
     // helps keep .all output together.

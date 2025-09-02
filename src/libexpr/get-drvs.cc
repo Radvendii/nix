@@ -212,23 +212,23 @@ StringSet PackageInfo::queryMetaNames()
     return res;
 }
 
-bool PackageInfo::checkMeta(Value & v)
+bool PackageInfo::checkMeta(ValueRef v)
 {
-    state->forceValue(state->VPtoVR(&v), v.determinePos(*state, noPos));
-    if (v.type() == nList) {
-        for (auto elem : v.listView())
-            if (!checkMeta(*state->VRtoVP(elem)))
+    state->forceValue(v, state->VRtoV(v).determinePos(*state, noPos));
+    if (state->VRtoV(v).type() == nList) {
+        for (auto elem : state->VRtoV(v).listView())
+            if (!checkMeta(elem))
                 return false;
         return true;
-    } else if (v.type() == nAttrs) {
-        if (v.attrs()->get(state->sOutPath))
+    } else if (state->VRtoV(v).type() == nAttrs) {
+        if (state->VRtoV(v).attrs()->get(state->sOutPath))
             return false;
-        for (auto & i : *v.attrs())
-            if (!checkMeta(*state->VRtoVP(i.value)))
+        for (auto & i : *state->VRtoV(v).attrs())
+            if (!checkMeta(i.value))
                 return false;
         return true;
     } else
-        return v.type() == nInt || v.type() == nBool || v.type() == nString || v.type() == nFloat;
+        return state->VRtoV(v).type() == nInt || state->VRtoV(v).type() == nBool || state->VRtoV(v).type() == nString || state->VRtoV(v).type() == nFloat;
 }
 
 Value * PackageInfo::queryMeta(const std::string & name)
@@ -236,7 +236,7 @@ Value * PackageInfo::queryMeta(const std::string & name)
     if (!getMeta())
         return 0;
     auto a = meta->get(state->symbols.create(name));
-    if (!a || !checkMeta(*state->VRtoVP(a->value)))
+    if (!a || !checkMeta(a->value))
         return 0;
     return state->VRtoVP(a->value);
 }
@@ -322,23 +322,23 @@ typedef std::set<const Bindings *> Done;
    for the caller to recursively search for derivations in `v'. */
 static bool getDerivation(
     EvalState & state,
-    Value & v,
+    ValueRef v,
     const std::string & attrPath,
     PackageInfos & drvs,
     Done & done,
     bool ignoreAssertionFailures)
 {
     try {
-        state.forceValue(state.VPtoVR(&v), v.determinePos(state, noPos));
-        if (!state.isDerivation(state.VPtoVR(&v)))
+        state.forceValue(v, state.VRtoV(v).determinePos(state, noPos));
+        if (!state.isDerivation(v))
             return true;
 
         /* Remove spurious duplicates (e.g., a set like `rec { x =
            derivation {...}; y = x;}'. */
-        if (!done.insert(v.attrs()).second)
+        if (!done.insert(state.VRtoV(v).attrs()).second)
             return false;
 
-        PackageInfo drv(state, attrPath, v.attrs());
+        PackageInfo drv(state, attrPath, state.VRtoV(v).attrs());
 
         drv.queryName();
 
@@ -353,7 +353,7 @@ static bool getDerivation(
     }
 }
 
-std::optional<PackageInfo> getDerivation(EvalState & state, Value & v, bool ignoreAssertionFailures)
+std::optional<PackageInfo> getDerivation(EvalState & state, ValueRef v, bool ignoreAssertionFailures)
 {
     Done done;
     PackageInfos drvs;
@@ -372,7 +372,7 @@ static std::regex attrRegex("[A-Za-z_][A-Za-z0-9-_+]*");
 
 static void getDerivations(
     EvalState & state,
-    Value & vIn,
+    ValueRef vIn,
     const std::string & pathPrefix,
     Bindings & autoArgs,
     PackageInfos & drvs,
@@ -380,10 +380,10 @@ static void getDerivations(
     bool ignoreAssertionFailures)
 {
     Value v;
-    state.autoCallFunction(autoArgs, state.VPtoVR(&vIn), state.VPtoVR(&v));
+    state.autoCallFunction(autoArgs, vIn, state.VPtoVR(&v));
 
     /* Process the expression. */
-    if (!getDerivation(state, v, pathPrefix, drvs, done, ignoreAssertionFailures))
+    if (!getDerivation(state, state.VPtoVR(&v), pathPrefix, drvs, done, ignoreAssertionFailures))
         ;
 
     else if (v.type() == nAttrs) {
@@ -405,8 +405,8 @@ static void getDerivations(
                     continue;
                 std::string pathPrefix2 = addToPath(pathPrefix, symbol);
                 if (combineChannels)
-                    getDerivations(state, *state.VRtoVP(i->value), pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
-                else if (getDerivation(state, *state.VRtoVP(i->value), pathPrefix2, drvs, done, ignoreAssertionFailures)) {
+                    getDerivations(state, i->value, pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
+                else if (getDerivation(state, i->value, pathPrefix2, drvs, done, ignoreAssertionFailures)) {
                     /* If the value of this attribute is itself a set,
                     should we recurse into it?  => Only if it has a
                     `recurseForDerivations = true' attribute. */
@@ -416,7 +416,7 @@ static void getDerivations(
                             && state.forceBool(
                                 j->value, j->pos, "while evaluating the attribute `recurseForDerivations`"))
                             getDerivations(
-                                state, *state.VRtoVP(i->value), pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
+                                state, i->value, pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
                     }
                 }
             } catch (Error & e) {
@@ -430,8 +430,8 @@ static void getDerivations(
         auto listView = v.listView();
         for (auto [n, elem] : enumerate(listView)) {
             std::string pathPrefix2 = addToPath(pathPrefix, fmt("%d", n));
-            if (getDerivation(state, *state.VRtoVP(elem), pathPrefix2, drvs, done, ignoreAssertionFailures))
-                getDerivations(state, *state.VRtoVP(elem), pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
+            if (getDerivation(state, elem, pathPrefix2, drvs, done, ignoreAssertionFailures))
+                getDerivations(state, elem, pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
         }
     }
 
@@ -441,7 +441,7 @@ static void getDerivations(
 
 void getDerivations(
     EvalState & state,
-    Value & v,
+    ValueRef v,
     const std::string & pathPrefix,
     Bindings & autoArgs,
     PackageInfos & drvs,

@@ -36,7 +36,7 @@ private:
 
     const Bindings * getMeta();
 
-    bool checkMeta(Value & v);
+    bool checkMeta(ValueRef v);
 
 public:
     /**
@@ -106,11 +106,11 @@ typedef std::list<PackageInfo, traceable_allocator<PackageInfo>> PackageInfos;
  * If value `v` denotes a derivation, return a PackageInfo object
  * describing it. Otherwise return nothing.
  */
-std::optional<PackageInfo> getDerivation(EvalState & state, Value & v, bool ignoreAssertionFailures);
+std::optional<PackageInfo> getDerivation(EvalState & state, ValueRef v, bool ignoreAssertionFailures);
 
 void getDerivations(
     EvalState & state,
-    Value & v,
+    ValueRef v,
     const std::string & pathPrefix,
     Bindings & autoArgs,
     PackageInfos & drvs,
