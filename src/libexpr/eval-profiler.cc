@@ -153,7 +153,7 @@ public:
 
     void maybeSaveProfile(std::chrono::time_point<std::chrono::high_resolution_clock> now);
     void saveProfile();
-    FrameInfo getFrameInfoFromValueAndPos(/* XXX [speed] const */ Value & v, std::span<ValueRef> args, PosIdx pos);
+    FrameInfo getFrameInfoFromValueAndPos(/* XXX [speed] const */ ValueRef v, std::span<ValueRef> args, PosIdx pos);
 
     SampleStack(SampleStack &&) = default;
     SampleStack & operator=(SampleStack &&) = delete;
@@ -199,19 +199,19 @@ FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value
     return derivationInfo.value_or(PrimOpFrameInfo{.expr = &primOp, .callPos = pos});
 }
 
-FrameInfo SampleStack::getFrameInfoFromValueAndPos(/* XXX [speed] const */ Value & v, std::span<ValueRef> args, PosIdx pos)
+FrameInfo SampleStack::getFrameInfoFromValueAndPos(/* XXX [speed] const */ ValueRef v, std::span<ValueRef> args, PosIdx pos)
 {
     /* NOTE: No actual references to garbage collected values are not held in
        the profiler. */
-    if (v.isLambda())
-        return LambdaFrameInfo{.expr = v.lambda().fun, .callPos = pos};
-    else if (v.isPrimOp()) {
-        return getPrimOpFrameInfo(*v.primOp(), args, pos);
-    } else if (v.isPrimOpApp())
+    if (state.VRtoV(v).isLambda())
+        return LambdaFrameInfo{.expr = state.VRtoV(v).lambda().fun, .callPos = pos};
+    else if (state.VRtoV(v).isPrimOp()) {
+        return getPrimOpFrameInfo(*state.VRtoV(v).primOp(), args, pos);
+    } else if (state.VRtoV(v).isPrimOpApp())
         /* Resolve primOp eagerly. Must not hold on to a reference to a Value. */
-        return PrimOpFrameInfo{.expr = v.primOpAppPrimOp(state), .callPos = pos};
-    else if (state.isFunctor(state.VPtoVR(&v))) {
-        const auto functor = v.attrs()->get(state.sFunctor);
+        return PrimOpFrameInfo{.expr = state.VRtoV(v).primOpAppPrimOp(state), .callPos = pos};
+    else if (state.isFunctor(v)) {
+        const auto functor = state.VRtoV(v).attrs()->get(state.sFunctor);
         if (auto pos_ = posCache.lookup(pos); std::holds_alternative<std::monostate>(pos_.origin))
             /* HACK: In case callsite position is unresolved. */
             return FunctorFrameInfo{.pos = functor->pos};
@@ -225,7 +225,7 @@ FrameInfo SampleStack::getFrameInfoFromValueAndPos(/* XXX [speed] const */ Value
 [[gnu::noinline]] void
 SampleStack::preFunctionCallHook(EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos)
 {
-    stack.push_back(getFrameInfoFromValueAndPos(state.VRtoV(v), args, pos));
+    stack.push_back(getFrameInfoFromValueAndPos(v, args, pos));
 
     auto now = std::chrono::high_resolution_clock::now();
 
