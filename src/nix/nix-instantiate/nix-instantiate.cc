@@ -62,7 +62,7 @@ void processExpr(
             else if (output == okXML)
                 printValueAsXML(state, strict, location, state.VPtoVR(&vRes), std::cout, context, noPos);
             else if (output == okJSON) {
-                printValueAsJSON(state, strict, vRes, v.determinePos(state, noPos), std::cout, context);
+                printValueAsJSON(state, strict, state.VPtoVR(&vRes), v.determinePos(state, noPos), std::cout, context);
                 std::cout << std::endl;
             } else {
                 if (strict)

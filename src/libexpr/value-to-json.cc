@@ -12,35 +12,35 @@ using json = nlohmann::json;
 
 // TODO: rename. It doesn't print.
 json printValueAsJSON(
-    EvalState & state, bool strict, Value & v, const PosIdx pos, NixStringContext & context, bool copyToStore)
+    EvalState & state, bool strict, ValueRef v, const PosIdx pos, NixStringContext & context, bool copyToStore)
 {
     checkInterrupt();
 
     if (strict)
-        state.forceValue(state.VPtoVR(&v), pos);
+        state.forceValue(v, pos);
 
     json out;
 
-    switch (v.type()) {
+    switch (state.VRtoV(v).type()) {
 
     case nInt:
-        out = v.integer().value;
+        out = state.VRtoV(v).integer().value;
         break;
 
     case nBool:
-        out = v.boolean();
+        out = state.VRtoV(v).boolean();
         break;
 
     case nString:
-        copyContext(state, state.VPtoVR(&v), context);
-        out = v.c_str();
+        copyContext(state, v, context);
+        out = state.VRtoV(v).c_str();
         break;
 
     case nPath:
         if (copyToStore)
-            out = state.store->printStorePath(state.copyPathToStore(context, v.path()));
+            out = state.store->printStorePath(state.copyPathToStore(context, state.VRtoV(v).path()));
         else
-            out = v.path().path.abs();
+            out = state.VRtoV(v).path().path.abs();
         break;
 
     case nNull:
@@ -48,20 +48,20 @@ json printValueAsJSON(
         break;
 
     case nAttrs: {
-        auto maybeString = state.tryAttrsToString(pos, state.VPtoVR(&v), context, false, false);
+        auto maybeString = state.tryAttrsToString(pos, v, context, false, false);
         if (maybeString) {
             out = *maybeString;
             break;
         }
-        if (auto i = v.attrs()->get(state.sOutPath))
-            return printValueAsJSON(state, strict, *state.VRtoVP(i->value), i->pos, context, copyToStore);
+        if (auto i = state.VRtoV(v).attrs()->get(state.sOutPath))
+            return printValueAsJSON(state, strict, i->value, i->pos, context, copyToStore);
         else {
             out = json::object();
-            for (auto & a : v.attrs()->lexicographicOrder(state.symbols)) {
+            for (auto & a : state.VRtoV(v).attrs()->lexicographicOrder(state.symbols)) {
                 try {
                     out.emplace(
                         state.symbols[a->name],
-                        printValueAsJSON(state, strict, *state.VRtoVP(a->value), a->pos, context, copyToStore));
+                        printValueAsJSON(state, strict, a->value, a->pos, context, copyToStore));
                 } catch (Error & e) {
                     e.addTrace(
                         state.positions[a->pos], HintFmt("while evaluating attribute '%1%'", state.symbols[a->name]));
@@ -75,9 +75,9 @@ json printValueAsJSON(
     case nList: {
         out = json::array();
         int i = 0;
-        for (auto elem : v.listView()) {
+        for (auto elem : state.VRtoV(v).listView()) {
             try {
-                out.push_back(printValueAsJSON(state, strict, *state.VRtoVP(elem), pos, context, copyToStore));
+                out.push_back(printValueAsJSON(state, strict, elem, pos, context, copyToStore));
             } catch (Error & e) {
                 e.addTrace(state.positions[pos], HintFmt("while evaluating list element at index %1%", i));
                 throw;
@@ -88,16 +88,16 @@ json printValueAsJSON(
     }
 
     case nExternal:
-        return v.external()->printValueAsJSON(state, strict, context, copyToStore);
+        return state.VRtoV(v).external()->printValueAsJSON(state, strict, context, copyToStore);
         break;
 
     case nFloat:
-        out = v.fpoint();
+        out = state.VRtoV(v).fpoint();
         break;
 
     case nThunk:
     case nFunction:
-        state.error<TypeError>("cannot convert %1% to JSON", showType(state, state.VPtoVR(&v))).atPos(v.determinePos(state, pos)).debugThrow();
+        state.error<TypeError>("cannot convert %1% to JSON", showType(state, v)).atPos(state.VRtoV(v).determinePos(state, pos)).debugThrow();
     }
     return out;
 }
@@ -105,7 +105,7 @@ json printValueAsJSON(
 void printValueAsJSON(
     EvalState & state,
     bool strict,
-    Value & v,
+    ValueRef v,
     const PosIdx pos,
     std::ostream & str,
     NixStringContext & context,

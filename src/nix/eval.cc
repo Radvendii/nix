@@ -124,7 +124,7 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
         }
 
         else if (json) {
-            printJSON(printValueAsJSON(*state, true, *v, pos, context, false));
+            printJSON(printValueAsJSON(*state, true, state->VPtoVR(v), pos, context, false));
         }
 
         else {

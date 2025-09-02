@@ -133,7 +133,7 @@ static void fetchTree(
             } else if (state.symbols[attr.name] == "publicKeys") {
                 experimentalFeatureSettings.require(Xp::VerifiedFetches);
                 attrs.emplace(
-                    state.symbols[attr.name], printValueAsJSON(state, true, *state.VRtoVP(attr.value), pos, context).dump());
+                    state.symbols[attr.name], printValueAsJSON(state, true, attr.value, pos, context).dump());
             } else
                 state
                     .error<TypeError>(

@@ -87,7 +87,7 @@ static void parseFlakeInputAttr(EvalState & state, const Attr & attr, fetchers::
             experimentalFeatureSettings.require(Xp::VerifiedFetches);
             NixStringContext emptyContext = {};
             attrs.emplace(
-                state.symbols[attr.name], printValueAsJSON(state, true, *state.VRtoVP(attr.value), attr.pos, emptyContext).dump());
+                state.symbols[attr.name], printValueAsJSON(state, true, attr.value, attr.pos, emptyContext).dump());
         } else
             state
                 .error<TypeError>(
