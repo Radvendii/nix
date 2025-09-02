@@ -63,7 +63,7 @@ if bdw_gc.found()
   endforeach
 endif
 # Used in public header. Affects ABI!
-configdata_pub.set('NIX_USE_BOEHMGC', bdw_gc.found().to_int())
+configdata_pub.set('NIX_USE_BOEHMGC', 0)
 
 toml11 = dependency(
   'toml11',
