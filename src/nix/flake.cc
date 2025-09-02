@@ -168,13 +168,13 @@ struct CmdFlakeLock : FlakeCommand
 
 static void enumerateOutputs(
     EvalState & state,
-    Value & vFlake,
-    std::function<void(std::string_view name, Value & vProvide, const PosIdx pos)> callback)
+    ValueRef vFlake,
+    std::function<void(std::string_view name, ValueRef vProvide, const PosIdx pos)> callback)
 {
-    auto pos = vFlake.determinePos(state, noPos);
-    state.forceAttrs(state.VPtoVR(&vFlake), pos, "while evaluating a flake to get its outputs");
+    auto pos = state.VRtoV(vFlake).determinePos(state, noPos);
+    state.forceAttrs(vFlake, pos, "while evaluating a flake to get its outputs");
 
-    auto aOutputs = vFlake.attrs()->get(state.symbols.create("outputs"));
+    auto aOutputs = state.VRtoV(vFlake).attrs()->get(state.symbols.create("outputs"));
     assert(aOutputs);
 
     state.forceAttrs(aOutputs->value, pos, "while evaluating the outputs of a flake");
@@ -185,11 +185,11 @@ static void enumerateOutputs(
        else. This way we can disable IFD for hydraJobs and then enable
        it for other outputs. */
     if (auto attr = state.VRtoVP(aOutputs->value)->attrs()->get(sHydraJobs))
-        callback(state.symbols[attr->name], *state.VRtoVP(attr->value), attr->pos);
+        callback(state.symbols[attr->name], attr->value, attr->pos);
 
     for (auto & attr : *state.VRtoVP(aOutputs->value)->attrs()) {
         if (attr.name != sHydraJobs)
-            callback(state.symbols[attr.name], *state.VRtoVP(attr.value), attr.pos);
+            callback(state.symbols[attr.name], attr.value, attr.pos);
     }
 }
 
@@ -398,10 +398,10 @@ struct CmdFlakeCheck : FlakeCommand
         };
 
         auto checkDerivation =
-            [&](const std::string & attrPath, Value & v, const PosIdx pos) -> std::optional<StorePath> {
+            [&](const std::string & attrPath, ValueRef v, const PosIdx pos) -> std::optional<StorePath> {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking derivation %s", attrPath));
-                auto packageInfo = getDerivation(*state, state->VPtoVR(&v), false);
+                auto packageInfo = getDerivation(*state, v, false);
                 if (!packageInfo)
                     throw Error("flake attribute '%s' is not a derivation", attrPath);
                 else {
@@ -422,16 +422,16 @@ struct CmdFlakeCheck : FlakeCommand
 
         std::vector<DerivedPath> drvPaths;
 
-        auto checkApp = [&](const std::string & attrPath, Value & v, const PosIdx pos) {
+        auto checkApp = [&](const std::string & attrPath, ValueRef v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking app '%s'", attrPath));
-                state->forceAttrs(state->VPtoVR(&v), pos, "");
-                if (auto attr = v.attrs()->get(state->symbols.create("type")))
+                state->forceAttrs(v, pos, "");
+                if (auto attr = state->VRtoV(v).attrs()->get(state->symbols.create("type")))
                     state->forceStringNoCtx(attr->value, attr->pos, "");
                 else
                     throw Error("app '%s' lacks attribute 'type'", attrPath);
 
-                if (auto attr = v.attrs()->get(state->symbols.create("program"))) {
+                if (auto attr = state->VRtoV(v).attrs()->get(state->symbols.create("program"))) {
                     if (attr->name == state->symbols.create("program")) {
                         NixStringContext context;
                         state->forceString(attr->value, context, attr->pos, "");
@@ -439,7 +439,7 @@ struct CmdFlakeCheck : FlakeCommand
                 } else
                     throw Error("app '%s' lacks attribute 'program'", attrPath);
 
-                if (auto attr = v.attrs()->get(state->symbols.create("meta"))) {
+                if (auto attr = state->VRtoV(v).attrs()->get(state->symbols.create("meta"))) {
                     state->forceAttrs(attr->value, attr->pos, "");
                     if (auto dAttr = state->VRtoVP(attr->value)->attrs()->get(state->symbols.create("description")))
                         state->forceStringNoCtx(dAttr->value, dAttr->pos, "");
@@ -452,7 +452,7 @@ struct CmdFlakeCheck : FlakeCommand
                         .msg = HintFmt("app '%s' lacks attribute 'meta'", attrPath),
                     });
 
-                for (auto & attr : *v.attrs()) {
+                for (auto & attr : *state->VRtoV(v).attrs()) {
                     std::string_view name(state->symbols[attr.name]);
                     if (name != "type" && name != "program" && name != "meta")
                         throw Error("app '%s' has unsupported attribute '%s'", attrPath, name);
@@ -463,14 +463,14 @@ struct CmdFlakeCheck : FlakeCommand
             }
         };
 
-        auto checkOverlay = [&](std::string_view attrPath, Value & v, const PosIdx pos) {
+        auto checkOverlay = [&](std::string_view attrPath, ValueRef v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking overlay '%s'", attrPath));
-                state->forceValue(state->VPtoVR(&v), pos);
-                if (!v.isLambda()) {
-                    throw Error("overlay is not a function, but %s instead", showType(*state, state->VPtoVR(&v)));
+                state->forceValue(v, pos);
+                if (!state->VRtoV(v).isLambda()) {
+                    throw Error("overlay is not a function, but %s instead", showType(*state, v));
                 }
-                if (v.lambda().fun->hasFormals() || !argHasName(v.lambda().fun->arg, "final"))
+                if (state->VRtoV(v).lambda().fun->hasFormals() || !argHasName(state->VRtoV(v).lambda().fun->arg, "final"))
                     throw Error("overlay does not take an argument named 'final'");
                 // FIXME: if we have a 'nixpkgs' input, use it to
                 // evaluate the overlay.
@@ -480,34 +480,34 @@ struct CmdFlakeCheck : FlakeCommand
             }
         };
 
-        auto checkModule = [&](std::string_view attrPath, Value & v, const PosIdx pos) {
+        auto checkModule = [&](std::string_view attrPath, ValueRef v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking NixOS module '%s'", attrPath));
-                state->forceValue(state->VPtoVR(&v), pos);
+                state->forceValue(v, pos);
             } catch (Error & e) {
                 e.addTrace(resolve(pos), HintFmt("while checking the NixOS module '%s'", attrPath));
                 reportError(e);
             }
         };
 
-        std::function<void(std::string_view attrPath, Value & v, const PosIdx pos)> checkHydraJobs;
+        std::function<void(std::string_view attrPath, ValueRef v, const PosIdx pos)> checkHydraJobs;
 
-        checkHydraJobs = [&](std::string_view attrPath, Value & v, const PosIdx pos) {
+        checkHydraJobs = [&](std::string_view attrPath, ValueRef v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking Hydra job '%s'", attrPath));
-                state->forceAttrs(state->VPtoVR(&v), pos, "");
+                state->forceAttrs(v, pos, "");
 
-                if (state->isDerivation(state->VPtoVR(&v)))
+                if (state->isDerivation(v))
                     throw Error("jobset should not be a derivation at top-level");
 
-                for (auto & attr : *v.attrs()) {
+                for (auto & attr : *state->VRtoV(v).attrs()) {
                     state->forceAttrs(attr.value, attr.pos, "");
                     auto attrPath2 = concatStrings(attrPath, ".", state->symbols[attr.name]);
                     if (state->isDerivation(attr.value)) {
                         Activity act(*logger, lvlInfo, actUnknown, fmt("checking Hydra job '%s'", attrPath2));
-                        checkDerivation(attrPath2, *state->VRtoVP(attr.value), attr.pos);
+                        checkDerivation(attrPath2, attr.value, attr.pos);
                     } else
-                        checkHydraJobs(attrPath2, *state->VRtoVP(attr.value), attr.pos);
+                        checkHydraJobs(attrPath2, attr.value, attr.pos);
                 }
 
             } catch (Error & e) {
@@ -516,11 +516,11 @@ struct CmdFlakeCheck : FlakeCommand
             }
         };
 
-        auto checkNixOSConfiguration = [&](const std::string & attrPath, Value & v, const PosIdx pos) {
+        auto checkNixOSConfiguration = [&](const std::string & attrPath, ValueRef v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking NixOS configuration '%s'", attrPath));
                 Bindings & bindings(*state->allocBindings(0));
-                auto vToplevel = findAlongAttrPath(*state, "config.system.build.toplevel", bindings, state->VPtoVR(&v)).first;
+                auto vToplevel = findAlongAttrPath(*state, "config.system.build.toplevel", bindings, v).first;
                 state->forceValue(state->VPtoVR(vToplevel), pos);
                 if (!state->isDerivation(state->VPtoVR(vToplevel)))
                     throw Error("attribute 'config.system.build.toplevel' is not a derivation");
@@ -530,13 +530,13 @@ struct CmdFlakeCheck : FlakeCommand
             }
         };
 
-        auto checkTemplate = [&](std::string_view attrPath, Value & v, const PosIdx pos) {
+        auto checkTemplate = [&](std::string_view attrPath, ValueRef v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking template '%s'", attrPath));
 
-                state->forceAttrs(state->VPtoVR(&v), pos, "");
+                state->forceAttrs(v, pos, "");
 
-                if (auto attr = v.attrs()->get(state->symbols.create("path"))) {
+                if (auto attr = state->VRtoV(v).attrs()->get(state->symbols.create("path"))) {
                     if (attr->name == state->symbols.create("path")) {
                         NixStringContext context;
                         auto path = state->coerceToPath(attr->pos, attr->value, context, "");
@@ -547,12 +547,12 @@ struct CmdFlakeCheck : FlakeCommand
                 } else
                     throw Error("template '%s' lacks attribute 'path'", attrPath);
 
-                if (auto attr = v.attrs()->get(state->symbols.create("description")))
+                if (auto attr = state->VRtoV(v).attrs()->get(state->symbols.create("description")))
                     state->forceStringNoCtx(attr->value, attr->pos, "");
                 else
                     throw Error("template '%s' lacks attribute 'description'", attrPath);
 
-                for (auto & attr : *v.attrs()) {
+                for (auto & attr : *state->VRtoV(v).attrs()) {
                     std::string_view name(state->symbols[attr.name]);
                     if (name != "path" && name != "description" && name != "welcomeText")
                         throw Error("template '%s' has unsupported attribute '%s'", attrPath, name);
@@ -563,11 +563,11 @@ struct CmdFlakeCheck : FlakeCommand
             }
         };
 
-        auto checkBundler = [&](const std::string & attrPath, Value & v, const PosIdx pos) {
+        auto checkBundler = [&](const std::string & attrPath, ValueRef v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking bundler '%s'", attrPath));
-                state->forceValue(state->VPtoVR(&v), pos);
-                if (!v.isLambda())
+                state->forceValue(v, pos);
+                if (!state->VRtoV(v).isLambda())
                     throw Error("bundler must be a function");
                 // TODO: check types of inputs/outputs?
             } catch (Error & e) {
@@ -582,13 +582,13 @@ struct CmdFlakeCheck : FlakeCommand
             auto vFlake = state->allocValue();
             flake::callFlake(*state, flake, vFlake);
 
-            enumerateOutputs(*state, *state->VRtoVP(vFlake), [&](std::string_view name, Value & vOutput, const PosIdx pos) {
+            enumerateOutputs(*state, vFlake, [&](std::string_view name, ValueRef vOutput, const PosIdx pos) {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking flake output '%s'", name));
 
                 try {
                     evalSettings.enableImportFromDerivation.setDefault(name != "hydraJobs");
 
-                    state->forceValue(state->VPtoVR(&vOutput), pos);
+                    state->forceValue(vOutput, pos);
 
                     std::string_view replacement = name == "defaultPackage"    ? "packages.<system>.default"
                                                    : name == "defaultApp"      ? "apps.<system>.default"
@@ -602,8 +602,8 @@ struct CmdFlakeCheck : FlakeCommand
                         warn("flake output attribute '%s' is deprecated; use '%s' instead", name, replacement);
 
                     if (name == "checks") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs()) {
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs()) {
                             std::string_view attr_name = state->symbols[attr.name];
                             checkSystemName(attr_name, attr.pos);
                             if (checkSystemType(attr_name, attr.pos)) {
@@ -611,7 +611,7 @@ struct CmdFlakeCheck : FlakeCommand
                                 for (auto & attr2 : *state->VRtoVP(attr.value)->attrs()) {
                                     auto drvPath = checkDerivation(
                                         fmt("%s.%s.%s", name, attr_name, state->symbols[attr2.name]),
-                                        *state->VRtoVP(attr2.value),
+                                        attr2.value,
                                         attr2.pos);
                                     if (drvPath && attr_name == settings.thisSystem.get()) {
                                         auto path = DerivedPath::Built{
@@ -626,19 +626,19 @@ struct CmdFlakeCheck : FlakeCommand
                     }
 
                     else if (name == "formatter") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs()) {
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs()) {
                             const auto & attr_name = state->symbols[attr.name];
                             checkSystemName(attr_name, attr.pos);
                             if (checkSystemType(attr_name, attr.pos)) {
-                                checkDerivation(fmt("%s.%s", name, attr_name), *state->VRtoVP(attr.value), attr.pos);
+                                checkDerivation(fmt("%s.%s", name, attr_name), attr.value, attr.pos);
                             };
                         }
                     }
 
                     else if (name == "packages" || name == "devShells") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs()) {
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs()) {
                             const auto & attr_name = state->symbols[attr.name];
                             checkSystemName(attr_name, attr.pos);
                             if (checkSystemType(attr_name, attr.pos)) {
@@ -646,15 +646,15 @@ struct CmdFlakeCheck : FlakeCommand
                                 for (auto & attr2 : *state->VRtoVP(attr.value)->attrs())
                                     checkDerivation(
                                         fmt("%s.%s.%s", name, attr_name, state->symbols[attr2.name]),
-                                        *state->VRtoVP(attr2.value),
+                                        attr2.value,
                                         attr2.pos);
                             };
                         }
                     }
 
                     else if (name == "apps") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs()) {
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs()) {
                             const auto & attr_name = state->symbols[attr.name];
                             checkSystemName(attr_name, attr.pos);
                             if (checkSystemType(attr_name, attr.pos)) {
@@ -662,37 +662,37 @@ struct CmdFlakeCheck : FlakeCommand
                                 for (auto & attr2 : *state->VRtoVP(attr.value)->attrs())
                                     checkApp(
                                         fmt("%s.%s.%s", name, attr_name, state->symbols[attr2.name]),
-                                        *state->VRtoVP(attr2.value),
+                                        attr2.value,
                                         attr2.pos);
                             };
                         }
                     }
 
                     else if (name == "defaultPackage" || name == "devShell") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs()) {
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs()) {
                             const auto & attr_name = state->symbols[attr.name];
                             checkSystemName(attr_name, attr.pos);
                             if (checkSystemType(attr_name, attr.pos)) {
-                                checkDerivation(fmt("%s.%s", name, attr_name), *state->VRtoVP(attr.value), attr.pos);
+                                checkDerivation(fmt("%s.%s", name, attr_name), attr.value, attr.pos);
                             };
                         }
                     }
 
                     else if (name == "defaultApp") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs()) {
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs()) {
                             const auto & attr_name = state->symbols[attr.name];
                             checkSystemName(attr_name, attr.pos);
                             if (checkSystemType(attr_name, attr.pos)) {
-                                checkApp(fmt("%s.%s", name, attr_name), *state->VRtoVP(attr.value), attr.pos);
+                                checkApp(fmt("%s.%s", name, attr_name), attr.value, attr.pos);
                             };
                         }
                     }
 
                     else if (name == "legacyPackages") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs()) {
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs()) {
                             checkSystemName(state->symbols[attr.name], attr.pos);
                             checkSystemType(state->symbols[attr.name], attr.pos);
                             // FIXME: do getDerivations?
@@ -703,25 +703,25 @@ struct CmdFlakeCheck : FlakeCommand
                         checkOverlay(name, vOutput, pos);
 
                     else if (name == "overlays") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs())
-                            checkOverlay(fmt("%s.%s", name, state->symbols[attr.name]), *state->VRtoVP(attr.value), attr.pos);
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs())
+                            checkOverlay(fmt("%s.%s", name, state->symbols[attr.name]), attr.value, attr.pos);
                     }
 
                     else if (name == "nixosModule")
                         checkModule(name, vOutput, pos);
 
                     else if (name == "nixosModules") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs())
-                            checkModule(fmt("%s.%s", name, state->symbols[attr.name]), *state->VRtoVP(attr.value), attr.pos);
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs())
+                            checkModule(fmt("%s.%s", name, state->symbols[attr.name]), attr.value, attr.pos);
                     }
 
                     else if (name == "nixosConfigurations") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs())
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs())
                             checkNixOSConfiguration(
-                                fmt("%s.%s", name, state->symbols[attr.name]), *state->VRtoVP(attr.value), attr.pos);
+                                fmt("%s.%s", name, state->symbols[attr.name]), attr.value, attr.pos);
                     }
 
                     else if (name == "hydraJobs")
@@ -731,25 +731,25 @@ struct CmdFlakeCheck : FlakeCommand
                         checkTemplate(name, vOutput, pos);
 
                     else if (name == "templates") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs())
-                            checkTemplate(fmt("%s.%s", name, state->symbols[attr.name]), *state->VRtoVP(attr.value), attr.pos);
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs())
+                            checkTemplate(fmt("%s.%s", name, state->symbols[attr.name]), attr.value, attr.pos);
                     }
 
                     else if (name == "defaultBundler") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs()) {
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs()) {
                             const auto & attr_name = state->symbols[attr.name];
                             checkSystemName(attr_name, attr.pos);
                             if (checkSystemType(attr_name, attr.pos)) {
-                                checkBundler(fmt("%s.%s", name, attr_name), *state->VRtoVP(attr.value), attr.pos);
+                                checkBundler(fmt("%s.%s", name, attr_name), attr.value, attr.pos);
                             };
                         }
                     }
 
                     else if (name == "bundlers") {
-                        state->forceAttrs(state->VPtoVR(&vOutput), pos, "");
-                        for (auto & attr : *vOutput.attrs()) {
+                        state->forceAttrs(vOutput, pos, "");
+                        for (auto & attr : *state->VRtoV(vOutput).attrs()) {
                             const auto & attr_name = state->symbols[attr.name];
                             checkSystemName(attr_name, attr.pos);
                             if (checkSystemType(attr_name, attr.pos)) {
@@ -757,7 +757,7 @@ struct CmdFlakeCheck : FlakeCommand
                                 for (auto & attr2 : *state->VRtoVP(attr.value)->attrs()) {
                                     checkBundler(
                                         fmt("%s.%s.%s", name, attr_name, state->symbols[attr2.name]),
-                                        *state->VRtoVP(attr2.value),
+                                        attr2.value,
                                         attr2.pos);
                                 }
                             };
