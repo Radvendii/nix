@@ -309,7 +309,7 @@ void PackageInfo::setMeta(const std::string & name, Value * v)
             if (i.name != sym)
                 attrs.insert(i);
     if (v)
-        attrs.insert(sym, v);
+        attrs.insert(sym, state->VPtoVR(v));
     meta = attrs.finish();
 }
 

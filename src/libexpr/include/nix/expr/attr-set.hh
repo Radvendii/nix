@@ -182,7 +182,7 @@ public:
     {
     }
 
-    void insert(SymbolRef name, Value * value, PosIdx pos = noPos);
+    void insert(SymbolRef name, ValueRef value, PosIdx pos = noPos);
 
     void insert(const Attr & attr)
     {

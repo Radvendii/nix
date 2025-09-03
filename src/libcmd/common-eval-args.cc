@@ -170,7 +170,7 @@ Bindings * MixEvalArgs::getAutoArgs(EvalState & state)
                 [&](const AutoArgFile & arg) { state.VRtoVP(v)->mkString(readFile(arg.path.string())); },
                 [&](const AutoArgStdin & arg) { state.VRtoVP(v)->mkString(readFile(STDIN_FILENO)); }},
             arg);
-        res.insert(state.symbols.create(name), state.VRtoVP(v));
+        res.insert(state.symbols.create(name), v);
     }
     return res.finish();
 }

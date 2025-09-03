@@ -158,7 +158,7 @@ static void loadSourceExpr(EvalState & state, const SourcePath & path, ValueRef 
        directory). */
     else if (st.type == SourceAccessor::tDirectory) {
         auto attrs = state.buildBindings(maxAttrs);
-        attrs.insert(state.symbols.create("_combineChannels"), state.VRtoVP(state.vEmptyList));
+        attrs.insert(state.symbols.create("_combineChannels"), state.vEmptyList);
         StringSet seen;
         getAllExprs(state, path, seen, attrs);
         state.VRtoV(v).mkAttrs(attrs);

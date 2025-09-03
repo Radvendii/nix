@@ -88,7 +88,7 @@ bool createUserEnv(
             Value * v = i.queryMeta(j);
             if (!v)
                 continue;
-            meta.insert(state.symbols.create(j), v);
+            meta.insert(state.symbols.create(j), state.VPtoVR(v));
         }
 
         state.VRtoV(attrs.alloc(state.sMeta)).mkAttrs(meta);
@@ -130,7 +130,7 @@ bool createUserEnv(
        builder with the manifest as argument. */
     auto attrs = state.buildBindings(3);
     state.mkStorePathString(manifestFile, attrs.alloc("manifest"));
-    attrs.insert(state.symbols.create("derivations"), &manifest);
+    attrs.insert(state.symbols.create("derivations"), state.VPtoVR(&manifest));
     Value args;
     args.mkAttrs(attrs);
 

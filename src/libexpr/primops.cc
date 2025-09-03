@@ -1077,12 +1077,12 @@ static void prim_tryEval(EvalState & state, const PosIdx pos, ValueRef * args, V
 
     try {
         state.forceValue(args[0], pos);
-        attrs.insert(state.sValue, state.VRtoVP(args[0]));
-        attrs.insert(state.symbols.create("success"), state.VRtoVP(state.vTrue));
+        attrs.insert(state.sValue, args[0]);
+        attrs.insert(state.symbols.create("success"), state.vTrue);
     } catch (AssertionError & e) {
         // `value = false;` is unfortunate but removing it is a breaking change.
-        attrs.insert(state.sValue, state.VRtoVP(state.vFalse));
-        attrs.insert(state.symbols.create("success"), state.VRtoVP(state.vFalse));
+        attrs.insert(state.sValue, state.vFalse);
+        attrs.insert(state.symbols.create("success"), state.vFalse);
     }
 
     // restore the debugRepl pointer if we saved it earlier.
@@ -2266,7 +2266,7 @@ static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, V
         } else {
             // This branch of the conditional is much more likely.
             // Here we just stringize the directory entry type.
-            attrs.insert(state.symbols.create(name), fileTypeToString(state, *type));
+            attrs.insert(state.symbols.create(name), state.VPtoVR(fileTypeToString(state, *type)));
         }
     }
 
@@ -3299,7 +3299,7 @@ static void prim_functionArgs(EvalState & state, const PosIdx pos, ValueRef * ar
     const auto & formals = state.VRtoVP(args[0])->lambda().fun->formals->formals;
     auto attrs = state.buildBindings(formals.size());
     for (auto & i : formals)
-        attrs.insert(i.name, state.getBool(i.def), i.pos);
+        attrs.insert(i.name, state.VPtoVR(state.getBool(i.def)), i.pos);
     /* Optimization: avoid sorting bindings. `formals` must already be sorted according to
        (std::tie(a.name, a.pos) < std::tie(b.name, b.pos)) predicate, so the following assertion
        always holds:
@@ -3406,7 +3406,7 @@ static void prim_zipAttrsWith(EvalState & state, const PosIdx pos, ValueRef * ar
         auto arg = state.allocValue();
         state.VRtoVP(arg)->mkList(*elem.list);
         state.VRtoVP(call2)->mkApp(state, state.VRtoVP(call1), state.VRtoVP(arg));
-        attrs.insert(sym, state.VRtoVP(call2));
+        attrs.insert(sym, call2);
     }
 
     state.VRtoV(v).mkAttrs(attrs.alreadySorted());

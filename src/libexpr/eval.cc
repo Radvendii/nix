@@ -1386,7 +1386,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
             } else
                 vAttr = state.VPtoVR(i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv)));
             env2.values[displ++] = vAttr;
-            bindings.insert(i.first, state.VRtoVP(vAttr), i.second.pos);
+            bindings.insert(i.first, vAttr, i.second.pos);
         }
 
         /* If the rec contains an attribute called `__overrides', then
@@ -1420,7 +1420,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
         Env * inheritEnv = inheritFromExprs ? buildInheritFromEnv(state, env) : nullptr;
         for (auto & i : attrs)
             bindings.insert(
-                i.first, i.second.e->maybeThunk(state, *i.second.chooseByKind(&env, &env, inheritEnv)), i.second.pos);
+                i.first, state.VPtoVR(i.second.e->maybeThunk(state, *i.second.chooseByKind(&env, &env, inheritEnv))), i.second.pos);
     }
 
     /* Dynamic attrs apply *after* rec and __overrides. */
@@ -1445,7 +1445,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
 
         i.valueExpr->setName(nameSym);
         /* Keep sorted order so find can catch duplicates */
-        bindings.insert(nameSym, i.valueExpr->maybeThunk(state, *dynamicEnv), i.pos);
+        bindings.insert(nameSym, state.VPtoVR(i.valueExpr->maybeThunk(state, *dynamicEnv)), i.pos);
         sort = true;
     }
 
