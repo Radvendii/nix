@@ -599,16 +599,16 @@ std::ostream & operator<<(std::ostream & output, const PrimOp & primOp)
 
 const PrimOp * Value::primOpAppPrimOp(EvalState & es) const
 {
-    Value * left = es.VRtoVP(primOpApp().left);
-    while (left && !left->isPrimOp()) {
-        left = es.VRtoVP(left->primOpApp().left);
+    ValueRef left = primOpApp().left;
+    while (left && !es.VRtoVP(left)->isPrimOp()) {
+        left = es.VRtoVP(left)->primOpApp().left;
     }
 
     if (!left)
         return nullptr;
 
-    assert(left->isPrimOp());
-    return left->primOp();
+    assert(es.VRtoVP(left)->isPrimOp());
+    return es.VRtoVP(left)->primOp();
 }
 
 void Value::mkPrimOp(PrimOp * p)
@@ -1780,13 +1780,13 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
         else if (vCur.isPrimOpApp()) {
             /* Figure out the number of arguments still needed. */
             size_t argsDone = 0;
-            Value * primOp = &vCur;
-            while (primOp->isPrimOpApp()) {
+            ValueRef primOp = VPtoVR(&vCur);
+            while (VRtoVP(primOp)->isPrimOpApp()) {
                 argsDone++;
-                primOp = VRtoVP(primOp->primOpApp().left);
+                primOp = VRtoVP(primOp)->primOpApp().left;
             }
-            assert(primOp->isPrimOp());
-            auto arity = primOp->primOp()->arity;
+            assert(VRtoVP(primOp)->isPrimOp());
+            auto arity = VRtoVP(primOp)->primOp()->arity;
             auto argsLeft = arity - argsDone;
 
             if (args.size() < argsLeft) {
@@ -1799,13 +1799,13 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
                 ValueRef vArgs[maxPrimOpArity];
                 auto n = argsDone;
-                for (Value * arg = &vCur; arg->isPrimOpApp(); arg = VRtoVP(arg->primOpApp().left))
-                    vArgs[--n] = arg->primOpApp().right;
+                for (ValueRef arg = VPtoVR(&vCur); VRtoVP(arg)->isPrimOpApp(); arg = VRtoVP(arg)->primOpApp().left)
+                    vArgs[--n] = VRtoVP(arg)->primOpApp().right;
 
                 for (size_t i = 0; i < argsLeft; ++i)
                     vArgs[argsDone + i] = args[i];
 
-                auto fn = primOp->primOp();
+                auto fn = VRtoVP(primOp)->primOp();
                 nrPrimOpCalls++;
                 if (countCalls)
                     primOpCalls[fn->name]++;
