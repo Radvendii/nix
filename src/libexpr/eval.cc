@@ -562,7 +562,7 @@ void EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 {
     // Can't pass in a reference to value-on-the-stack. Pass in the stack value directly!
     // XXX [speed]
-    if (!(v & 0x1)) [[unlikely]]
+    if (v & 0x1) [[unlikely]]
         unreachable();
 
     auto name2 = name.substr(0, 2) == "__" ? name.substr(2) : name;
@@ -627,7 +627,7 @@ void EvalState::addPrimOp(PrimOp && primOp)
         auto vPrimOp = allocValue();
         VRtoVP(vPrimOp)->mkPrimOp(new PrimOp(primOp));
         Value v;
-        v.mkApp(*this, VRtoVP(vPrimOp), VRtoVP(vPrimOp));
+        v.mkApp(vPrimOp, vPrimOp);
         addConstant(
             primOp.name,
             v,
@@ -987,24 +987,6 @@ void Value::mkPath(const SourcePath & path)
 }
 
 // XXX [speed]: return these to their homes
-// inline
-void Value::mkApp(EvalState & es, Value * l, Value * r) noexcept
-{
-    auto lr = es.VPtoVR(l);
-    auto rr = es.VPtoVR(r);
-    setStorage(FunctionApplicationThunk{.left = lr, .right = rr});
-    nrApp++;
-}
-
-// inline
-void Value::mkPrimOpApp(EvalState & es, Value * l, Value * r) noexcept
-{
-    auto lr = es.VPtoVR(l);
-    auto rr = es.VPtoVR(r);
-    setStorage(PrimOpApplicationThunk{.left = lr, .right = rr});
-    nrPrimOpApp++;
-}
-
 ExprInt::ExprInt(EvalState & state, NixInt n)
 {
     v = state.allocValue();
@@ -1653,7 +1635,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
         for (auto arg : args) {
             auto fun2 = allocValue();
             *VRtoVP(fun2) = VRtoV(vRes);
-            VRtoV(vRes).mkPrimOpApp(*this, VRtoVP(fun2), VRtoVP(arg));
+            VRtoV(vRes).mkPrimOpApp(fun2, arg);
         }
     };
 

@@ -382,10 +382,10 @@ protected:
 };
 
 /**
- * View into a list of Value * that is itself immutable.
+ * View into a list of ValueRef that is itself immutable.
  *
  * Since not all representations of ValueStorage can provide
- * a pointer to a const array of Value * this proxy class either
+ * a pointer to a const array of ValueRef this proxy class either
  * stores the small list inline or points to the big list.
  */
 class ListView
@@ -764,7 +764,12 @@ public:
         nrThunk++;
     }
 
-    /* inline */ void mkApp(EvalState & es, Value * l, Value * r) noexcept;
+    inline void mkApp(ValueRef l, ValueRef r) noexcept
+    {
+        setStorage(FunctionApplicationThunk{.left = l, .right = r});
+        nrApp++;
+    }
+
 
     inline void mkLambda(Env * e, ExprLambda * f) noexcept
     {
@@ -776,7 +781,12 @@ public:
 
     void mkPrimOp(PrimOp * p);
 
-    /* inline */ void mkPrimOpApp(EvalState & es, Value * l, Value * r) noexcept;
+    inline void mkPrimOpApp(ValueRef l, ValueRef r) noexcept
+    {
+        setStorage(PrimOpApplicationThunk{.left = l, .right = r});
+        nrPrimOpApp++;
+    }
+
 
     /**
      * For a `tPrimOpApp` value, get the original `PrimOp` value.

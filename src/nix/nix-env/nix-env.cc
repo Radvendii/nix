@@ -135,7 +135,7 @@ static void getAllExprs(EvalState & state, const SourcePath & path, StringSet & 
             state.VRtoVP(vArg)->mkPath(path2);
             if (seen.size() == maxAttrs)
                 throw Error("too many Nix expressions in directory '%1%'", path);
-            state.VRtoV(attrs.alloc(attrName)).mkApp(state, state.VRtoVP(state.getBuiltin("import")), state.VRtoVP(vArg));
+            state.VRtoV(attrs.alloc(attrName)).mkApp(state.getBuiltin("import"), vArg);
         } else if (st.type == SourceAccessor::tDirectory)
             /* `path2' is a directory (with no default.nix in it);
                recurse into it. */
@@ -400,7 +400,7 @@ static void queryInstSources(
             Expr * eFun = state.parseExprFromString(i, state.rootPath("."));
             Value vFun, vTmp;
             state.eval(eFun, state.VPtoVR(&vFun));
-            vTmp.mkApp(state, &vFun, &vArg);
+            vTmp.mkApp(state.VPtoVR(&vFun), state.VPtoVR(&vArg));
             getDerivations(state, state.VPtoVR(&vTmp), "", *instSource.autoArgs, elems, true);
         }
 

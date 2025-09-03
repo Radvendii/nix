@@ -242,7 +242,7 @@ void derivationToValue(
 
     state.forceFunction(
         *state.vImportedDrvToDerivation, pos, "while evaluating imported-drv-to-derivation.nix.gen.hh");
-    state.VRtoV(v).mkApp(state, state.VRtoVP(*state.vImportedDrvToDerivation), state.VRtoVP(w));
+    state.VRtoV(v).mkApp(*state.vImportedDrvToDerivation, w);
     state.forceAttrs(v, pos, "while calling imported-drv-to-derivation.nix.gen.hh");
 }
 
@@ -2262,7 +2262,7 @@ static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, V
             state.VRtoVP(epath)->mkPath(path / name);
             if (!readFileType)
                 readFileType = state.getBuiltin("readFileType");
-            state.VRtoV(attr).mkApp(state, state.VRtoVP(readFileType), state.VRtoVP(epath));
+            state.VRtoV(attr).mkApp(readFileType, epath);
         } else {
             // This branch of the conditional is much more likely.
             // Here we just stringize the directory entry type.
@@ -2996,8 +2996,8 @@ void makePositionThunks(EvalState & state, const PosIdx pos, ValueRef line, Valu
 {
     ValueRef posV = state.allocValue();
     state.VRtoVP(posV)->mkInt(pos.id);
-    state.VRtoV(line).mkApp(state, state.VRtoVP(state.vLineOfPosPrimOp), state.VRtoVP(posV));
-    state.VRtoV(column).mkApp(state, state.VRtoVP(state.vColumnOfPosPrimOp), state.VRtoVP(posV));
+    state.VRtoV(line).mkApp(state.vLineOfPosPrimOp, posV);
+    state.VRtoV(column).mkApp(state.vColumnOfPosPrimOp, posV);
 }
 
 /* Dynamic version of the `?' operator. */
@@ -3335,8 +3335,8 @@ static void prim_mapAttrs(EvalState & state, const PosIdx pos, ValueRef * args, 
     for (auto & i : *state.VRtoVP(args[1])->attrs()) {
         ValueRef vName = Value::toPtr(state.symbols[i.name]);
         ValueRef vFun2 = state.allocValue();
-        state.VRtoVP(vFun2)->mkApp(state, state.VRtoVP(args[0]), state.VRtoVP(vName));
-        state.VRtoV(attrs.alloc(i.name)).mkApp(state, state.VRtoVP(vFun2), state.VRtoVP(i.value));
+        state.VRtoVP(vFun2)->mkApp(args[0], vName);
+        state.VRtoV(attrs.alloc(i.name)).mkApp(vFun2, i.value);
     }
 
     state.VRtoV(v).mkAttrs(attrs.alreadySorted());
@@ -3401,11 +3401,11 @@ static void prim_zipAttrsWith(EvalState & state, const PosIdx pos, ValueRef * ar
     for (auto & [sym, elem] : attrsSeen) {
         auto name = Value::toPtr(state.symbols[sym]);
         auto call1 = state.allocValue();
-        state.VRtoVP(call1)->mkApp(state, state.VRtoVP(args[0]), state.VRtoVP(name));
+        state.VRtoVP(call1)->mkApp(args[0], name);
         auto call2 = state.allocValue();
         auto arg = state.allocValue();
         state.VRtoVP(arg)->mkList(*elem.list);
-        state.VRtoVP(call2)->mkApp(state, state.VRtoVP(call1), state.VRtoVP(arg));
+        state.VRtoVP(call2)->mkApp(call1, arg);
         attrs.insert(sym, call2);
     }
 
@@ -3554,7 +3554,7 @@ static void prim_map(EvalState & state, const PosIdx pos, ValueRef * args, Value
 
     auto list = state.buildList(state.VRtoVP(args[1])->listSize());
     for (const auto & [n, v] : enumerate(list))
-        state.VRtoVP(v = state.allocValue())->mkApp(state, state.VRtoVP(args[0]), state.VRtoVP(state.VRtoVP(args[1])->listView()[n]));
+        state.VRtoVP(v = state.allocValue())->mkApp(args[0], state.VRtoVP(args[1])->listView()[n]);
     state.VRtoV(v).mkList(list);
 }
 
@@ -3798,7 +3798,7 @@ static void prim_genList(EvalState & state, const PosIdx pos, ValueRef * args, V
     for (const auto & [n, v] : enumerate(list)) {
         auto arg = state.allocValue();
         state.VRtoVP(arg)->mkInt(n);
-        state.VRtoVP(v = state.allocValue())->mkApp(state, state.VRtoVP(args[0]), state.VRtoVP(arg));
+        state.VRtoVP(v = state.allocValue())->mkApp(args[0], arg);
     }
     state.VRtoV(v).mkList(list);
 }

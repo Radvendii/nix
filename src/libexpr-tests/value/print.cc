@@ -100,7 +100,7 @@ TEST_F(ValuePrintingTests, vThunk)
 TEST_F(ValuePrintingTests, vApp)
 {
     Value vApp;
-    vApp.mkApp(state, nullptr, nullptr);
+    vApp.mkApp(ValueRefNull, ValueRefNull);
 
     test(vApp, "«thunk»");
 }
@@ -141,7 +141,7 @@ TEST_F(ValuePrintingTests, vPrimOpApp)
     vPrimOp.mkPrimOp(&primOp);
 
     Value vPrimOpApp;
-    vPrimOpApp.mkPrimOpApp(state, &vPrimOp, nullptr);
+    vPrimOpApp.mkPrimOpApp(state.VPtoVR(&vPrimOp), ValueRefNull);
 
     test(vPrimOpApp, "«partially applied primop puppy»");
 }
@@ -416,7 +416,7 @@ TEST_F(ValuePrintingTests, ansiColorsError)
     Value message;
     message.mkString("uh oh!");
     Value vError;
-    vError.mkApp(state, &throw_, &message);
+    vError.mkApp(state.VPtoVR(&throw_), state.VPtoVR(&message));
 
     test(
         vError,
@@ -433,7 +433,7 @@ TEST_F(ValuePrintingTests, ansiColorsDerivationError)
     Value message;
     message.mkString("uh oh!");
     Value vError;
-    vError.mkApp(state, &throw_, &message);
+    vError.mkApp(state.VPtoVR(&throw_), state.VPtoVR(&message));
 
     Value vDerivation;
     vDerivation.mkString("derivation");
@@ -531,7 +531,7 @@ TEST_F(ValuePrintingTests, ansiColorsPrimOpApp)
     vPrimOp.mkPrimOp(&primOp);
 
     Value v;
-    v.mkPrimOpApp(state, &vPrimOp, nullptr);
+    v.mkPrimOpApp(state.VPtoVR(&vPrimOp), ValueRefNull);
 
     test(v, ANSI_BLUE "«partially applied primop puppy»" ANSI_NORMAL, PrintOptions{.ansiColors = true});
 }

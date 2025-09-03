@@ -135,7 +135,7 @@ bool createUserEnv(
     args.mkAttrs(attrs);
 
     Value topLevel;
-    topLevel.mkApp(state, &envBuilder, &args);
+    topLevel.mkApp(state.VPtoVR(&envBuilder), state.VPtoVR(&args));
 
     /* Evaluate it. */
     debug("evaluating user environment builder");
