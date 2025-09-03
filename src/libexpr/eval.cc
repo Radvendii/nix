@@ -111,9 +111,9 @@ std::string printValue(EvalState & state, ValueRef v)
 }
 
 /* XXX [speed] [[gnu::always_inline]] */
-const Value * Symbol::valuePtr(EvalState & es) const noexcept
+/* XXX [speed] const */ ValueRef Symbol::valuePtr() const noexcept
 {
-    return es.VRtoVP(data->v);
+    return data->v;
 }
 
 Symbol::Symbol(const Key & key)
@@ -147,9 +147,9 @@ Symbol SymbolTable::operator[](SymbolRef ref) const
     return Symbol((SymbolData *) es.VRtoV(ref).c_str() - 1);
 }
 
-Value * Value::toPtr(EvalState & es, Symbol sym) noexcept
+ValueRef Value::toPtr(Symbol sym) noexcept
 {
-    return const_cast<Value *>(sym.valuePtr(es));
+    return sym.valuePtr();
 }
 
 void Value::print(EvalState & state, std::ostream & str, PrintOptions options)

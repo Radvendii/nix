@@ -2866,7 +2866,7 @@ static void prim_attrNames(EvalState & state, const PosIdx pos, ValueRef * args,
     auto list = state.buildList(state.VRtoVP(args[0])->attrs()->size());
 
     for (const auto & [n, i] : enumerate(*state.VRtoVP(args[0])->attrs()))
-        list[n] = state.VPtoVR(Value::toPtr(state, state.symbols[i.name]));
+        list[n] = Value::toPtr(state.symbols[i.name]);
 
     std::sort(list.begin(), list.end(), [&state](ValueRef v1, ValueRef v2) { return strcmp(state.VRtoVP(v1)->c_str(), state.VRtoVP(v2)->c_str()) < 0; });
 
@@ -3333,9 +3333,9 @@ static void prim_mapAttrs(EvalState & state, const PosIdx pos, ValueRef * args, 
     auto attrs = state.buildBindings(state.VRtoVP(args[1])->attrs()->size());
 
     for (auto & i : *state.VRtoVP(args[1])->attrs()) {
-        Value * vName = Value::toPtr(state, state.symbols[i.name]);
+        ValueRef vName = Value::toPtr(state.symbols[i.name]);
         ValueRef vFun2 = state.allocValue();
-        state.VRtoVP(vFun2)->mkApp(state, state.VRtoVP(args[0]), vName);
+        state.VRtoVP(vFun2)->mkApp(state, state.VRtoVP(args[0]), state.VRtoVP(vName));
         state.VRtoV(attrs.alloc(i.name)).mkApp(state, state.VRtoVP(vFun2), state.VRtoVP(i.value));
     }
 
@@ -3399,9 +3399,9 @@ static void prim_zipAttrsWith(EvalState & state, const PosIdx pos, ValueRef * ar
     auto attrs = state.buildBindings(attrsSeen.size());
 
     for (auto & [sym, elem] : attrsSeen) {
-        auto name = Value::toPtr(state, state.symbols[sym]);
+        auto name = Value::toPtr(state.symbols[sym]);
         auto call1 = state.allocValue();
-        state.VRtoVP(call1)->mkApp(state, state.VRtoVP(args[0]), name);
+        state.VRtoVP(call1)->mkApp(state, state.VRtoVP(args[0]), state.VRtoVP(name));
         auto call2 = state.allocValue();
         auto arg = state.allocValue();
         state.VRtoVP(arg)->mkList(*elem.list);

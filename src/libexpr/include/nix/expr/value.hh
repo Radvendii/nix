@@ -598,7 +598,7 @@ public:
     /**
      * Never modify the backing `Value` object!
      */
-    static Value * toPtr(EvalState & es, Symbol str) noexcept;
+    static ValueRef toPtr(Symbol str) noexcept;
 
     void print(EvalState & state, std::ostream & str, PrintOptions options = PrintOptions{});
 
