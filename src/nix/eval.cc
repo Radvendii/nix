@@ -85,23 +85,23 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
             if (pathExists(*writeTo))
                 throw Error("path '%s' already exists", writeTo->string());
 
-            std::function<void(Value & v, const PosIdx pos, const std::filesystem::path & path)> recurse;
+            std::function<void(ValueRef v, const PosIdx pos, const std::filesystem::path & path)> recurse;
 
-            recurse = [&](Value & v, const PosIdx pos, const std::filesystem::path & path) {
-                state->forceValue(state->VPtoVR(&v), pos);
-                if (v.type() == nString)
+            recurse = [&](ValueRef v, const PosIdx pos, const std::filesystem::path & path) {
+                state->forceValue(v, pos);
+                if (state->VRtoV(v).type() == nString)
                     // FIXME: disallow strings with contexts?
-                    writeFile(path.string(), v.string_view());
-                else if (v.type() == nAttrs) {
+                    writeFile(path.string(), state->VRtoV(v).string_view());
+                else if (state->VRtoV(v).type() == nAttrs) {
                     [[maybe_unused]] bool directoryCreated = std::filesystem::create_directory(path);
                     // Directory should not already exist
                     assert(directoryCreated);
-                    for (auto & attr : *v.attrs()) {
+                    for (auto & attr : *state->VRtoV(v).attrs()) {
                         std::string_view name = state->symbols[attr.name];
                         try {
                             if (name == "." || name == "..")
                                 throw Error("invalid file name '%s'", name);
-                            recurse(*state->VRtoVP(attr.value), attr.pos, path / name);
+                            recurse(attr.value, attr.pos, path / name);
                         } catch (Error & e) {
                             e.addTrace(
                                 state->positions[attr.pos], HintFmt("while evaluating the attribute '%s'", name));
@@ -113,7 +113,7 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
                         .debugThrow();
             };
 
-            recurse(*v, pos, *writeTo);
+            recurse(state->VPtoVR(v), pos, *writeTo);
         }
 
         else if (raw) {
