@@ -41,8 +41,8 @@ InstallableAttrPath::InstallableAttrPath(
 std::pair<Value *, PosIdx> InstallableAttrPath::toValue(EvalState & state)
 {
     auto [vRes, pos] = findAlongAttrPath(state, attrPath, *cmd.getAutoArgs(state), *v);
-    state.forceValue(state.VPtoVR(vRes), pos);
-    return {vRes, pos};
+    state.forceValue(vRes, pos);
+    return {state.VRtoVP(vRes), pos};
 }
 
 DerivedPathsWithInfo InstallableAttrPath::toDerivedPaths()

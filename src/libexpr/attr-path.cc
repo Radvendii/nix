@@ -38,12 +38,12 @@ std::vector<SymbolRef> parseAttrPath(EvalState & state, std::string_view s)
     return res;
 }
 
-std::pair<Value *, PosIdx>
+std::pair<ValueRef, PosIdx>
 findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & autoArgs, ValueRef vIn)
 {
     Strings tokens = parseAttrPath(attrPath);
 
-    Value * v = state.VRtoVP(vIn);
+    ValueRef v = vIn;
     PosIdx pos = noPos;
 
     for (auto & attr : tokens) {
@@ -53,52 +53,52 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
 
         /* Evaluate the expression. */
         ValueRef vNew = state.allocValue();
-        state.autoCallFunction(autoArgs, state.VPtoVR(v), vNew);
-        v = state.VRtoVP(vNew);
-        state.forceValue(state.VPtoVR(v), noPos);
+        state.autoCallFunction(autoArgs, v, vNew);
+        v = vNew;
+        state.forceValue(v, noPos);
 
         /* It should evaluate to either a set or an expression,
            according to what is specified in the attrPath. */
 
         if (!attrIndex) {
 
-            if (v->type() != nAttrs)
+            if (state.VRtoVP(v)->type() != nAttrs)
                 state
                     .error<TypeError>(
                         "the expression selected by the selection path '%1%' should be a set but is %2%",
                         attrPath,
-                        showType(state, state.VPtoVR(v)))
+                        showType(state, v))
                     .debugThrow();
             if (attr.empty())
                 throw Error("empty attribute name in selection path '%1%'", attrPath);
 
-            auto a = v->attrs()->get(state.symbols.create(attr));
+            auto a = state.VRtoVP(v)->attrs()->get(state.symbols.create(attr));
             if (!a) {
                 StringSet attrNames;
-                for (auto & attr : *v->attrs())
+                for (auto & attr : *state.VRtoVP(v)->attrs())
                     attrNames.insert(std::string(state.symbols[attr.name]));
 
                 auto suggestions = Suggestions::bestMatches(attrNames, attr);
                 throw AttrPathNotFound(
                     suggestions, "attribute '%1%' in selection path '%2%' not found", attr, attrPath);
             }
-            v = state.VRtoVP(a->value);
+            v = a->value;
             pos = a->pos;
         }
 
         else {
 
-            if (!v->isList())
+            if (!state.VRtoVP(v)->isList())
                 state
                     .error<TypeError>(
                         "the expression selected by the selection path '%1%' should be a list but is %2%",
                         attrPath,
-                        showType(state, state.VPtoVR(v)))
+                        showType(state, v))
                     .debugThrow();
-            if (*attrIndex >= v->listSize())
+            if (*attrIndex >= state.VRtoVP(v)->listSize())
                 throw AttrPathNotFound("list index %1% in selection path '%2%' is out of range", *attrIndex, attrPath);
 
-            v = state.VRtoVP(v->listView()[*attrIndex]);
+            v = state.VRtoVP(v)->listView()[*attrIndex];
             pos = noPos;
         }
     }
@@ -108,7 +108,7 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
 
 std::pair<SourcePath, uint32_t> findPackageFilename(EvalState & state, ValueRef v, std::string what)
 {
-    Value * v2;
+    ValueRef v2;
     try {
         auto dummyArgs = state.allocBindings(0);
         v2 = findAlongAttrPath(state, "meta.position", *dummyArgs, v).first;
@@ -120,7 +120,7 @@ std::pair<SourcePath, uint32_t> findPackageFilename(EvalState & state, ValueRef 
     //        toString + parsing?
     NixStringContext context;
     auto path =
-        state.coerceToPath(noPos, state.VPtoVR(v2), context, "while evaluating the 'meta.position' attribute of a derivation");
+        state.coerceToPath(noPos, v2, context, "while evaluating the 'meta.position' attribute of a derivation");
 
     auto fn = path.path.abs();
 

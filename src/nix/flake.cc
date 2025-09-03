@@ -521,8 +521,8 @@ struct CmdFlakeCheck : FlakeCommand
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking NixOS configuration '%s'", attrPath));
                 Bindings & bindings(*state->allocBindings(0));
                 auto vToplevel = findAlongAttrPath(*state, "config.system.build.toplevel", bindings, v).first;
-                state->forceValue(state->VPtoVR(vToplevel), pos);
-                if (!state->isDerivation(state->VPtoVR(vToplevel)))
+                state->forceValue(vToplevel, pos);
+                if (!state->isDerivation(vToplevel))
                     throw Error("attribute 'config.system.build.toplevel' is not a derivation");
             } catch (Error & e) {
                 e.addTrace(resolve(pos), HintFmt("while checking the NixOS configuration '%s'", attrPath));

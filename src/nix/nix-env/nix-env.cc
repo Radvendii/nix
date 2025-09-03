@@ -179,9 +179,9 @@ static void loadDerivations(
     Value vRoot;
     loadSourceExpr(state, nixExprPath, state.VPtoVR(&vRoot));
 
-    Value & v(*findAlongAttrPath(state, pathPrefix, autoArgs, state.VPtoVR(&vRoot)).first);
+    ValueRef v(findAlongAttrPath(state, pathPrefix, autoArgs, state.VPtoVR(&vRoot)).first);
 
-    getDerivations(state, state.VPtoVR(&v), pathPrefix, autoArgs, elems, true);
+    getDerivations(state, v, pathPrefix, autoArgs, elems, true);
 
     /* Filter out all derivations not applicable to the current
        system. */
@@ -448,8 +448,8 @@ static void queryInstSources(
         Value vRoot;
         loadSourceExpr(state, *instSource.nixExprPath, state.VPtoVR(&vRoot));
         for (auto & i : args) {
-            Value & v(*findAlongAttrPath(state, i, *instSource.autoArgs, state.VPtoVR(&vRoot)).first);
-            getDerivations(state, state.VPtoVR(&v), "", *instSource.autoArgs, elems, true);
+            ValueRef v(findAlongAttrPath(state, i, *instSource.autoArgs, state.VPtoVR(&vRoot)).first);
+            getDerivations(state, v, "", *instSource.autoArgs, elems, true);
         }
         break;
     }

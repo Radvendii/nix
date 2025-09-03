@@ -45,16 +45,16 @@ void processExpr(
     state.eval(e, state.VPtoVR(&vRoot));
 
     for (auto & i : attrPaths) {
-        Value & v(*findAlongAttrPath(state, i, autoArgs, state.VPtoVR(&vRoot)).first);
-        state.forceValue(state.VPtoVR(&v), v.determinePos(state, noPos));
+        ValueRef v(findAlongAttrPath(state, i, autoArgs, state.VPtoVR(&vRoot)).first);
+        state.forceValue(v, state.VRtoV(v).determinePos(state, noPos));
 
         NixStringContext context;
         if (evalOnly) {
             Value vRes;
             if (autoArgs.empty())
-                vRes = v;
+                vRes = state.VRtoV(v);
             else
-                state.autoCallFunction(autoArgs, state.VPtoVR(&v), state.VPtoVR(&vRes));
+                state.autoCallFunction(autoArgs, v, state.VPtoVR(&vRes));
             if (output == okRaw)
                 std::cout << *state.coerceToString(noPos, state.VPtoVR(&vRes), context, "while generating the nix-instantiate output");
             // We intentionally don't output a newline here. The default PS1 for Bash in NixOS starts with a newline
@@ -62,7 +62,7 @@ void processExpr(
             else if (output == okXML)
                 printValueAsXML(state, strict, location, state.VPtoVR(&vRes), std::cout, context, noPos);
             else if (output == okJSON) {
-                printValueAsJSON(state, strict, state.VPtoVR(&vRes), v.determinePos(state, noPos), std::cout, context);
+                printValueAsJSON(state, strict, state.VPtoVR(&vRes), state.VRtoV(v).determinePos(state, noPos), std::cout, context);
                 std::cout << std::endl;
             } else {
                 if (strict)
@@ -73,7 +73,7 @@ void processExpr(
             }
         } else {
             PackageInfos drvs;
-            getDerivations(state, state.VPtoVR(&v), "", autoArgs, drvs, false);
+            getDerivations(state, v, "", autoArgs, drvs, false);
             for (auto & i : drvs) {
                 auto drvPath = i.requireDrvPath();
                 auto drvPathS = state.store->printStorePath(drvPath);

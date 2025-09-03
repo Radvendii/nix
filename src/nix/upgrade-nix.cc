@@ -165,7 +165,7 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
         auto v2 = findAlongAttrPath(*state, settings.thisSystem, bindings, v).first;
 
         return store->parseStorePath(
-            state->forceString(state->VPtoVR(v2), noPos, "while evaluating the path tho latest nix version"));
+            state->forceString(v2, noPos, "while evaluating the path tho latest nix version"));
     }
 };
 
