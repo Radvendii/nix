@@ -880,12 +880,12 @@ static ref<SourceAccessor> makeInternalFS()
 
 static auto internalFS = makeInternalFS();
 
-static Value * requireInternalFile(EvalState & state, CanonPath path)
+static ValueRef requireInternalFile(EvalState & state, CanonPath path)
 {
     SourcePath p{internalFS, path};
     auto v = state.allocValue();
     state.evalFile(p, v); // has caching
-    return state.VRtoVP(v);
+    return v;
 }
 
 void callFlake(EvalState & state, const LockedFlake & lockedFlake, ValueRef vRes)
@@ -924,7 +924,7 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, ValueRef vRes
     auto vOverrides = state.allocValue();
     state.VRtoVP(vOverrides)->mkAttrs(overrides);
 
-    Value * vCallFlake = requireInternalFile(state, CanonPath("call-flake.nix"));
+    ValueRef vCallFlake = requireInternalFile(state, CanonPath("call-flake.nix"));
 
     auto vLocks = state.allocValue();
     state.VRtoVP(vLocks)->mkString(lockFileStr);
@@ -933,7 +933,7 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, ValueRef vRes
     assert(vFetchFinalTree);
 
     ValueRef args[] = {vLocks, vOverrides, *vFetchFinalTree};
-    state.callFunction(state.VPtoVR(vCallFlake), args, vRes, noPos);
+    state.callFunction(vCallFlake, args, vRes, noPos);
 }
 
 } // namespace flake
