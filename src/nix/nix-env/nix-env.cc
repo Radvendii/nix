@@ -143,12 +143,12 @@ static void getAllExprs(EvalState & state, const SourcePath & path, StringSet & 
     }
 }
 
-static void loadSourceExpr(EvalState & state, const SourcePath & path, Value & v)
+static void loadSourceExpr(EvalState & state, const SourcePath & path, ValueRef v)
 {
     auto st = path.resolveSymlinks().lstat();
 
     if (isNixExpr(path, st))
-        state.evalFile(path, state.VPtoVR(&v));
+        state.evalFile(path, v);
 
     /* The path is a directory.  Put the Nix expressions in the
        directory in a set, with the file name of each expression as
@@ -161,7 +161,7 @@ static void loadSourceExpr(EvalState & state, const SourcePath & path, Value & v
         attrs.insert(state.symbols.create("_combineChannels"), state.VRtoVP(state.vEmptyList));
         StringSet seen;
         getAllExprs(state, path, seen, attrs);
-        v.mkAttrs(attrs);
+        state.VRtoV(v).mkAttrs(attrs);
     }
 
     else
@@ -177,7 +177,7 @@ static void loadDerivations(
     PackageInfos & elems)
 {
     Value vRoot;
-    loadSourceExpr(state, nixExprPath, vRoot);
+    loadSourceExpr(state, nixExprPath, state.VPtoVR(&vRoot));
 
     Value & v(*findAlongAttrPath(state, pathPrefix, autoArgs, state.VPtoVR(&vRoot)).first);
 
@@ -394,7 +394,7 @@ static void queryInstSources(
     case srcNixExprs: {
 
         Value vArg;
-        loadSourceExpr(state, *instSource.nixExprPath, vArg);
+        loadSourceExpr(state, *instSource.nixExprPath, state.VPtoVR(&vArg));
 
         for (auto & i : args) {
             Expr * eFun = state.parseExprFromString(i, state.rootPath("."));
@@ -446,7 +446,7 @@ static void queryInstSources(
 
     case srcAttrPath: {
         Value vRoot;
-        loadSourceExpr(state, *instSource.nixExprPath, vRoot);
+        loadSourceExpr(state, *instSource.nixExprPath, state.VPtoVR(&vRoot));
         for (auto & i : args) {
             Value & v(*findAlongAttrPath(state, i, *instSource.autoArgs, state.VPtoVR(&vRoot)).first);
             getDerivations(state, state.VPtoVR(&v), "", *instSource.autoArgs, elems, true);
