@@ -302,13 +302,13 @@ EvalCache::EvalCache(
 {
 }
 
-Value * EvalCache::getRootValue()
+ValueRef EvalCache::getRootValue()
 {
     if (!value) {
         debug("getting root value");
         value = allocRootValue(rootLoader());
     }
-    return state.VRtoVP(*value);
+    return *value;
 }
 
 ref<AttrCursor> EvalCache::getRoot()
@@ -317,13 +317,13 @@ ref<AttrCursor> EvalCache::getRoot()
 }
 
 AttrCursor::AttrCursor(
-    ref<EvalCache> root, Parent parent, Value * value, std::optional<std::pair<AttrId, AttrValue>> && cachedValue)
+    ref<EvalCache> root, Parent parent, ValueRef value, std::optional<std::pair<AttrId, AttrValue>> && cachedValue)
     : root(root)
     , parent(parent)
     , cachedValue(std::move(cachedValue))
 {
     if (value)
-        _value = allocRootValue(root->state.VPtoVR(value));
+        _value = allocRootValue(value);
 }
 
 AttrKey AttrCursor::getKey()
@@ -348,7 +348,7 @@ ValueRef AttrCursor::getValue()
                 throw Error("attribute '%s' is unexpectedly missing", getAttrPathStr());
             _value = allocRootValue(attr->value);
         } else
-            _value = allocRootValue(root->state.VPtoVR(root->getRootValue()));
+            _value = allocRootValue(root->getRootValue());
     }
     return *_value;
 }
@@ -452,7 +452,7 @@ std::shared_ptr<AttrCursor> AttrCursor::maybeGetAttr(SymbolRef name)
                         throw CachedEvalError(ref(shared_from_this()), name);
                     else
                         return std::make_shared<AttrCursor>(
-                            root, std::make_pair(ref(shared_from_this()), name), nullptr, std::move(attr));
+                            root, std::make_pair(ref(shared_from_this()), name), ValueRefNull, std::move(attr));
                 }
                 // Incomplete attrset, so need to fall thru and
                 // evaluate to see whether 'name' exists
@@ -487,7 +487,7 @@ std::shared_ptr<AttrCursor> AttrCursor::maybeGetAttr(SymbolRef name)
     }
 
     return make_ref<AttrCursor>(
-        root, std::make_pair(ref(shared_from_this()), name), root->state.VRtoVP(attr->value), std::move(cachedValue2));
+        root, std::make_pair(ref(shared_from_this()), name), attr->value, std::move(cachedValue2));
 }
 
 std::shared_ptr<AttrCursor> AttrCursor::maybeGetAttr(std::string_view name)

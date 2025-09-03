@@ -39,7 +39,7 @@ class EvalCache : public std::enable_shared_from_this<EvalCache>
     RootLoader rootLoader;
     RootValue value;
 
-    Value * getRootValue();
+    ValueRef getRootValue();
 
 public:
 
@@ -122,7 +122,7 @@ public:
     AttrCursor(
         ref<EvalCache> root,
         Parent parent,
-        Value * value = nullptr,
+        ValueRef value = ValueRefNull,
         std::optional<std::pair<AttrId, AttrValue>> && cachedValue = {});
 
     std::vector<SymbolRef> getAttrPath() const;
