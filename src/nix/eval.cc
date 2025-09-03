@@ -75,8 +75,8 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
             auto vApply = state->allocValue();
             state->eval(state->parseExprFromString(*apply, state->rootPath(".")), vApply);
             auto vRes = state->allocValue();
-            state->callFunction(vApply, state->VPtoVR(v), vRes, noPos);
-            v = state->VRtoVP(vRes);
+            state->callFunction(vApply, v, vRes, noPos);
+            v = vRes;
         }
 
         if (writeTo) {
@@ -113,22 +113,22 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
                         .debugThrow();
             };
 
-            recurse(state->VPtoVR(v), pos, *writeTo);
+            recurse(v, pos, *writeTo);
         }
 
         else if (raw) {
             logger->stop();
             writeFull(
                 getStandardOutput(),
-                *state->coerceToString(noPos, state->VPtoVR(v), context, "while generating the eval command output"));
+                *state->coerceToString(noPos, v, context, "while generating the eval command output"));
         }
 
         else if (json) {
-            printJSON(printValueAsJSON(*state, true, state->VPtoVR(v), pos, context, false));
+            printJSON(printValueAsJSON(*state, true, v, pos, context, false));
         }
 
         else {
-            logger->cout("%s", ValuePrinter(*state, state->VPtoVR(v), PrintOptions{.force = true, .derivationPaths = true}));
+            logger->cout("%s", ValuePrinter(*state, v, PrintOptions{.force = true, .derivationPaths = true}));
         }
     }
 };

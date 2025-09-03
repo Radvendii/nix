@@ -27,22 +27,22 @@ namespace nix {
 InstallableAttrPath::InstallableAttrPath(
     ref<EvalState> state,
     SourceExprCommand & cmd,
-    Value * v,
+    ValueRef v,
     const std::string & attrPath,
     ExtendedOutputsSpec extendedOutputsSpec)
     : InstallableValue(state)
     , cmd(cmd)
-    , v(allocRootValue(state->VPtoVR(v)))
+    , v(allocRootValue(v))
     , attrPath(attrPath)
     , extendedOutputsSpec(std::move(extendedOutputsSpec))
 {
 }
 
-std::pair<Value *, PosIdx> InstallableAttrPath::toValue(EvalState & state)
+std::pair<ValueRef, PosIdx> InstallableAttrPath::toValue(EvalState & state)
 {
     auto [vRes, pos] = findAlongAttrPath(state, attrPath, *cmd.getAutoArgs(state), *v);
     state.forceValue(vRes, pos);
-    return {state.VRtoVP(vRes), pos};
+    return {vRes, pos};
 }
 
 DerivedPathsWithInfo InstallableAttrPath::toDerivedPaths()
@@ -50,14 +50,14 @@ DerivedPathsWithInfo InstallableAttrPath::toDerivedPaths()
     auto [v, pos] = toValue(*state);
 
     if (std::optional derivedPathWithInfo =
-            trySinglePathToDerivedPaths(state->VPtoVR(v), pos, fmt("while evaluating the attribute '%s'", attrPath))) {
+            trySinglePathToDerivedPaths(v, pos, fmt("while evaluating the attribute '%s'", attrPath))) {
         return {*derivedPathWithInfo};
     }
 
     Bindings & autoArgs = *cmd.getAutoArgs(*state);
 
     PackageInfos packageInfos;
-    getDerivations(*state, state->VPtoVR(v), "", autoArgs, packageInfos, false);
+    getDerivations(*state, v, "", autoArgs, packageInfos, false);
 
     // Backward compatibility hack: group results by drvPath. This
     // helps keep .all output together.
@@ -109,7 +109,7 @@ DerivedPathsWithInfo InstallableAttrPath::toDerivedPaths()
 InstallableAttrPath InstallableAttrPath::parse(
     ref<EvalState> state,
     SourceExprCommand & cmd,
-    Value * v,
+    ValueRef v,
     std::string_view prefix,
     ExtendedOutputsSpec extendedOutputsSpec)
 {

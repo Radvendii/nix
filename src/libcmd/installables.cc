@@ -506,7 +506,7 @@ Installables SourceExprCommand::parseInstallables(ref<Store> store, std::vector<
             auto [prefix, extendedOutputsSpec] = ExtendedOutputsSpec::parse(s);
             result.push_back(
                 make_ref<InstallableAttrPath>(InstallableAttrPath::parse(
-                    state, *this, state->VRtoVP(vFile), std::move(prefix), std::move(extendedOutputsSpec))));
+                    state, *this, vFile, std::move(prefix), std::move(extendedOutputsSpec))));
         }
 
     } else {

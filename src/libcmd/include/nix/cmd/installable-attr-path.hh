@@ -35,7 +35,7 @@ class InstallableAttrPath : public InstallableValue
     InstallableAttrPath(
         ref<EvalState> state,
         SourceExprCommand & cmd,
-        Value * v,
+        ValueRef v,
         const std::string & attrPath,
         ExtendedOutputsSpec extendedOutputsSpec);
 
@@ -44,7 +44,7 @@ class InstallableAttrPath : public InstallableValue
         return attrPath;
     };
 
-    std::pair<Value *, PosIdx> toValue(EvalState & state) override;
+    std::pair<ValueRef, PosIdx> toValue(EvalState & state) override;
 
     DerivedPathsWithInfo toDerivedPaths() override;
 
@@ -53,7 +53,7 @@ public:
     static InstallableAttrPath parse(
         ref<EvalState> state,
         SourceExprCommand & cmd,
-        Value * v,
+        ValueRef v,
         std::string_view prefix,
         ExtendedOutputsSpec extendedOutputsSpec);
 };
