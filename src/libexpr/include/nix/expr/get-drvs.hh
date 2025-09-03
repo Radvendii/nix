@@ -62,12 +62,12 @@ public:
     Outputs queryOutputs(bool withPaths = true, bool onlyOutputsToInstall = false);
 
     StringSet queryMetaNames();
-    Value * queryMeta(const std::string & name);
+    ValueRef queryMeta(const std::string & name);
     std::string queryMetaString(const std::string & name);
     NixInt queryMetaInt(const std::string & name, NixInt def);
     NixFloat queryMetaFloat(const std::string & name, NixFloat def);
     bool queryMetaBool(const std::string & name, bool def);
-    void setMeta(const std::string & name, Value * v);
+    void setMeta(const std::string & name, ValueRef v);
 
     /*
     MetaInfo queryMetaInfo(EvalState & state) const;

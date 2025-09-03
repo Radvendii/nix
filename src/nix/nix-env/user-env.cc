@@ -85,10 +85,10 @@ bool createUserEnv(
         // Copy the meta attributes.
         auto meta = state.buildBindings(metaNames.size());
         for (auto & j : metaNames) {
-            Value * v = i.queryMeta(j);
+            ValueRef v = i.queryMeta(j);
             if (!v)
                 continue;
-            meta.insert(state.symbols.create(j), state.VPtoVR(v));
+            meta.insert(state.symbols.create(j), v);
         }
 
         state.VRtoV(attrs.alloc(state.sMeta)).mkAttrs(meta);

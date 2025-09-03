@@ -158,15 +158,15 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
 
     else {
         /* Check for `meta.outputsToInstall` and return `outputs` reduced to that. */
-        const Value * outTI = queryMeta("outputsToInstall");
+        ValueRef outTI = queryMeta("outputsToInstall");
         if (!outTI)
             return outputs;
         auto errMsg = Error("this derivation has bad 'meta.outputsToInstall'");
         /* ^ this shows during `nix-env -i` right under the bad derivation */
-        if (!outTI->isList())
+        if (!state->VRtoVP(outTI)->isList())
             throw errMsg;
         Outputs result;
-        for (auto elem : outTI->listView()) {
+        for (auto elem : state->VRtoVP(outTI)->listView()) {
             if (state->VRtoVP(elem)->type() != nString)
                 throw errMsg;
             auto out = outputs.find(state->VRtoVP(elem)->c_str());
@@ -231,35 +231,35 @@ bool PackageInfo::checkMeta(ValueRef v)
         return state->VRtoV(v).type() == nInt || state->VRtoV(v).type() == nBool || state->VRtoV(v).type() == nString || state->VRtoV(v).type() == nFloat;
 }
 
-Value * PackageInfo::queryMeta(const std::string & name)
+ValueRef PackageInfo::queryMeta(const std::string & name)
 {
     if (!getMeta())
         return 0;
     auto a = meta->get(state->symbols.create(name));
     if (!a || !checkMeta(a->value))
         return 0;
-    return state->VRtoVP(a->value);
+    return a->value;
 }
 
 std::string PackageInfo::queryMetaString(const std::string & name)
 {
-    Value * v = queryMeta(name);
-    if (!v || v->type() != nString)
+    ValueRef v = queryMeta(name);
+    if (!v || state->VRtoVP(v)->type() != nString)
         return "";
-    return v->c_str();
+    return state->VRtoVP(v)->c_str();
 }
 
 NixInt PackageInfo::queryMetaInt(const std::string & name, NixInt def)
 {
-    Value * v = queryMeta(name);
+    ValueRef v = queryMeta(name);
     if (!v)
         return def;
-    if (v->type() == nInt)
-        return v->integer();
-    if (v->type() == nString) {
+    if (state->VRtoVP(v)->type() == nInt)
+        return state->VRtoVP(v)->integer();
+    if (state->VRtoVP(v)->type() == nString) {
         /* Backwards compatibility with before we had support for
            integer meta fields. */
-        if (auto n = string2Int<NixInt::Inner>(v->c_str()))
+        if (auto n = string2Int<NixInt::Inner>(state->VRtoVP(v)->c_str()))
             return NixInt{*n};
     }
     return def;
@@ -267,15 +267,15 @@ NixInt PackageInfo::queryMetaInt(const std::string & name, NixInt def)
 
 NixFloat PackageInfo::queryMetaFloat(const std::string & name, NixFloat def)
 {
-    Value * v = queryMeta(name);
+    ValueRef v = queryMeta(name);
     if (!v)
         return def;
-    if (v->type() == nFloat)
-        return v->fpoint();
-    if (v->type() == nString) {
+    if (state->VRtoVP(v)->type() == nFloat)
+        return state->VRtoVP(v)->fpoint();
+    if (state->VRtoVP(v)->type() == nString) {
         /* Backwards compatibility with before we had support for
            float meta fields. */
-        if (auto n = string2Float<NixFloat>(v->c_str()))
+        if (auto n = string2Float<NixFloat>(state->VRtoVP(v)->c_str()))
             return *n;
     }
     return def;
@@ -283,23 +283,23 @@ NixFloat PackageInfo::queryMetaFloat(const std::string & name, NixFloat def)
 
 bool PackageInfo::queryMetaBool(const std::string & name, bool def)
 {
-    Value * v = queryMeta(name);
+    ValueRef v = queryMeta(name);
     if (!v)
         return def;
-    if (v->type() == nBool)
-        return v->boolean();
-    if (v->type() == nString) {
+    if (state->VRtoVP(v)->type() == nBool)
+        return state->VRtoVP(v)->boolean();
+    if (state->VRtoVP(v)->type() == nString) {
         /* Backwards compatibility with before we had support for
            Boolean meta fields. */
-        if (v->string_view() == "true")
+        if (state->VRtoVP(v)->string_view() == "true")
             return true;
-        if (v->string_view() == "false")
+        if (state->VRtoVP(v)->string_view() == "false")
             return false;
     }
     return def;
 }
 
-void PackageInfo::setMeta(const std::string & name, Value * v)
+void PackageInfo::setMeta(const std::string & name, ValueRef v)
 {
     getMeta();
     auto attrs = state->buildBindings(1 + (meta ? meta->size() : 0));
@@ -309,7 +309,7 @@ void PackageInfo::setMeta(const std::string & name, Value * v)
             if (i.name != sym)
                 attrs.insert(i);
     if (v)
-        attrs.insert(sym, state->VPtoVR(v));
+        attrs.insert(sym, v);
     meta = attrs.finish();
 }
 
