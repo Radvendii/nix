@@ -101,7 +101,7 @@ struct Expr
     virtual void show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const;
     virtual void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     virtual void eval(EvalState & state, Env & env, ValueRef v);
-    virtual Value * maybeThunk(EvalState & state, Env & env);
+    virtual ValueRef maybeThunk(EvalState & state, Env & env);
     virtual void setName(SymbolRef name);
     virtual void setDocComment(DocComment docComment) {};
 
@@ -128,7 +128,7 @@ struct ExprInt : Expr
 
     ExprInt(EvalState & state, NixInt::Inner n);
 
-    Value * maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, Env & env) override;
     COMMON_METHODS
 };
 
@@ -138,7 +138,7 @@ struct ExprFloat : Expr
 
     ExprFloat(EvalState & state, NixFloat nf);
 
-    Value * maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, Env & env) override;
     COMMON_METHODS
 };
 
@@ -149,7 +149,7 @@ struct ExprString : Expr
 
     ExprString(EvalState & state, std::string && s);
 
-    Value * maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, Env & env) override;
     COMMON_METHODS
 };
 
@@ -161,7 +161,7 @@ struct ExprPath : Expr
 
     ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string s);
 
-    Value * maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, Env & env) override;
     COMMON_METHODS
 };
 
@@ -194,7 +194,7 @@ struct ExprVar : Expr
     ExprVar(const PosIdx & pos, SymbolRef name)
         : pos(pos)
         , name(name) {};
-    Value * maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, Env & env) override;
 
     PosIdx getPos() const override
     {
@@ -356,7 +356,7 @@ struct ExprList : Expr
     std::vector<Expr *> elems;
     ExprList() {};
     COMMON_METHODS
-    Value * maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, Env & env) override;
 
     PosIdx getPos() const override
     {

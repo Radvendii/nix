@@ -1181,47 +1181,47 @@ void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef 
    in the given environment.  But if the expression is a variable,
    then look it up right away.  This significantly reduces the number
    of thunks allocated. */
-Value * Expr::maybeThunk(EvalState & state, Env & env)
+ValueRef Expr::maybeThunk(EvalState & state, Env & env)
 {
     ValueRef v = state.allocValue();
     mkThunk(state, v, env, this);
-    return state.VRtoVP(v);
+    return v;
 }
 
-Value * ExprVar::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprVar::maybeThunk(EvalState & state, Env & env)
 {
     ValueRef v = state.lookupVar(&env, *this, true);
     /* The value might not be initialised in the environment yet.
        In that case, ignore it. */
     if (v) {
         state.nrAvoided++;
-        return state.VRtoVP(v);
+        return v;
     }
     return Expr::maybeThunk(state, env);
 }
 
-Value * ExprString::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprString::maybeThunk(EvalState & state, Env & env)
 {
     state.nrAvoided++;
-    return &state.VRtoV(v);
+    return v;
 }
 
-Value * ExprInt::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprInt::maybeThunk(EvalState & state, Env & env)
 {
     state.nrAvoided++;
-    return &state.VRtoV(v);
+    return v;
 }
 
-Value * ExprFloat::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprFloat::maybeThunk(EvalState & state, Env & env)
 {
     state.nrAvoided++;
-    return &state.VRtoV(v);
+    return v;
 }
 
-Value * ExprPath::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprPath::maybeThunk(EvalState & state, Env & env)
 {
     state.nrAvoided++;
-    return &state.VRtoV(v);
+    return v;
 }
 
 void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial)
@@ -1352,7 +1352,7 @@ Env * ExprAttrs::buildInheritFromEnv(EvalState & state, Env & up)
 
     Displacement displ = 0;
     for (auto from : *inheritFromExprs)
-        inheritEnv.values[displ++] = state.VPtoVR(from->maybeThunk(state, up));
+        inheritEnv.values[displ++] = from->maybeThunk(state, up);
 
     return &inheritEnv;
 }
@@ -1384,7 +1384,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
                 vAttr = state.allocValue();
                 mkThunk(state, vAttr, *i.second.chooseByKind(&env2, &env, inheritEnv), i.second.e);
             } else
-                vAttr = state.VPtoVR(i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv)));
+                vAttr = i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv));
             env2.values[displ++] = vAttr;
             bindings.insert(i.first, vAttr, i.second.pos);
         }
@@ -1420,7 +1420,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
         Env * inheritEnv = inheritFromExprs ? buildInheritFromEnv(state, env) : nullptr;
         for (auto & i : attrs)
             bindings.insert(
-                i.first, state.VPtoVR(i.second.e->maybeThunk(state, *i.second.chooseByKind(&env, &env, inheritEnv))), i.second.pos);
+                i.first, i.second.e->maybeThunk(state, *i.second.chooseByKind(&env, &env, inheritEnv)), i.second.pos);
     }
 
     /* Dynamic attrs apply *after* rec and __overrides. */
@@ -1445,7 +1445,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
 
         i.valueExpr->setName(nameSym);
         /* Keep sorted order so find can catch duplicates */
-        bindings.insert(nameSym, state.VPtoVR(i.valueExpr->maybeThunk(state, *dynamicEnv)), i.pos);
+        bindings.insert(nameSym, i.valueExpr->maybeThunk(state, *dynamicEnv), i.pos);
         sort = true;
     }
 
@@ -1468,7 +1468,7 @@ void ExprLet::eval(EvalState & state, Env & env, ValueRef v)
        environment. */
     Displacement displ = 0;
     for (auto & i : attrs->attrs) {
-        env2.values[displ++] = state.VPtoVR(i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv)));
+        env2.values[displ++] = i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv));
     }
 
     auto dts = state.debugRepl
@@ -1482,14 +1482,14 @@ void ExprList::eval(EvalState & state, Env & env, ValueRef v)
 {
     auto list = state.buildList(elems.size());
     for (const auto & [n, v2] : enumerate(list))
-        v2 = state.VPtoVR(elems[n]->maybeThunk(state, env));
+        v2 = elems[n]->maybeThunk(state, env);
     state.VRtoV(v).mkList(list);
 }
 
-Value * ExprList::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprList::maybeThunk(EvalState & state, Env & env)
 {
     if (elems.empty()) {
-        return state.VRtoVP(state.vEmptyList);
+        return state.vEmptyList;
     }
     return Expr::maybeThunk(state, env);
 }
@@ -1700,7 +1700,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                                 .withFrame(*vCur.lambda().env, lambda)
                                 .debugThrow();
                         }
-                        env2.values[displ++] = VPtoVR(i.def->maybeThunk(*this, env2));
+                        env2.values[displ++] = i.def->maybeThunk(*this, env2);
                     } else {
                         attrsUsed++;
                         env2.values[displ++] = j->value;
@@ -1886,7 +1886,7 @@ void ExprCall::eval(EvalState & state, Env & env, ValueRef v)
     // This excluded attrset lambdas (`{...}:`). Contributions of mixed lambdas appears insignificant at ~150 total.
     SmallValueVector<4> vArgs(args.size());
     for (size_t i = 0; i < args.size(); ++i)
-        vArgs[i] = state.VPtoVR(args[i]->maybeThunk(state, env));
+        vArgs[i] = args[i]->maybeThunk(state, env);
 
     state.callFunction(state.VPtoVR(&vFun), vArgs, v, pos);
 }
@@ -1957,7 +1957,7 @@ void ExprWith::eval(EvalState & state, Env & env, ValueRef v)
 {
     Env & env2(state.allocEnv(1));
     env2.up = &env;
-    env2.values[0] = state.VPtoVR(attrs->maybeThunk(state, env));
+    env2.values[0] = attrs->maybeThunk(state, env);
 
     body->eval(state, env2, v);
 }

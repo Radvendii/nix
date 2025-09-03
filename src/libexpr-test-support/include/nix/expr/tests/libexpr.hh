@@ -44,7 +44,7 @@ protected:
         return v;
     }
 
-    Value * maybeThunk(std::string input, bool forceValue = true)
+    ValueRef maybeThunk(std::string input, bool forceValue = true)
     {
         Expr * e = state.parseExprFromString(input, state.rootPath(CanonPath::root));
         assert(e);
