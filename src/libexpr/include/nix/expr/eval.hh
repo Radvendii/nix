@@ -751,6 +751,8 @@ private:
 
     void createBaseEnv(const EvalSettings & settings);
 
+    void addConstant(const std::string & name, Value v, Constant info);
+
     void addConstant(const std::string & name, ValueRef v, Constant info);
 
     void addPrimOp(PrimOp && primOp);

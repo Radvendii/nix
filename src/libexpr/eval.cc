@@ -551,8 +551,20 @@ void EvalState::checkURI(const std::string & uri)
     throw RestrictedPathError("access to URI '%s' is forbidden in restricted mode", uri);
 }
 
+void EvalState::addConstant(const std::string & name, Value v, Constant info)
+{
+    ValueRef v2 = allocValue();
+    *VRtoVP(v2) = v;
+    addConstant(name, v2, info);
+}
+
 void EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 {
+    // Can't pass in a reference to value-on-the-stack. Pass in the stack value directly!
+    // XXX [speed]
+    if (!(v & 0x1)) [[unlikely]]
+        unreachable();
+
     auto name2 = name.substr(0, 2) == "__" ? name.substr(2) : name;
 
     constantInfos.push_back({name2, info});
@@ -618,7 +630,7 @@ void EvalState::addPrimOp(PrimOp && primOp)
         v.mkApp(*this, VRtoVP(vPrimOp), VRtoVP(vPrimOp));
         addConstant(
             primOp.name,
-            VPtoVR(&v),
+            v,
             {
                 .type = nThunk, // FIXME
                 .doc = primOp.doc,

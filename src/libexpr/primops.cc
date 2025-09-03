@@ -4960,7 +4960,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkAttrs(buildBindings(128).finish());
     addConstant(
         "builtins",
-        VPtoVR(&v),
+        v,
         {
             .type = nAttrs,
             .doc = R"(
@@ -4978,7 +4978,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkBool(true);
     addConstant(
         "true",
-        VPtoVR(&v),
+        v,
         {
             .type = nBool,
             .doc = R"(
@@ -5002,7 +5002,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkBool(false);
     addConstant(
         "false",
-        VPtoVR(&v),
+        v,
         {
             .type = nBool,
             .doc = R"(
@@ -5044,7 +5044,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     }
     addConstant(
         "__currentTime",
-        VPtoVR(&v),
+        v,
         {
             .type = nInt,
             .doc = R"(
@@ -5073,7 +5073,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
         v.mkString(settings.getCurrentSystem());
     addConstant(
         "__currentSystem",
-        VPtoVR(&v),
+        v,
         {
             .type = nString,
             .doc = R"(
@@ -5105,7 +5105,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkString(nixVersion);
     addConstant(
         "__nixVersion",
-        VPtoVR(&v),
+        v,
         {
             .type = nString,
             .doc = R"(
@@ -5130,7 +5130,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkString(store->storeDir);
     addConstant(
         "__storeDir",
-        VPtoVR(&v),
+        v,
         {
             .type = nString,
             .doc = R"(
@@ -5152,7 +5152,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkInt(6);
     addConstant(
         "__langVersion",
-        VPtoVR(&v),
+        v,
         {
             .type = nInt,
             .doc = R"(
@@ -5199,7 +5199,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkList(list);
     addConstant(
         "__nixPath",
-        VPtoVR(&v),
+        v,
         {
             .type = nList,
             .doc = R"(
@@ -5248,7 +5248,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
 
        Null docs because it is documented separately.
        */
-    auto vDerivation = allocValue();
+    ValueRef vDerivation = allocValue();
     addConstant(
         "derivation",
         vDerivation,
