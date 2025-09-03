@@ -90,7 +90,7 @@ DerivedPathsWithInfo InstallableFlake::toDerivedPaths()
         auto v = attr->forceValue();
 
         if (std::optional derivedPathWithInfo = trySinglePathToDerivedPaths(
-                state->VRtoV(v), noPos, fmt("while evaluating the flake output attribute '%s'", attrPath))) {
+                v, noPos, fmt("while evaluating the flake output attribute '%s'", attrPath))) {
             return {*derivedPathWithInfo};
         } else {
             throw Error(

@@ -50,7 +50,7 @@ DerivedPathsWithInfo InstallableAttrPath::toDerivedPaths()
     auto [v, pos] = toValue(*state);
 
     if (std::optional derivedPathWithInfo =
-            trySinglePathToDerivedPaths(*v, pos, fmt("while evaluating the attribute '%s'", attrPath))) {
+            trySinglePathToDerivedPaths(state->VPtoVR(v), pos, fmt("while evaluating the attribute '%s'", attrPath))) {
         return {*derivedPathWithInfo};
     }
 
