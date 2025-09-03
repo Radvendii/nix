@@ -3299,7 +3299,7 @@ static void prim_functionArgs(EvalState & state, const PosIdx pos, ValueRef * ar
     const auto & formals = state.VRtoVP(args[0])->lambda().fun->formals->formals;
     auto attrs = state.buildBindings(formals.size());
     for (auto & i : formals)
-        attrs.insert(i.name, state.VPtoVR(state.getBool(i.def)), i.pos);
+        attrs.insert(i.name, state.getBool(i.def), i.pos);
     /* Optimization: avoid sorting bindings. `formals` must already be sorted according to
        (std::tie(a.name, a.pos) < std::tie(b.name, b.pos)) predicate, so the following assertion
        always holds:
@@ -5251,7 +5251,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     auto vDerivation = allocValue();
     addConstant(
         "derivation",
-        VRtoVP(vDerivation),
+        vDerivation,
         {
             .type = nFunction,
         });

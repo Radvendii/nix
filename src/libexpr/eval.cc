@@ -551,15 +551,7 @@ void EvalState::checkURI(const std::string & uri)
     throw RestrictedPathError("access to URI '%s' is forbidden in restricted mode", uri);
 }
 
-Value * EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
-{
-    ValueRef v2 = allocValue();
-    *VRtoVP(v2) = *VRtoVP(v);
-    addConstant(name, VRtoVP(v2), info);
-    return VRtoVP(v2);
-}
-
-void EvalState::addConstant(const std::string & name, Value * v, Constant info)
+void EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 {
     auto name2 = name.substr(0, 2) == "__" ? name.substr(2) : name;
 
@@ -570,13 +562,13 @@ void EvalState::addConstant(const std::string & name, Value * v, Constant info)
 
            We might know the type of a thunk in advance, so be allowed
            to just write it down in that case. */
-        if (auto gotType = v->type(true); gotType != nThunk)
+        if (auto gotType = VRtoVP(v)->type(true); gotType != nThunk)
             assert(info.type == gotType);
 
         /* Install value the base environment. */
         staticBaseEnv->vars.emplace_back(symbols.create(name), baseEnvDispl);
-        baseEnv.values[baseEnvDispl++] = VPtoVR(v);
-        const_cast<Bindings *>(VRtoV(getBuiltins()).attrs())->push_back(Attr(symbols.create(name2), VPtoVR(v)));
+        baseEnv.values[baseEnvDispl++] = v;
+        const_cast<Bindings *>(VRtoV(getBuiltins()).attrs())->push_back(Attr(symbols.create(name2), v));
     }
 }
 
@@ -614,7 +606,7 @@ void Value::mkPrimOp(PrimOp * p)
     nrPrimOp++;
 }
 
-Value * EvalState::addPrimOp(PrimOp && primOp)
+void EvalState::addPrimOp(PrimOp && primOp)
 {
     /* Hack to make constants lazy: turn them into a application of
        the primop to a dummy value. */
@@ -624,7 +616,7 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
         VRtoVP(vPrimOp)->mkPrimOp(new PrimOp(primOp));
         Value v;
         v.mkApp(*this, VRtoVP(vPrimOp), VRtoVP(vPrimOp));
-        return addConstant(
+        addConstant(
             primOp.name,
             VPtoVR(&v),
             {
@@ -647,8 +639,6 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
         baseEnv.values[baseEnvDispl++] = v;
         const_cast<Bindings *>(VRtoV(getBuiltins()).attrs())->push_back(Attr(symbols.create(primOp.name), v));
     }
-
-    return VRtoVP(v);
 }
 
 ValueRef EvalState::getBuiltins()
@@ -1081,9 +1071,9 @@ ListBuilder::ListBuilder(EvalState & state, size_t size)
     state.nrListElems += size;
 }
 
-Value * EvalState::getBool(bool b)
+ValueRef EvalState::getBool(bool b)
 {
-    return b ? VRtoVP(vTrue) : VRtoVP(vFalse);
+    return b ? vTrue : vFalse;
 }
 
 unsigned long nrThunks = 0;

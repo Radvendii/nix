@@ -751,11 +751,9 @@ private:
 
     void createBaseEnv(const EvalSettings & settings);
 
-    Value * addConstant(const std::string & name, ValueRef v, Constant info);
+    void addConstant(const std::string & name, ValueRef v, Constant info);
 
-    void addConstant(const std::string & name, Value * v, Constant info);
-
-    Value * addPrimOp(PrimOp && primOp);
+    void addPrimOp(PrimOp && primOp);
 
 public:
 
@@ -871,9 +869,9 @@ public:
     }
 
     /**
-     * Return a boolean `Value *` without allocating.
+     * Return a boolean `ValueRef` without allocating.
      */
-    Value * getBool(bool b);
+    ValueRef getBool(bool b);
 
     void mkThunk_(ValueRef v, Expr * expr);
     void mkPos(ValueRef v, PosIdx pos);
