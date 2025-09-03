@@ -921,7 +921,8 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, ValueRef vRes
         state.VRtoV(overrides.alloc(state.symbols.create(key->second))).mkAttrs(override);
     }
 
-    auto & vOverrides = state.VRtoVP(state.allocValue())->mkAttrs(overrides);
+    auto vOverrides = state.allocValue();
+    state.VRtoVP(vOverrides)->mkAttrs(overrides);
 
     Value * vCallFlake = requireInternalFile(state, CanonPath("call-flake.nix"));
 
@@ -931,7 +932,7 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, ValueRef vRes
     auto vFetchFinalTree = get(state.internalPrimOps, "fetchFinalTree");
     assert(vFetchFinalTree);
 
-    ValueRef args[] = {vLocks, state.VPtoVR(&vOverrides), *vFetchFinalTree};
+    ValueRef args[] = {vLocks, vOverrides, *vFetchFinalTree};
     state.callFunction(state.VPtoVR(vCallFlake), args, vRes, noPos);
 }
 

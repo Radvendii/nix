@@ -1948,7 +1948,9 @@ https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
         }
     }
 
-    callFunction(fun, VPtoVR(&VRtoVP(allocValue())->mkAttrs(attrs)), res, pos);
+    auto vAttrs = allocValue();
+    VRtoVP(vAttrs)->mkAttrs(attrs);
+    callFunction(fun, vAttrs, res, pos);
 }
 
 void ExprWith::eval(EvalState & state, Env & env, ValueRef v)

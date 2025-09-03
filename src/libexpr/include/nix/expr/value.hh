@@ -740,7 +740,7 @@ public:
         nrAttrs++;
     }
 
-    Value & mkAttrs(BindingsBuilder & bindings);
+    void mkAttrs(BindingsBuilder & bindings);
 
     void mkList(const ListBuilder & builder) noexcept
     {

@@ -42,10 +42,9 @@ void Bindings::sort()
         std::sort(begin(), end());
 }
 
-Value & Value::mkAttrs(BindingsBuilder & bindings)
+void Value::mkAttrs(BindingsBuilder & bindings)
 {
     mkAttrs(bindings.finish());
-    return *this;
 }
 
 } // namespace nix
