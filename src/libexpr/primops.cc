@@ -40,11 +40,11 @@ namespace nix {
  * Miscellaneous
  *************************************************************/
 
-static inline Value * mkString(EvalState & state, const std::csub_match & match)
+static inline ValueRef mkString(EvalState & state, const std::csub_match & match)
 {
     ValueRef v = state.allocValue();
     state.VRtoVP(v)->mkString({match.first, match.second});
-    return state.VRtoVP(v);
+    return v;
 }
 
 std::string EvalState::realiseString(ValueRef s, StorePathSet * storePathsOutMaybe, bool isIFD, const PosIdx pos)
@@ -2210,19 +2210,19 @@ static RegisterPrimOp primop_hashFile({
     .fun = prim_hashFile,
 });
 
-static Value * fileTypeToString(EvalState & state, SourceAccessor::Type type)
+static ValueRef fileTypeToString(EvalState & state, SourceAccessor::Type type)
 {
-    return state.VRtoVP(type == SourceAccessor::Type::tRegular     ? state.vStringRegular
-                        : type == SourceAccessor::Type::tDirectory ? state.vStringDirectory
-                        : type == SourceAccessor::Type::tSymlink   ? state.vStringSymlink
-                                                                   : state.vStringUnknown);
+    return type == SourceAccessor::Type::tRegular     ? state.vStringRegular
+           : type == SourceAccessor::Type::tDirectory ? state.vStringDirectory
+           : type == SourceAccessor::Type::tSymlink   ? state.vStringSymlink
+                                                      : state.vStringUnknown;
 }
 
 static void prim_readFileType(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     auto path = realisePath(state, pos, args[0], std::nullopt);
     /* Retrieve the directory entry type and stringize it. */
-    state.VRtoV(v) = *fileTypeToString(state, path.lstat().type);
+    state.VRtoV(v) = state.VRtoV(fileTypeToString(state, path.lstat().type));
 }
 
 static RegisterPrimOp primop_readFileType({
@@ -2266,7 +2266,7 @@ static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, V
         } else {
             // This branch of the conditional is much more likely.
             // Here we just stringize the directory entry type.
-            attrs.insert(state.symbols.create(name), state.VPtoVR(fileTypeToString(state, *type)));
+            attrs.insert(state.symbols.create(name), fileTypeToString(state, *type));
         }
     }
 
@@ -2641,7 +2641,7 @@ bool EvalState::callPathFilter(ValueRef filterFun, const SourcePath & path, PosI
     arg1.mkString(path.path.abs());
 
     // assert that type is not "unknown"
-    ValueRef args[]{VPtoVR(&arg1), VPtoVR(fileTypeToString(*this, st.type))};
+    ValueRef args[]{VPtoVR(&arg1), fileTypeToString(*this, st.type)};
     Value res;
     callFunction(filterFun, args, VPtoVR(&res), pos);
 
@@ -3121,9 +3121,9 @@ static void prim_listToAttrs(EvalState & state, const PosIdx pos, ValueRef * arg
             continue;
         }
         // Note that .value is actually an index into the list; see earlier comments
-        Value * v2 = state.VRtoVP(listView[attr.value]);
+        ValueRef v2 = listView[attr.value];
 
-        auto j = state.getAttr(state.sValue, v2->attrs(), "in a {name=...; value=...;} pair");
+        auto j = state.getAttr(state.sValue, state.VRtoVP(v2)->attrs(), "in a {name=...; value=...;} pair");
         prev = attr.name;
         bindings.push_back({prev, j->value, j->pos});
     }
@@ -4579,7 +4579,7 @@ void prim_match(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v
             if (!match[i + 1].matched)
                 v2 = state.vNull;
             else
-                v2 = state.VPtoVR(mkString(state, match[i + 1]));
+                v2 = mkString(state, match[i + 1]);
         state.VRtoV(v).mkList(list);
 
     } catch (std::regex_error & e) {
@@ -4660,7 +4660,7 @@ void prim_split(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v
             const auto & match = *i;
 
             // Add a string for non-matched characters.
-            list[idx++] = state.VPtoVR(mkString(state, match.prefix()));
+            list[idx++] = mkString(state, match.prefix());
 
             // Add a list for matched substrings.
             const size_t slen = match.size() - 1;
@@ -4671,14 +4671,14 @@ void prim_split(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v
                 if (!match[si + 1].matched)
                     v2 = state.vNull;
                 else
-                    v2 = state.VPtoVR(mkString(state, match[si + 1]));
+                    v2 = mkString(state, match[si + 1]);
             }
 
             state.VRtoVP(list[idx++] = state.allocValue())->mkList(list2);
 
             // Add a string for non-matched suffix characters.
             if (idx == 2 * len)
-                list[idx++] = state.VPtoVR(mkString(state, match.suffix()));
+                list[idx++] = mkString(state, match.suffix());
         }
 
         assert(idx == 2 * len + 1);
