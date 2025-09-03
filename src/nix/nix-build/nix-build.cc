@@ -410,14 +410,14 @@ static void main_nix_build(int argc, char ** argv)
         Value vRoot;
         state->eval(e, state->VPtoVR(&vRoot));
 
-        std::function<bool(const Value & v)> takesNixShellAttr;
-        takesNixShellAttr = [&](const Value & v) {
+        std::function<bool(/* XXX [speed] const */ ValueRef v)> takesNixShellAttr;
+        takesNixShellAttr = [&](/* XXX [speed const */ ValueRef v) {
             if (!isNixShell) {
                 return false;
             }
             bool add = false;
-            if (v.type() == nFunction && v.lambda().fun->hasFormals()) {
-                for (auto & i : v.lambda().fun->formals->formals) {
+            if (state->VRtoV(v).type() == nFunction && state->VRtoV(v).lambda().fun->hasFormals()) {
+                for (auto & i : state->VRtoV(v).lambda().fun->formals->formals) {
                     if (state->symbols[i.name] == "inNixShell") {
                         add = true;
                         break;
@@ -429,10 +429,10 @@ static void main_nix_build(int argc, char ** argv)
 
         for (auto & i : attrPaths) {
             Value & v(
-                *findAlongAttrPath(*state, i, takesNixShellAttr(vRoot) ? *autoArgsWithInNixShell : *autoArgs, state->VPtoVR(&vRoot))
+                *findAlongAttrPath(*state, i, takesNixShellAttr(state->VPtoVR(&vRoot)) ? *autoArgsWithInNixShell : *autoArgs, state->VPtoVR(&vRoot))
                      .first);
             state->forceValue(state->VPtoVR(&v), v.determinePos(*state, noPos));
-            getDerivations(*state, state->VPtoVR(&v), "", takesNixShellAttr(v) ? *autoArgsWithInNixShell : *autoArgs, drvs, false);
+            getDerivations(*state, state->VPtoVR(&v), "", takesNixShellAttr(state->VPtoVR(&v)) ? *autoArgsWithInNixShell : *autoArgs, drvs, false);
         }
     }
 
