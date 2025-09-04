@@ -1303,13 +1303,13 @@ inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::stri
     }
 }
 
-inline void EvalState::evalAttrs(Env & env, Expr * e, Value & v, const PosIdx pos, std::string_view errorCtx)
+inline void EvalState::evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        e->eval(*this, env, v);
-        if (v.type() != nAttrs)
+        e->eval(*this, env, VRtoV(v));
+        if (VRtoV(v).type() != nAttrs)
             error<TypeError>(
-                "expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a set but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .withFrame(env, *e)
                 .debugThrow();
     } catch (Error & e) {
@@ -2036,8 +2036,8 @@ void ExprOpImpl::eval(EvalState & state, Env & env, Value & v)
 void ExprOpUpdate::eval(EvalState & state, Env & env, Value & v)
 {
     Value v1, v2;
-    state.evalAttrs(env, e1, v1, pos, "in the left operand of the update (//) operator");
-    state.evalAttrs(env, e2, v2, pos, "in the right operand of the update (//) operator");
+    state.evalAttrs(env, e1, state.VPtoVR(&v1), pos, "in the left operand of the update (//) operator");
+    state.evalAttrs(env, e2, state.VPtoVR(&v2), pos, "in the right operand of the update (//) operator");
 
     state.nrOpUpdates++;
 
