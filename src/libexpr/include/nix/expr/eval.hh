@@ -597,7 +597,7 @@ public:
      * Force a value, then recursively force list elements and
      * attributes.
      */
-    void forceValueDeep(Value & v);
+    void forceValueDeep(ValueRef v);
 
     /**
      * Force `v`, and then verify that it has the expected type.

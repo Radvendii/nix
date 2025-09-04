@@ -2262,20 +2262,20 @@ void EvalState::tryFixupBlackHolePos(ValueRef v, PosIdx pos)
     }
 }
 
-void EvalState::forceValueDeep(Value & v)
+void EvalState::forceValueDeep(ValueRef v)
 {
     std::set<const Value *> seen;
 
-    std::function<void(Value & v)> recurse;
+    std::function<void(ValueRef v)> recurse;
 
-    recurse = [&](Value & v) {
-        if (!seen.insert(&v).second)
+    recurse = [&](ValueRef v) {
+        if (!seen.insert(VRtoVP(v)).second)
             return;
 
-        forceValue(VPtoVR(&v), v.determinePos(*this, noPos));
+        forceValue(v, VRtoV(v).determinePos(*this, noPos));
 
-        if (v.type() == nAttrs) {
-            for (auto & i : *v.attrs())
+        if (VRtoV(v).type() == nAttrs) {
+            for (auto & i : *VRtoV(v).attrs())
                 try {
                     // If the value is a thunk, we're evaling. Otherwise no trace necessary.
                     auto dts = debugRepl && VRtoVP(i.value)->isThunk() ? makeDebugTraceStacker(
@@ -2287,16 +2287,16 @@ void EvalState::forceValueDeep(Value & v)
                                                                      symbols[i.name])
                                                                : nullptr;
 
-                    recurse(*VRtoVP(i.value));
+                    recurse(i.value);
                 } catch (Error & e) {
                     addErrorTrace(e, i.pos, "while evaluating the attribute '%1%'", symbols[i.name]);
                     throw;
                 }
         }
 
-        else if (v.isList()) {
-            for (auto v2 : v.listView())
-                recurse(*VRtoVP(v2));
+        else if (VRtoV(v).isList()) {
+            for (auto v2 : VRtoV(v).listView())
+                recurse(v2);
         }
     };
 

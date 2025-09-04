@@ -1162,7 +1162,7 @@ static RegisterPrimOp primop_seq({
    attrsets), then return the second argument. */
 static void prim_deepSeq(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
-    state.forceValueDeep(*state.VRtoVP(args[0]));
+    state.forceValueDeep(args[0]);
     state.forceValue(args[1], pos);
     state.VRtoV(v) = *state.VRtoVP(args[1]);
 }
