@@ -17,9 +17,9 @@ public:
     FunctionCallTrace() = default;
 
     [[gnu::noinline]] void
-    preFunctionCallHook(EvalState & state, /* const */ Value & v, std::span<ValueRef> args, const PosIdx pos) override;
+    preFunctionCallHook(EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos) override;
     [[gnu::noinline]] void
-    postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) override;
+    postFunctionCallHook(EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos) override;
 };
 
 } // namespace nix

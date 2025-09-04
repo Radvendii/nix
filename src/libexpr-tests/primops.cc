@@ -209,7 +209,7 @@ TEST_F(PrimOpTest, unsafeGetAttrPos)
     auto column = v.attrs()->find(createSymbol("column"));
     ASSERT_NE(column, nullptr);
     state.forceValue(column->value, noPos);
-    ASSERT_THAT(*state.VRtoVP(column->value), IsIntEq(3));
+    ASSERT_THAT(state.VRtoV(column->value), IsIntEq(3));
 }
 
 TEST_F(PrimOpTest, hasAttr)

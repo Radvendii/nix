@@ -554,7 +554,7 @@ void EvalState::checkURI(const std::string & uri)
 Value * EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 {
     ValueRef v2 = allocValue();
-    *VRtoVP(v2) = VRtoV(v);
+    *VRtoVP(v2) = *VRtoVP(v);
     addConstant(name, VRtoVP(v2), info);
     return VRtoVP(v2);
 }
@@ -668,13 +668,14 @@ ValueRef EvalState::getBuiltin(const std::string & name)
 std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
 {
     if (VRtoV(v).isPrimOp()) {
-        auto v2 = v;
-        if (auto * doc = VRtoVP(v2)->primOp()->doc)
+        // XXX [speed]: what's going on here? why do we need v2 at all?
+        auto v2 = &VRtoV(v);
+        if (auto * doc = v2->primOp()->doc)
             return Doc{
                 .pos = {},
-                .name = VRtoVP(v2)->primOp()->name,
-                .arity = VRtoVP(v2)->primOp()->arity,
-                .args = VRtoVP(v2)->primOp()->args,
+                .name = v2->primOp()->name,
+                .arity = v2->primOp()->arity,
+                .args = v2->primOp()->args,
                 .doc = doc,
             };
     }
@@ -1039,19 +1040,20 @@ ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string 
 }
 // XXX [speed]
 
-inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
+
+inline ValueRef EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
 {
     for (auto l = var.level; l; --l, env = env->up)
         ;
 
     if (!var.fromWith)
-        return VRtoVP(env->values[var.displ]);
+        return env->values[var.displ];
 
     // This early exit defeats the `maybeThunk` optimization for variables from `with`,
     // The added complexity of handling this appears to be similarly in cost, or
     // the cases where applicable were insignificant in the first place.
     if (noEval)
-        return nullptr;
+        return ValueRefNull;
 
     auto * fromWith = var.fromWith;
     while (1) {
@@ -1059,7 +1061,7 @@ inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
         if (auto j = VRtoVP(env->values[0])->attrs()->get(var.name)) {
             if (countCalls)
                 attrSelects[j->pos]++;
-            return VRtoVP(j->value);
+            return j->value;
         }
         if (!fromWith->parentWith)
             error<UndefinedVarError>("undefined variable '%1%'", symbols[var.name])
@@ -1086,15 +1088,15 @@ Value * EvalState::getBool(bool b)
 
 unsigned long nrThunks = 0;
 
-static inline void mkThunk(Value & v, Env & env, Expr * expr)
+static inline void mkThunk(EvalState & state, ValueRef v, Env & env, Expr * expr)
 {
-    v.mkThunk(&env, expr);
+    state.VRtoV(v).mkThunk(&env, expr);
     nrThunks++;
 }
 
 void EvalState::mkThunk_(ValueRef v, Expr * expr)
 {
-    mkThunk(VRtoV(v), baseEnv, expr);
+    mkThunk(*this, v, baseEnv, expr);
 }
 
 void EvalState::mkPos(ValueRef v, PosIdx p)
@@ -1182,18 +1184,18 @@ void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef 
 Value * Expr::maybeThunk(EvalState & state, Env & env)
 {
     ValueRef v = state.allocValue();
-    mkThunk(*state.VRtoVP(v), env, this);
+    mkThunk(state, v, env, this);
     return state.VRtoVP(v);
 }
 
 Value * ExprVar::maybeThunk(EvalState & state, Env & env)
 {
-    Value * v = state.lookupVar(&env, *this, true);
+    ValueRef v = state.lookupVar(&env, *this, true);
     /* The value might not be initialised in the environment yet.
        In that case, ignore it. */
     if (v) {
         state.nrAvoided++;
-        return v;
+        return state.VRtoVP(v);
     }
     return Expr::maybeThunk(state, env);
 }
@@ -1380,7 +1382,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
             ValueRef vAttr;
             if (hasOverrides && i.second.kind != AttrDef::Kind::Inherited) {
                 vAttr = state.allocValue();
-                mkThunk(*state.VRtoVP(vAttr), *i.second.chooseByKind(&env2, &env, inheritEnv), i.second.e);
+                mkThunk(state, vAttr, *i.second.chooseByKind(&env2, &env, inheritEnv), i.second.e);
             } else
                 vAttr = state.VPtoVR(i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv)));
             env2.values[displ++] = vAttr;
@@ -1396,13 +1398,13 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
            been substituted into the bodies of the other attributes.
            Hence we need __overrides.) */
         if (hasOverrides) {
-            Value * vOverrides = state.VRtoVP((*bindings.bindings)[overrides->second.displ].value);
+            ValueRef vOverrides = (*bindings.bindings)[overrides->second.displ].value;
             state.forceAttrs(
-                state.VPtoVR(vOverrides),
-                [&]() { return vOverrides->determinePos(state, noPos); },
+                vOverrides,
+                [&]() { return state.VRtoVP(vOverrides)->determinePos(state, noPos); },
                 "while evaluating the `__overrides` attribute");
-            bindings.grow(state.allocBindings(bindings.capacity() + vOverrides->attrs()->size()));
-            for (auto & i : *vOverrides->attrs()) {
+            bindings.grow(state.allocBindings(bindings.capacity() + state.VRtoVP(vOverrides)->attrs()->size()));
+            for (auto & i : *state.VRtoVP(vOverrides)->attrs()) {
                 AttrDefs::iterator j = attrs.find(i.name);
                 if (j != attrs.end()) {
                     (*bindings.bindings)[j->second.displ] = i;
@@ -1494,9 +1496,9 @@ Value * ExprList::maybeThunk(EvalState & state, Env & env)
 
 void ExprVar::eval(EvalState & state, Env & env, Value & v)
 {
-    Value * v2 = state.lookupVar(&env, *this, false);
-    state.forceValue(state.VPtoVR(v2), pos);
-    v = *v2;
+    ValueRef v2 = state.lookupVar(&env, *this, false);
+    state.forceValue(v2, pos);
+    v = *state.VRtoVP(v2);
 }
 
 static std::string showAttrPath(EvalState & state, Env & env, const AttrPath & attrPath)
@@ -1524,7 +1526,7 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
 {
     Value vTmp;
     PosIdx pos2;
-    Value * vAttrs = &vTmp;
+    ValueRef vAttrs = state.VPtoVR(&vTmp);
 
     e->eval(state, env, vTmp);
 
@@ -1543,16 +1545,16 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
             const Attr * j;
             auto name = getName(i, state, env);
             if (def) {
-                state.forceValue(state.VPtoVR(vAttrs), pos);
-                if (vAttrs->type() != nAttrs || !(j = vAttrs->attrs()->get(name))) {
+                state.forceValue(vAttrs, pos);
+                if (state.VRtoVP(vAttrs)->type() != nAttrs || !(j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
                     def->eval(state, env, v);
                     return;
                 }
             } else {
-                state.forceAttrs(state.VPtoVR(vAttrs), pos, "while selecting an attribute");
-                if (!(j = vAttrs->attrs()->get(name))) {
+                state.forceAttrs(vAttrs, pos, "while selecting an attribute");
+                if (!(j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
                     StringSet allAttrNames;
-                    for (auto & attr : *vAttrs->attrs())
+                    for (auto & attr : *state.VRtoVP(vAttrs)->attrs())
                         allAttrNames.insert(std::string(state.symbols[attr.name]));
                     auto suggestions = Suggestions::bestMatches(allAttrNames, state.symbols[name]);
                     state.error<EvalError>("attribute '%1%' missing", state.symbols[name])
@@ -1562,13 +1564,13 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
                         .debugThrow();
                 }
             }
-            vAttrs = state.VRtoVP(j->value);
+            vAttrs = j->value;
             pos2 = j->pos;
             if (state.countCalls)
                 state.attrSelects[pos2]++;
         }
 
-        state.forceValue(state.VPtoVR(vAttrs), (pos2 ? pos2 : this->pos));
+        state.forceValue(vAttrs, (pos2 ? pos2 : this->pos));
 
     } catch (Error & e) {
         if (pos2) {
@@ -1581,7 +1583,7 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
         throw;
     }
 
-    v = *vAttrs;
+    v = *state.VRtoVP(vAttrs);
 }
 
 SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, Value & attrs)
@@ -1603,16 +1605,16 @@ SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, Value 
 void ExprOpHasAttr::eval(EvalState & state, Env & env, Value & v)
 {
     Value vTmp;
-    Value * vAttrs = &vTmp;
+    ValueRef vAttrs = state.VPtoVR(&vTmp);
 
     e->eval(state, env, vTmp);
 
     for (auto & i : attrPath) {
-        state.forceValue(state.VPtoVR(vAttrs), getPos());
+        state.forceValue(vAttrs, getPos());
         const Attr * j;
         auto name = getName(i, state, env);
-        if (vAttrs->type() == nAttrs && (j = vAttrs->attrs()->get(name))) {
-            vAttrs = state.VRtoVP(j->value);
+        if (state.VRtoVP(vAttrs)->type() == nAttrs && (j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
+            vAttrs = j->value;
         } else {
             v.mkBool(false);
             return;
@@ -1633,11 +1635,11 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
     auto neededHooks = profiler.getNeededHooks();
     if (neededHooks.test(EvalProfiler::preFunctionCall)) [[unlikely]]
-        profiler.preFunctionCallHook(*this, VRtoV(fun), args, pos);
+        profiler.preFunctionCallHook(*this, fun, args, pos);
 
     Finally traceExit_{[&]() {
         if (profiler.getNeededHooks().test(EvalProfiler::postFunctionCall)) [[unlikely]]
-            profiler.postFunctionCallHook(*this, VRtoV(fun), args, pos);
+            profiler.postFunctionCallHook(*this, fun, args, pos);
     }};
 
     forceValue(fun, pos);
@@ -1913,7 +1915,7 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
     }
 
     if (!VRtoV(fun).isLambda() || !VRtoV(fun).lambda().fun->hasFormals()) {
-        res = fun;
+        VRtoV(res) = VRtoV(fun);
         return;
     }
 
@@ -2085,7 +2087,6 @@ void ExprOpConcatLists::eval(EvalState & state, Env & env, Value & v)
     Value v2;
     e2->eval(state, env, v2);
     ValueRef lists[2] = {state.VPtoVR(&v1), state.VPtoVR(&v2)};
-    // XXX [speed]: these can be local again
     state.concatLists(state.VPtoVR(&v), 2, lists, pos, "while evaluating one of the elements to concatenate");
 }
 
@@ -2094,18 +2095,18 @@ void EvalState::concatLists(
 {
     nrListConcats++;
 
-    Value * nonEmpty = 0;
+    ValueRef nonEmpty = 0;
     size_t len = 0;
     for (size_t n = 0; n < nrLists; ++n) {
         forceList(lists[n], pos, errorCtx);
         auto l = VRtoVP(lists[n])->listSize();
         len += l;
         if (l)
-            nonEmpty = VRtoVP(lists[n]);
+            nonEmpty = lists[n];
     }
 
-    if (nonEmpty && len == nonEmpty->listSize()) {
-        VRtoV(v) = *nonEmpty;
+    if (nonEmpty && len == VRtoVP(nonEmpty)->listSize()) {
+        VRtoV(v) = VRtoV(nonEmpty);
         return;
     }
 
@@ -2264,12 +2265,12 @@ void EvalState::tryFixupBlackHolePos(ValueRef v, PosIdx pos)
 
 void EvalState::forceValueDeep(ValueRef v)
 {
-    std::set<const Value *> seen;
+    std::set<ValueRef> seen;
 
     std::function<void(ValueRef v)> recurse;
 
     recurse = [&](ValueRef v) {
-        if (!seen.insert(VRtoVP(v)).second)
+        if (!seen.insert(v).second)
             return;
 
         forceValue(v, VRtoV(v).determinePos(*this, noPos));
@@ -2366,7 +2367,7 @@ Bindings::const_iterator EvalState::getAttr(SymbolRef attrSym, const Bindings * 
     return value;
 }
 
-bool EvalState::isFunctor(/* XXX [speed]: const */ ValueRef fun) /* XXX [speed] const */
+bool EvalState::isFunctor(const ValueRef fun) /* XXX [speed] const */
 {
     return VRtoV(fun).type() == nAttrs && VRtoV(fun).attrs()->find(sFunctor) != VRtoV(fun).attrs()->end();
 }
@@ -2402,7 +2403,7 @@ std::string_view EvalState::forceString(ValueRef v, const PosIdx pos, std::strin
     }
 }
 
-void copyContext(EvalState & state, /* XXX [speed ] const */ ValueRef v, NixStringContext & context, const ExperimentalFeatureSettings & xpSettings)
+void copyContext(EvalState & state, /* XXX [speed] const */ ValueRef v, NixStringContext & context, const ExperimentalFeatureSettings & xpSettings)
 {
     if (state.VRtoV(v).context())
         for (const char ** p = state.VRtoV(v).context(); *p; ++p)

@@ -20,6 +20,7 @@
 // For `NIX_USE_BOEHMGC`, and if that's set, `GC_THREADS`
 #include "nix/expr/config.hh"
 
+#include <limits>
 #include <map>
 #include <optional>
 #include <functional>
@@ -409,6 +410,7 @@ private:
         Value,
         std::hash<SourcePath>,
         std::equal_to<SourcePath>,
+        // XXX [speed]: missed a Value! (maybe? how does anything work?)
         traceable_allocator<std::pair<const SourcePath, Value>>>
         FileEvalCache;
     FileEvalCache fileEvalCache;
@@ -793,7 +795,7 @@ public:
 
 private:
 
-    inline Value * lookupVar(Env * env, const ExprVar & var, bool noEval);
+    inline ValueRef lookupVar(Env * env, const ExprVar & var, bool noEval);
 
     friend struct ExprVar;
     friend struct ExprAttrs;
@@ -834,7 +836,7 @@ public:
      */
     void assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string_view errorCtx);
 
-    bool isFunctor(/* XXX [speed] const */ ValueRef fun) /* XXX [speed] const */;
+    bool isFunctor(const ValueRef fun) /* XXX [speed] const */;
 
     void callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vRes, const PosIdx pos);
 

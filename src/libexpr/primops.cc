@@ -1849,15 +1849,15 @@ static RegisterPrimOp primop_storePath({
 static void prim_pathExists(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     try {
-        auto & arg = *state.VRtoVP(args[0]);
+        auto arg = args[0];
 
         /* SourcePath doesn't know about trailing slash. */
-        state.forceValue(state.VPtoVR(&arg), pos);
+        state.forceValue(arg, pos);
         auto mustBeDir =
-            arg.type() == nString && (arg.string_view().ends_with("/") || arg.string_view().ends_with("/."));
+            state.VRtoV(arg).type() == nString && (state.VRtoV(arg).string_view().ends_with("/") || state.VRtoV(arg).string_view().ends_with("/."));
 
         auto symlinkResolution = mustBeDir ? SymlinkResolution::Full : SymlinkResolution::Ancestors;
-        auto path = realisePath(state, pos, arg, symlinkResolution);
+        auto path = realisePath(state, pos, state.VRtoV(arg), symlinkResolution);
 
         auto st = path.maybeLstat();
         auto exists = st && (!mustBeDir || st->type == SourceAccessor::tDirectory);
@@ -3691,14 +3691,14 @@ static void prim_foldlStrict(EvalState & state, const PosIdx pos, ValueRef * arg
     state.forceList(args[2], pos, "while evaluating the third argument passed to builtins.foldlStrict");
 
     if (state.VRtoVP(args[2])->listSize()) {
-        Value * vCur = state.VRtoVP(args[1]);
+        ValueRef vCur = args[1];
 
         auto listView = state.VRtoVP(args[2])->listView();
         for (auto [n, elem] : enumerate(listView)) {
-            ValueRef vs[]{state.VPtoVR(vCur), elem};
-            vCur = n == state.VRtoVP(args[2])->listSize() - 1 ? state.VRtoVP(v) : state.VRtoVP(state.allocValue());
+            ValueRef vs[]{vCur, elem};
+            vCur = n == state.VRtoVP(args[2])->listSize() - 1 ? v : state.allocValue();
             // XXX [speed]: this is an example of the optimization where we overwrite an existing value instead of creating a new one (sometimes)
-            state.callFunction(args[0], vs, state.VPtoVR(vCur), pos);
+            state.callFunction(args[0], vs, vCur, pos);
         }
         state.forceValue(v, pos);
     } else {
@@ -3922,15 +3922,15 @@ static void prim_partition(EvalState & state, const PosIdx pos, ValueRef * args,
     ValueVector right, wrong;
 
     for (size_t n = 0; n < len; ++n) {
-        auto vElem = state.VRtoVP(state.VRtoVP(args[1])->listView()[n]);
-        state.forceValue(state.VPtoVR(vElem), pos);
+        auto vElem = state.VRtoVP(args[1])->listView()[n];
+        state.forceValue(vElem, pos);
         Value res;
-        state.callFunction(args[0], state.VPtoVR(vElem), state.VPtoVR(&res), pos);
+        state.callFunction(args[0], vElem, state.VPtoVR(&res), pos);
         if (state.forceBool(
                 state.VPtoVR(&res), pos, "while evaluating the return value of the partition function passed to builtins.partition"))
-            right.push_back(state.VPtoVR(vElem));
+            right.push_back(vElem);
         else
-            wrong.push_back(state.VPtoVR(vElem));
+            wrong.push_back(vElem);
     }
 
     auto attrs = state.buildBindings(2);
@@ -4039,9 +4039,8 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, ValueRef * args,
     size_t len = 0;
 
     for (size_t n = 0; n < nrLists; ++n) {
-        Value * vElem = state.VRtoVP(state.VRtoVP(args[1])->listView()[n]);
-        // XXX [speed]: and this is why callFunction() must take a Value & not a ValueRef
-        state.callFunction(args[0], state.VPtoVR(vElem), state.VPtoVR(&lists[n]), pos);
+        ValueRef vElem = state.VRtoVP(args[1])->listView()[n];
+        state.callFunction(args[0], vElem, state.VPtoVR(&lists[n]), pos);
         state.forceList(
             state.VPtoVR(&lists[n]),
             lists[n].determinePos(state, state.VRtoVP(args[0])->determinePos(state, pos)),

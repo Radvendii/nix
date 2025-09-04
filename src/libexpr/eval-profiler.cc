@@ -5,14 +5,14 @@
 
 namespace nix {
 
-void EvalProfiler::preFunctionCallHook(EvalState & state, /* XXX [xpeed] const */ Value & v, std::span<ValueRef> args, const PosIdx pos) {}
+void EvalProfiler::preFunctionCallHook(EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos) {}
 
-void EvalProfiler::postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
+void EvalProfiler::postFunctionCallHook(EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos)
 {
 }
 
 void MultiEvalProfiler::preFunctionCallHook(
-    EvalState & state, /* XXX [speed] const */ Value & v, std::span<ValueRef> args, const PosIdx pos)
+    EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos)
 {
     for (auto & profiler : profilers) {
         if (profiler->getNeededHooks().test(Hook::preFunctionCall))
@@ -21,7 +21,7 @@ void MultiEvalProfiler::preFunctionCallHook(
 }
 
 void MultiEvalProfiler::postFunctionCallHook(
-    EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
+    EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos)
 {
     for (auto & profiler : profilers) {
         if (profiler->getNeededHooks().test(Hook::postFunctionCall))
@@ -147,9 +147,9 @@ public:
     }
 
     [[gnu::noinline]] void
-    preFunctionCallHook(EvalState & state, /* XXX [speed] const */ Value & v, std::span<ValueRef> args, const PosIdx pos) override;
+    preFunctionCallHook(EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos) override;
     [[gnu::noinline]] void
-    postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) override;
+    postFunctionCallHook(EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos) override;
 
     void maybeSaveProfile(std::chrono::time_point<std::chrono::high_resolution_clock> now);
     void saveProfile();
@@ -223,9 +223,9 @@ FrameInfo SampleStack::getFrameInfoFromValueAndPos(/* XXX [speed] const */ Value
 }
 
 [[gnu::noinline]] void
-SampleStack::preFunctionCallHook(EvalState & state, /* const */ Value & v, std::span<ValueRef> args, const PosIdx pos)
+SampleStack::preFunctionCallHook(EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos)
 {
-    stack.push_back(getFrameInfoFromValueAndPos(v, args, pos));
+    stack.push_back(getFrameInfoFromValueAndPos(state.VRtoV(v), args, pos));
 
     auto now = std::chrono::high_resolution_clock::now();
 
@@ -240,7 +240,7 @@ SampleStack::preFunctionCallHook(EvalState & state, /* const */ Value & v, std::
 }
 
 [[gnu::noinline]] void
-SampleStack::postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
+SampleStack::postFunctionCallHook(EvalState & state, const ValueRef v, std::span<ValueRef> args, const PosIdx pos)
 {
     if (!stack.empty())
         stack.pop_back();
