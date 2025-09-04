@@ -495,7 +495,7 @@ void EvalState::allowAndSetStorePathString(const StorePath & storePath, ValueRef
 {
     allowPath(storePath);
 
-    mkStorePathString(storePath, VRtoV(v));
+    mkStorePathString(storePath, v);
 }
 
 inline static bool isJustSchemePrefix(std::string_view prefix)
@@ -1109,9 +1109,9 @@ void EvalState::mkPos(ValueRef v, PosIdx p)
         VRtoV(v).mkNull();
 }
 
-void EvalState::mkStorePathString(const StorePath & p, Value & v)
+void EvalState::mkStorePathString(const StorePath & p, ValueRef v)
 {
-    v.mkString(
+    VRtoV(v).mkString(
         store->printStorePath(p),
         NixStringContext{
             NixStringContextElem::Opaque{.path = p},
@@ -1132,12 +1132,12 @@ std::string EvalState::mkOutputStringRaw(
 }
 
 void EvalState::mkOutputString(
-    Value & value,
+    ValueRef value,
     const SingleDerivedPath::Built & b,
     std::optional<StorePath> optStaticOutputPath,
     const ExperimentalFeatureSettings & xpSettings)
 {
-    value.mkString(mkOutputStringRaw(b, optStaticOutputPath, xpSettings), NixStringContext{b});
+    VRtoV(value).mkString(mkOutputStringRaw(b, optStaticOutputPath, xpSettings), NixStringContext{b});
 }
 
 std::string EvalState::mkSingleDerivedPathStringRaw(const SingleDerivedPath & p)
@@ -1166,9 +1166,9 @@ std::string EvalState::mkSingleDerivedPathStringRaw(const SingleDerivedPath & p)
         p.raw());
 }
 
-void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, Value & v)
+void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef v)
 {
-    v.mkString(
+    VRtoV(v).mkString(
         mkSingleDerivedPathStringRaw(p),
         NixStringContext{
             std::visit([](auto && v) -> NixStringContextElem { return v; }, p),

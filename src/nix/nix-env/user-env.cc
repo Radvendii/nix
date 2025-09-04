@@ -129,7 +129,7 @@ bool createUserEnv(
     /* Construct a Nix expression that calls the user environment
        builder with the manifest as argument. */
     auto attrs = state.buildBindings(3);
-    state.mkStorePathString(manifestFile, attrs.alloc("manifest"));
+    state.mkStorePathString(manifestFile, state.VPtoVR(&attrs.alloc("manifest")));
     attrs.insert(state.symbols.create("derivations"), &manifest);
     Value args;
     args.mkAttrs(attrs);

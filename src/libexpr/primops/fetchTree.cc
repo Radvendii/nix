@@ -29,7 +29,7 @@ void emitTreeAttrs(
 {
     auto attrs = state.buildBindings(100);
 
-    state.mkStorePathString(storePath, attrs.alloc(state.sOutPath));
+    state.mkStorePathString(storePath, state.VPtoVR(&attrs.alloc(state.sOutPath)));
 
     // FIXME: support arbitrary input attributes.
 

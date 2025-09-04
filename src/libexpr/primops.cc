@@ -190,7 +190,7 @@ static void mkOutputString(
     const std::pair<std::string, DerivationOutput> & o)
 {
     state.mkOutputString(
-        attrs.alloc(o.first),
+        state.VPtoVR(&attrs.alloc(o.first)),
         SingleDerivedPath::Built{
             .drvPath = makeConstantStorePathRef(drvPath),
             .output = o.first,
@@ -2305,7 +2305,7 @@ static void prim_outputOf(EvalState & state, const PosIdx pos, ValueRef * args, 
             .drvPath = make_ref<SingleDerivedPath>(drvPath),
             .output = std::string{outputName},
         },
-        state.VRtoV(v));
+        v);
 }
 
 static RegisterPrimOp primop_outputOf({

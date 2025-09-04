@@ -63,7 +63,7 @@ static void runFetchClosureWithRewrite(
              .pos = state.positions[pos]});
     }
 
-    state.mkStorePathString(toPath, state.VRtoV(v));
+    state.mkStorePathString(toPath, v);
 }
 
 /**
@@ -90,7 +90,7 @@ static void runFetchClosureWithContentAddressedPath(
              .pos = state.positions[pos]});
     }
 
-    state.mkStorePathString(fromPath, state.VRtoV(v));
+    state.mkStorePathString(fromPath, v);
 }
 
 /**
@@ -114,7 +114,7 @@ static void runFetchClosureWithInputAddressedPath(
              .pos = state.positions[pos]});
     }
 
-    state.mkStorePathString(fromPath, state.VRtoV(v));
+    state.mkStorePathString(fromPath, v);
 }
 
 typedef std::optional<StorePath> StorePathOrGap;

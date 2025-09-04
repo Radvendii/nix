@@ -882,7 +882,7 @@ public:
      * The string is the printed store path with a context containing a
      * single `NixStringContextElem::Opaque` element of that store path.
      */
-    void mkStorePathString(const StorePath & storePath, Value & v);
+    void mkStorePathString(const StorePath & storePath, ValueRef v);
 
     /**
      * Create a string representing a `SingleDerivedPath::Built`.
@@ -905,7 +905,7 @@ public:
      * @param xpSettings Stop-gap to avoid globals during unit tests.
      */
     void mkOutputString(
-        Value & value,
+        ValueRef value,
         const SingleDerivedPath::Built & b,
         std::optional<StorePath> optStaticOutputPath,
         const ExperimentalFeatureSettings & xpSettings = experimentalFeatureSettings);
@@ -915,7 +915,7 @@ public:
      *
      * A combination of `mkStorePathString` and `mkOutputString`.
      */
-    void mkSingleDerivedPathString(const SingleDerivedPath & p, Value & v);
+    void mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef v);
 
     void concatLists(Value & v, size_t nrLists, ValueRef const * lists, const PosIdx pos, std::string_view errorCtx);
 
