@@ -4033,7 +4033,9 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, ValueRef * args,
     auto nrLists = state.VRtoVP(args[1])->listSize();
 
     // List of returned lists before concatenation. It is illegal to create a ValueRef to these Values.
-    SmallTemporaryValueVector<conservativeStackReservation> lists(nrLists);
+    if (nrLists > 5000)
+        std::cout << "too many lists! (" << nrLists << ")\n";
+    SmallTemporaryValueVector<5000> lists(nrLists);
     size_t len = 0;
 
     for (size_t n = 0; n < nrLists; ++n) {
