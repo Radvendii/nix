@@ -159,7 +159,7 @@ Bindings * MixEvalArgs::getAutoArgs(EvalState & state)
             overloaded{
                 [&](const AutoArgExpr & arg) {
                     state.mkThunk_(
-                        *state.VRtoVP(v),
+                        v,
                         state.parseExprFromString(
                             arg.expr,
                             compatibilitySettings.nixShellShebangArgumentsRelativeToScript

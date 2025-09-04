@@ -1092,9 +1092,9 @@ static inline void mkThunk(Value & v, Env & env, Expr * expr)
     nrThunks++;
 }
 
-void EvalState::mkThunk_(Value & v, Expr * expr)
+void EvalState::mkThunk_(ValueRef v, Expr * expr)
 {
-    mkThunk(v, baseEnv, expr);
+    mkThunk(VRtoV(v), baseEnv, expr);
 }
 
 void EvalState::mkPos(Value & v, PosIdx p)

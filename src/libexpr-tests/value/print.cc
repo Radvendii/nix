@@ -470,7 +470,7 @@ TEST_F(ValuePrintingTests, ansiColorsAssert)
     ExprAssert expr(noPos, &eFalse, &eInt);
 
     Value v;
-    state.mkThunk_(v, &expr);
+    state.mkThunk_(state.VPtoVR(&v), &expr);
 
     test(v, ANSI_RED "«error: assertion 'false' failed»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 }

@@ -873,7 +873,7 @@ public:
      */
     Value * getBool(bool b);
 
-    void mkThunk_(Value & v, Expr * expr);
+    void mkThunk_(ValueRef v, Expr * expr);
     void mkPos(Value & v, PosIdx pos);
 
     /**
