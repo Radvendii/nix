@@ -491,11 +491,11 @@ void EvalState::allowClosure(const StorePath & storePath)
         allowPath(p);
 }
 
-void EvalState::allowAndSetStorePathString(const StorePath & storePath, Value & v)
+void EvalState::allowAndSetStorePathString(const StorePath & storePath, ValueRef v)
 {
     allowPath(storePath);
 
-    mkStorePathString(storePath, v);
+    mkStorePathString(storePath, VRtoV(v));
 }
 
 inline static bool isJustSchemePrefix(std::string_view prefix)

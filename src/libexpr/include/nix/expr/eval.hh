@@ -526,7 +526,7 @@ public:
     /**
      * Allow access to a store path and return it as a string.
      */
-    void allowAndSetStorePathString(const StorePath & storePath, Value & v);
+    void allowAndSetStorePathString(const StorePath & storePath, ValueRef v);
 
     void checkURI(const std::string & uri);
 

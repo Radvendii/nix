@@ -2550,7 +2550,7 @@ static void prim_toFile(EvalState & state, const PosIdx pos, ValueRef * args, Va
        used in args[1]. */
 
     /* Add the output of this to the allowed paths. */
-    state.allowAndSetStorePathString(storePath, state.VRtoV(v));
+    state.allowAndSetStorePathString(storePath, v);
 }
 
 static RegisterPrimOp primop_toFile({
@@ -2692,9 +2692,9 @@ static void addPath(
                 state.error<EvalError>("store path mismatch in (possibly filtered) path added from '%s'", path)
                     .atPos(pos)
                     .debugThrow();
-            state.allowAndSetStorePathString(dstPath, v);
+            state.allowAndSetStorePathString(dstPath, state.VPtoVR(&v));
         } else
-            state.allowAndSetStorePathString(*expectedStorePath, v);
+            state.allowAndSetStorePathString(*expectedStorePath, state.VPtoVR(&v));
     } catch (Error & e) {
         e.addTrace(state.positions[pos], "while adding path '%s'", path);
         throw;

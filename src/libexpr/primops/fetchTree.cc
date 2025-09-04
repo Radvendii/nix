@@ -562,7 +562,7 @@ static void fetch(
                 .references = {}});
 
         if (state.store->isValidPath(expectedPath)) {
-            state.allowAndSetStorePathString(expectedPath, state.VRtoV(v));
+            state.allowAndSetStorePathString(expectedPath, v);
             return;
         }
     }
@@ -592,7 +592,7 @@ static void fetch(
         }
     }
 
-    state.allowAndSetStorePathString(storePath, state.VRtoV(v));
+    state.allowAndSetStorePathString(storePath, v);
 }
 
 static void prim_fetchurl(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
