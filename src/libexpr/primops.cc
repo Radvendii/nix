@@ -2952,7 +2952,7 @@ static void prim_unsafeGetAttrPos(EvalState & state, const PosIdx pos, ValueRef 
     if (i == state.VRtoVP(args[1])->attrs()->end())
         state.VRtoV(v).mkNull();
     else
-        state.mkPos(state.VRtoV(v), i->pos);
+        state.mkPos(v, i->pos);
 }
 
 static RegisterPrimOp primop_unsafeGetAttrPos(

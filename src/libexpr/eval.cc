@@ -1097,16 +1097,16 @@ void EvalState::mkThunk_(ValueRef v, Expr * expr)
     mkThunk(VRtoV(v), baseEnv, expr);
 }
 
-void EvalState::mkPos(Value & v, PosIdx p)
+void EvalState::mkPos(ValueRef v, PosIdx p)
 {
     auto origin = positions.originOf(p);
     if (auto path = std::get_if<SourcePath>(&origin)) {
         auto attrs = buildBindings(3);
         attrs.alloc(sFile).mkString(path->path.abs());
         makePositionThunks(*this, p, VPtoVR(&attrs.alloc(sLine)), VPtoVR(&attrs.alloc(sColumn)));
-        v.mkAttrs(attrs);
+        VRtoV(v).mkAttrs(attrs);
     } else
-        v.mkNull();
+        VRtoV(v).mkNull();
 }
 
 void EvalState::mkStorePathString(const StorePath & p, Value & v)
@@ -2233,7 +2233,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
 
 void ExprPos::eval(EvalState & state, Env & env, Value & v)
 {
-    state.mkPos(v, pos);
+    state.mkPos(state.VPtoVR(&v), pos);
 }
 
 void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] Env & env, Value & v)

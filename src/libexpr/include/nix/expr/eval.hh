@@ -874,7 +874,7 @@ public:
     Value * getBool(bool b);
 
     void mkThunk_(ValueRef v, Expr * expr);
-    void mkPos(Value & v, PosIdx pos);
+    void mkPos(ValueRef v, PosIdx pos);
 
     /**
      * Create a string representing a store path.
