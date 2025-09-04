@@ -124,7 +124,7 @@ bool createUserEnv(
         state.parseExprFromString(
 #include "buildenv.nix.gen.hh"
             , state.rootPath(CanonPath::root)),
-        envBuilder);
+        state.VPtoVR(&envBuilder));
 
     /* Construct a Nix expression that calls the user environment
        builder with the manifest as argument. */

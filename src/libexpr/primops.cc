@@ -237,7 +237,7 @@ void derivationToValue(
             state.parseExprFromString(
 #include "imported-drv-to-derivation.nix.gen.hh"
                 , state.rootPath(CanonPath::root)),
-            state.VRtoV(*state.vImportedDrvToDerivation));
+            *state.vImportedDrvToDerivation);
     }
 
     state.forceFunction(
@@ -469,7 +469,7 @@ void prim_exec(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
         throw;
     }
     try {
-        state.eval(parsed, state.VRtoV(v));
+        state.eval(parsed, v);
     } catch (Error & e) {
         e.addTrace(state.positions[pos], "while evaluating the output from '%1%'", program);
         throw;

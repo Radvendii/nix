@@ -573,7 +573,7 @@ public:
      *
      * @param [out] v The resulting is stored here.
      */
-    void eval(Expr * e, Value & v);
+    void eval(Expr * e, ValueRef v);
 
     /**
      * Evaluation the expression, then verify that it has the expected

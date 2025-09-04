@@ -38,7 +38,7 @@ protected:
         Value v;
         Expr * e = state.parseExprFromString(input, state.rootPath(CanonPath::root));
         assert(e);
-        state.eval(e, v);
+        state.eval(e, state.VPtoVR(&v));
         if (forceValue)
             state.forceValue(v, noPos);
         return v;

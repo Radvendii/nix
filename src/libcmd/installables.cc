@@ -260,7 +260,7 @@ void SourceExprCommand::completeInstallable(AddCompletions & completions, std::s
             auto e = state->parseExprFromFile(resolveExprPath(lookupFileArg(*state, *file)));
 
             Value root;
-            state->eval(e, root);
+            state->eval(e, state->VPtoVR(&root));
 
             auto autoArgs = getAutoArgs(*state);
 
@@ -493,14 +493,14 @@ Installables SourceExprCommand::parseInstallables(ref<Store> store, std::vector<
 
         if (file == "-") {
             auto e = state->parseStdin();
-            state->eval(e, *state->VRtoVP(vFile));
+            state->eval(e, vFile);
         } else if (file) {
             auto dir = absPath(getCommandBaseDir());
             state->evalFile(lookupFileArg(*state, *file, &dir), vFile);
         } else {
             Path dir = absPath(getCommandBaseDir());
             auto e = state->parseExprFromString(*expr, state->rootPath(dir));
-            state->eval(e, *state->VRtoVP(vFile));
+            state->eval(e, vFile);
         }
 
         for (auto & s : ss) {

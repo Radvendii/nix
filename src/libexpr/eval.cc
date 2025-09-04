@@ -1262,7 +1262,7 @@ void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial
         // computation.
         if (mustBeTrivial && !(dynamic_cast<ExprAttrs *>(e)))
             error<EvalError>("file '%s' must be an attribute set", path).debugThrow();
-        eval(e, VRtoV(v));
+        eval(e, v);
     } catch (Error & e) {
         addErrorTrace(e, "while evaluating the file '%1%':", resolvedPath.to_string());
         throw;
@@ -1280,9 +1280,9 @@ void EvalState::resetFileCache()
     inputCache->clear();
 }
 
-void EvalState::eval(Expr * e, Value & v)
+void EvalState::eval(Expr * e, ValueRef v)
 {
-    e->eval(*this, baseEnv, v);
+    e->eval(*this, baseEnv, VRtoV(v));
 }
 
 inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::string_view errorCtx)

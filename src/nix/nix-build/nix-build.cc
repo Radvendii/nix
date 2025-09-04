@@ -408,7 +408,7 @@ static void main_nix_build(int argc, char ** argv)
 
     for (auto e : exprs) {
         Value vRoot;
-        state->eval(e, vRoot);
+        state->eval(e, state->VPtoVR(&vRoot));
 
         std::function<bool(const Value & v)> takesNixShellAttr;
         takesNixShellAttr = [&](const Value & v) {
@@ -468,7 +468,7 @@ static void main_nix_build(int argc, char ** argv)
                 auto expr = state->parseExprFromString("(import <nixpkgs> {}).bashInteractive", state->rootPath("."));
 
                 Value v;
-                state->eval(expr, v);
+                state->eval(expr, state->VPtoVR(&v));
 
                 auto drv = getDerivation(*state, v, false);
                 if (!drv)

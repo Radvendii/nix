@@ -42,7 +42,7 @@ void processExpr(
     }
 
     Value vRoot;
-    state.eval(e, vRoot);
+    state.eval(e, state.VPtoVR(&vRoot));
 
     for (auto & i : attrPaths) {
         Value & v(*findAlongAttrPath(state, i, autoArgs, vRoot).first);

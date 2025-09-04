@@ -37,7 +37,7 @@ std::string resolveMirrorUrl(EvalState & state, const std::string & url)
     state.eval(
         state.parseExprFromString(
             "import <nixpkgs/pkgs/build-support/fetchurl/mirrors.nix>", state.rootPath(CanonPath::root)),
-        vMirrors);
+        state.VPtoVR(&vMirrors));
     state.forceAttrs(vMirrors, noPos, "while evaluating the set of all mirrors");
 
     auto mirrorList = vMirrors.attrs()->get(state.symbols.create(mirrorName));

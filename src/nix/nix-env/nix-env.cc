@@ -399,7 +399,7 @@ static void queryInstSources(
         for (auto & i : args) {
             Expr * eFun = state.parseExprFromString(i, state.rootPath("."));
             Value vFun, vTmp;
-            state.eval(eFun, vFun);
+            state.eval(eFun, state.VPtoVR(&vFun));
             vTmp.mkApp(state, &vFun, &vArg);
             getDerivations(state, vTmp, "", *instSource.autoArgs, elems, true);
         }
