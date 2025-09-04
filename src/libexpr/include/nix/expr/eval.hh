@@ -789,7 +789,7 @@ public:
      *
      * @param v The value to get the documentation for.
      */
-    std::optional<Doc> getDoc(Value & v);
+    std::optional<Doc> getDoc(ValueRef v);
 
 private:
 

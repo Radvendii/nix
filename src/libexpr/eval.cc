@@ -665,21 +665,21 @@ ValueRef EvalState::getBuiltin(const std::string & name)
         error<EvalError>("builtin '%1%' not found", name).debugThrow();
 }
 
-std::optional<EvalState::Doc> EvalState::getDoc(Value & v)
+std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
 {
-    if (v.isPrimOp()) {
-        auto v2 = &v;
-        if (auto * doc = v2->primOp()->doc)
+    if (VRtoV(v).isPrimOp()) {
+        auto v2 = v;
+        if (auto * doc = VRtoVP(v2)->primOp()->doc)
             return Doc{
                 .pos = {},
-                .name = v2->primOp()->name,
-                .arity = v2->primOp()->arity,
-                .args = v2->primOp()->args,
+                .name = VRtoVP(v2)->primOp()->name,
+                .arity = VRtoVP(v2)->primOp()->arity,
+                .args = VRtoVP(v2)->primOp()->args,
                 .doc = doc,
             };
     }
-    if (v.isLambda()) {
-        auto exprLambda = v.lambda().fun;
+    if (VRtoV(v).isLambda()) {
+        auto exprLambda = VRtoV(v).lambda().fun;
 
         std::ostringstream s;
         std::string name;
@@ -720,19 +720,19 @@ std::optional<EvalState::Doc> EvalState::getDoc(Value & v)
             .doc = makeImmutableString(toView(s)), // NOTE: memory leak when compiled without GC
         };
     }
-    if (isFunctor(v)) {
+    if (isFunctor(VRtoV(v))) {
         try {
-            Value & functor = *VRtoVP(v.attrs()->find(sFunctor)->value);
-            ValueRef vp[] = {VPtoVR(&v)};
+            ValueRef functor = VRtoV(v).attrs()->find(sFunctor)->value;
+            ValueRef vp[] = {v};
             Value partiallyApplied;
             // The first parameter is not user-provided, and may be
             // handled by code that is opaque to the user, like lib.const = x: y: y;
             // So preferably we show docs that are relevant to the
             // "partially applied" function returned by e.g. `const`.
             // We apply the first argument:
-            callFunction(functor, vp, partiallyApplied, noPos);
+            callFunction(VRtoV(functor), vp, partiallyApplied, noPos);
             auto _level = addCallDepth(noPos);
-            return getDoc(partiallyApplied);
+            return getDoc(VPtoVR(&partiallyApplied));
         } catch (Error & e) {
             e.addTrace(nullptr, "while partially calling '%1%' to retrieve documentation", "__functor");
             throw;

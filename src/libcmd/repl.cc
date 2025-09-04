@@ -648,7 +648,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         }
 
         evalString(arg, v);
-        if (auto doc = state->getDoc(v)) {
+        if (auto doc = state->getDoc(state->VPtoVR(&v))) {
             std::string markdown;
 
             if (!doc->args.empty() && doc->name) {
