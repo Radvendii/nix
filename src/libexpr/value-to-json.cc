@@ -48,7 +48,7 @@ json printValueAsJSON(
         break;
 
     case nAttrs: {
-        auto maybeString = state.tryAttrsToString(pos, v, context, false, false);
+        auto maybeString = state.tryAttrsToString(pos, state.VPtoVR(&v), context, false, false);
         if (maybeString) {
             out = *maybeString;
             break;

@@ -2447,12 +2447,12 @@ bool EvalState::isDerivation(ValueRef v)
 }
 
 std::optional<std::string>
-EvalState::tryAttrsToString(const PosIdx pos, Value & v, NixStringContext & context, bool coerceMore, bool copyToStore)
+EvalState::tryAttrsToString(const PosIdx pos, ValueRef v, NixStringContext & context, bool coerceMore, bool copyToStore)
 {
-    auto i = v.attrs()->find(sToString);
-    if (i != v.attrs()->end()) {
+    auto i = VRtoV(v).attrs()->find(sToString);
+    if (i != VRtoV(v).attrs()->end()) {
         Value v1;
-        callFunction(*VRtoVP(i->value), VPtoVR(&v), v1, pos);
+        callFunction(*VRtoVP(i->value), v, v1, pos);
         return coerceToString(
                    pos,
                    v1,
@@ -2492,7 +2492,7 @@ BackedStringView EvalState::coerceToString(
     }
 
     if (v.type() == nAttrs) {
-        auto maybeString = tryAttrsToString(pos, v, context, coerceMore, copyToStore);
+        auto maybeString = tryAttrsToString(pos, VPtoVR(&v), context, coerceMore, copyToStore);
         if (maybeString)
             return std::move(*maybeString);
         auto i = v.attrs()->find(sOutPath);

@@ -645,7 +645,7 @@ public:
     bool isDerivation(ValueRef v);
 
     std::optional<std::string> tryAttrsToString(
-        const PosIdx pos, Value & v, NixStringContext & context, bool coerceMore = false, bool copyToStore = true);
+        const PosIdx pos, ValueRef v, NixStringContext & context, bool coerceMore = false, bool copyToStore = true);
 
     /**
      * String coercion.
