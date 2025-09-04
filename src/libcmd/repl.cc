@@ -526,7 +526,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
     else if (command == ":t") {
         Value v;
         evalString(arg, v);
-        logger->cout(showType(*state, v));
+        logger->cout(showType(*state, state->VPtoVR(&v)));
     }
 
     else if (command == ":u") {

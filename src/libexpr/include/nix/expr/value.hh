@@ -571,7 +571,7 @@ static_assert(std::random_access_iterator<ListView::iterator>);
 
 struct Value : public ValueStorage<sizeof(void *)>
 {
-    friend std::string showType(EvalState & state, const Value & v);
+    friend std::string showType(EvalState & state, const ValueRef v);
 
     template<InternalType... discriminator>
     bool isa() const noexcept

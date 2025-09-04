@@ -468,7 +468,7 @@ struct CmdFlakeCheck : FlakeCommand
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking overlay '%s'", attrPath));
                 state->forceValue(state->VPtoVR(&v), pos);
                 if (!v.isLambda()) {
-                    throw Error("overlay is not a function, but %s instead", showType(*state, v));
+                    throw Error("overlay is not a function, but %s instead", showType(*state, state->VPtoVR(&v)));
                 }
                 if (v.lambda().fun->hasFormals() || !argHasName(v.lambda().fun->arg, "final"))
                     throw Error("overlay does not take an argument named 'final'");

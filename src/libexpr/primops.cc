@@ -47,10 +47,10 @@ static inline Value * mkString(EvalState & state, const std::csub_match & match)
     return state.VRtoVP(v);
 }
 
-std::string EvalState::realiseString(Value & s, StorePathSet * storePathsOutMaybe, bool isIFD, const PosIdx pos)
+std::string EvalState::realiseString(ValueRef s, StorePathSet * storePathsOutMaybe, bool isIFD, const PosIdx pos)
 {
     nix::NixStringContext stringContext;
-    auto rawStr = coerceToString(pos, VPtoVR(&s), stringContext, "while realising a string").toOwned();
+    auto rawStr = coerceToString(pos, s, stringContext, "while realising a string").toOwned();
     auto rewrites = realiseContext(stringContext, storePathsOutMaybe, isIFD);
 
     return nix::rewriteStrings(rawStr, rewrites);
@@ -681,7 +681,7 @@ struct CompareValues
             if (state.VRtoVP(v1)->type() == nInt && state.VRtoVP(v2)->type() == nFloat)
                 return state.VRtoVP(v1)->integer().value < state.VRtoVP(v2)->fpoint();
             if (state.VRtoVP(v1)->type() != state.VRtoVP(v2)->type())
-                state.error<EvalError>("cannot compare %s with %s", showType(state, *state.VRtoVP(v1)), showType(state, *state.VRtoVP(v2))).debugThrow();
+                state.error<EvalError>("cannot compare %s with %s", showType(state, v1), showType(state, v2)).debugThrow();
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch-enum"
@@ -711,7 +711,7 @@ struct CompareValues
             default:
                 state
                     .error<EvalError>(
-                        "cannot compare %s with %s; values of that type are incomparable", showType(state, *state.VRtoVP(v1)), showType(state, *state.VRtoVP(v2)))
+                        "cannot compare %s with %s; values of that type are incomparable", showType(state, v1), showType(state, v2))
                     .debugThrow();
 #pragma GCC diagnostic pop
             }

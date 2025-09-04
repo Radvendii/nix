@@ -97,7 +97,7 @@ json printValueAsJSON(
 
     case nThunk:
     case nFunction:
-        state.error<TypeError>("cannot convert %1% to JSON", showType(state, v)).atPos(v.determinePos(state, pos)).debugThrow();
+        state.error<TypeError>("cannot convert %1% to JSON", showType(state, state.VPtoVR(&v))).atPos(v.determinePos(state, pos)).debugThrow();
     }
     return out;
 }

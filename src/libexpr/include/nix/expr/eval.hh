@@ -957,8 +957,9 @@ public:
      * @return the realised string
      * @throw EvalError if the value is not a string, path or derivation (see `coerceToString`)
      */
+     // XXX [speed]: only used in a test, that we've disabled for now
     std::string
-    realiseString(Value & str, StorePathSet * storePathsOutMaybe, bool isIFD = true, const PosIdx pos = noPos);
+    realiseString(ValueRef str, StorePathSet * storePathsOutMaybe, bool isIFD = true, const PosIdx pos = noPos);
 
     /* Call the binary path filter predicate used builtins.path etc. */
     bool callPathFilter(Value * filterFun, const SourcePath & path, PosIdx pos);
@@ -1048,7 +1049,7 @@ struct DebugTraceStacker
  * integer" vs "integer".
  */
 std::string_view showType(ValueType type, bool withArticle = true);
-std::string showType(EvalState & state, const Value & v);
+std::string showType(EvalState & state, const ValueRef v);
 
 /**
  * If `path` refers to a directory, then append "/default.nix".

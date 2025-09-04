@@ -93,7 +93,7 @@ static void parseFlakeInputAttr(EvalState & state, const Attr & attr, fetchers::
                 .error<TypeError>(
                     "flake input attribute '%s' is %s while a string, Boolean, or integer is expected",
                     state.symbols[attr.name],
-                    showType(state, *state.VRtoVP(attr.value)))
+                    showType(state, attr.value))
                 .debugThrow();
     }
 #pragma GCC diagnostic pop
@@ -291,7 +291,7 @@ static Flake readFlake(
                             .error<TypeError>(
                                 "list element in flake configuration setting '%s' is %s while a string is expected",
                                 state.symbols[setting.name],
-                                showType(state, *state.VRtoVP(setting.value)))
+                                showType(state, setting.value))
                             .debugThrow();
                     ss.emplace_back(state.forceStringNoCtx(elem, setting.pos, ""));
                 }
@@ -299,7 +299,7 @@ static Flake readFlake(
             } else
                 state
                     .error<TypeError>(
-                        "flake configuration setting '%s' is %s", state.symbols[setting.name], showType(state, *state.VRtoVP(setting.value)))
+                        "flake configuration setting '%s' is %s", state.symbols[setting.name], showType(state, setting.value))
                     .debugThrow();
         }
     }

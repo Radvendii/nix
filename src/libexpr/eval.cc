@@ -187,26 +187,26 @@ std::string_view showType(ValueType type, bool withArticle)
     unreachable();
 }
 
-std::string showType(EvalState & state, const Value & v)
+std::string showType(EvalState & state, const ValueRef v)
 {
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch-enum"
-    switch (v.getInternalType()) {
+    switch (state.VRtoV(v).getInternalType()) {
     case tString:
-        return v.context() ? "a string with context" : "a string";
+        return state.VRtoV(v).context() ? "a string with context" : "a string";
     case tPrimOp:
-        return fmt("the built-in function '%s'", std::string(v.primOp()->name));
+        return fmt("the built-in function '%s'", std::string(state.VRtoV(v).primOp()->name));
     case tPrimOpApp:
-        return fmt("the partially applied built-in function '%s'", v.primOpAppPrimOp(state)->name);
+        return fmt("the partially applied built-in function '%s'", state.VRtoV(v).primOpAppPrimOp(state)->name);
     case tExternal:
-        return v.external()->showType();
+        return state.VRtoV(v).external()->showType();
     case tThunk:
-        return v.isBlackhole() ? "a black hole" : "a thunk";
+        return state.VRtoV(v).isBlackhole() ? "a black hole" : "a thunk";
     case tApp:
         return "a function application";
     default:
-        return std::string(showType(v.type()));
+        return std::string(showType(state.VRtoV(v).type()));
     }
 #pragma GCC diagnostic pop
 }
@@ -1292,7 +1292,7 @@ inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::stri
         e->eval(*this, env, v);
         if (v.type() != nBool)
             error<TypeError>(
-                "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a Boolean but found %1%: %2%", showType(*this, VPtoVR(&v)), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .withFrame(env, *e)
                 .debugThrow();
@@ -1309,7 +1309,7 @@ inline void EvalState::evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx p
         e->eval(*this, env, VRtoV(v));
         if (VRtoV(v).type() != nAttrs)
             error<TypeError>(
-                "expected a set but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .withFrame(env, *e)
                 .debugThrow();
     } catch (Error & e) {
@@ -1859,7 +1859,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
         else
             error<TypeError>(
                 "attempt to call something which is not a function but %1%: %2%",
-                showType(*this, vCur),
+                showType(*this, VPtoVR(&vCur)),
                 ValuePrinter(*this, vCur, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
@@ -2187,7 +2187,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
                 nf = n.value;
                 nf += vTmp.fpoint();
             } else
-                state.error<EvalError>("cannot add %1% to an integer", showType(state, vTmp))
+                state.error<EvalError>("cannot add %1% to an integer", showType(state, state.VPtoVR(&vTmp)))
                     .atPos(i_pos)
                     .withFrame(env, *this)
                     .debugThrow();
@@ -2197,7 +2197,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
             } else if (vTmp.type() == nFloat) {
                 nf += vTmp.fpoint();
             } else
-                state.error<EvalError>("cannot add %1% to a float", showType(state, vTmp))
+                state.error<EvalError>("cannot add %1% to a float", showType(state, state.VPtoVR(&vTmp)))
                     .atPos(i_pos)
                     .withFrame(env, *this)
                     .debugThrow();
@@ -2309,7 +2309,7 @@ NixInt EvalState::forceInt(ValueRef v, const PosIdx pos, std::string_view errorC
         forceValue(v, pos);
         if (VRtoV(v).type() != nInt)
             error<TypeError>(
-                "expected an integer but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected an integer but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return VRtoV(v).integer();
@@ -2329,7 +2329,7 @@ NixFloat EvalState::forceFloat(ValueRef v, const PosIdx pos, std::string_view er
             return VRtoV(v).integer().value;
         else if (VRtoV(v).type() != nFloat)
             error<TypeError>(
-                "expected a float but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a float but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return VRtoV(v).fpoint();
@@ -2345,7 +2345,7 @@ bool EvalState::forceBool(ValueRef v, const PosIdx pos, std::string_view errorCt
         forceValue(v, pos);
         if (VRtoV(v).type() != nBool)
             error<TypeError>(
-                "expected a Boolean but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return VRtoV(v).boolean();
@@ -2377,7 +2377,7 @@ void EvalState::forceFunction(ValueRef v, const PosIdx pos, std::string_view err
         forceValue(v, pos);
         if (VRtoV(v).type() != nFunction && !isFunctor(v))
             error<TypeError>(
-                "expected a function but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a function but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
     } catch (Error & e) {
@@ -2392,7 +2392,7 @@ std::string_view EvalState::forceString(ValueRef v, const PosIdx pos, std::strin
         forceValue(v, pos);
         if (VRtoV(v).type() != nString)
             error<TypeError>(
-                "expected a string but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "expected a string but found %1%: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
         return VRtoV(v).string_view();
@@ -2498,7 +2498,7 @@ BackedStringView EvalState::coerceToString(
         auto i = VRtoV(v).attrs()->find(sOutPath);
         if (i == VRtoV(v).attrs()->end()) {
             error<TypeError>(
-                "cannot coerce %1% to a string: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+                "cannot coerce %1% to a string: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .withTrace(pos, errorCtx)
                 .debugThrow();
         }
@@ -2554,7 +2554,7 @@ BackedStringView EvalState::coerceToString(
         }
     }
 
-    error<TypeError>("cannot coerce %1% to a string: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
+    error<TypeError>("cannot coerce %1% to a string: %2%", showType(*this, v), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
         .withTrace(pos, errorCtx)
         .debugThrow();
 }
@@ -2705,9 +2705,9 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         } else {
             error<AssertionError>(
                 "%s with value '%s' is not equal to %s with value '%s'",
-                showType(*this, VRtoV(v1)),
+                showType(*this, v1),
                 ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-                showType(*this, VRtoV(v2)),
+                showType(*this, v2),
                 ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                 .debugThrow();
         }
@@ -2716,9 +2716,9 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
     if (VRtoV(v1).type() != VRtoV(v2).type()) {
         error<AssertionError>(
             "%s of value '%s' is not equal to %s of value '%s'",
-            showType(*this, VRtoV(v1)),
+            showType(*this, v1),
             ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
-            showType(*this, VRtoV(v2)),
+            showType(*this, v2),
             ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
             .debugThrow();
     }
@@ -2888,7 +2888,7 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         // Also note that this probably ran after `eqValues`, which implements
         // the same logic more efficiently (without having to unwind stacks),
         // so maybe `assertEqValues` and `eqValues` are out of sync. Check it for solutions.
-        error<EvalError>("assertEqValues: cannot compare %1% with %2%", showType(*this, VRtoV(v1)), showType(*this, VRtoV(v2)))
+        error<EvalError>("assertEqValues: cannot compare %1% with %2%", showType(*this, v1), showType(*this, v2))
             .withTrace(pos, errorCtx)
             .panic();
     }
@@ -2979,7 +2979,7 @@ bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string
     case nThunk: // Must not be left by forceValue
         assert(false);
     default: // Note that we pass compiler flags that should make `default:` unreachable.
-        error<EvalError>("eqValues: cannot compare %1% with %2%", showType(*this, VRtoV(v1)), showType(*this, VRtoV(v2)))
+        error<EvalError>("eqValues: cannot compare %1% with %2%", showType(*this, v1), showType(*this, v2))
             .withTrace(pos, errorCtx)
             .panic();
     }
