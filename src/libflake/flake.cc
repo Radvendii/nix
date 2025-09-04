@@ -223,7 +223,7 @@ static Flake readFlake(
 
     // NOTE evalFile forces vInfo to be an attrset because mustBeTrivial is true.
     Value vInfo;
-    state.evalFile(flakePath, vInfo, true);
+    state.evalFile(flakePath, state.VPtoVR(&vInfo), true);
 
     Flake flake{
         .originalRef = originalRef,
@@ -884,7 +884,7 @@ static Value * requireInternalFile(EvalState & state, CanonPath path)
 {
     SourcePath p{internalFS, path};
     auto v = state.allocValue();
-    state.evalFile(p, *state.VRtoVP(v)); // has caching
+    state.evalFile(p, v); // has caching
     return state.VRtoVP(v);
 }
 

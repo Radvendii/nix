@@ -549,7 +549,7 @@ public:
      * form. Optionally enforce that the top-level expression is
      * trivial (i.e. doesn't require arbitrary computation).
      */
-    void evalFile(const SourcePath & path, Value & v, bool mustBeTrivial = false);
+    void evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial = false);
 
     void resetFileCache();
 

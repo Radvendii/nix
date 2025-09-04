@@ -148,7 +148,7 @@ static void loadSourceExpr(EvalState & state, const SourcePath & path, Value & v
     auto st = path.resolveSymlinks().lstat();
 
     if (isNixExpr(path, st))
-        state.evalFile(path, v);
+        state.evalFile(path, state.VPtoVR(&v));
 
     /* The path is a directory.  Put the Nix expressions in the
        directory in a set, with the file name of each expression as

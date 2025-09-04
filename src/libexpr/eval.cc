@@ -1222,17 +1222,17 @@ Value * ExprPath::maybeThunk(EvalState & state, Env & env)
     return &state.VRtoV(v);
 }
 
-void EvalState::evalFile(const SourcePath & path, Value & v, bool mustBeTrivial)
+void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial)
 {
     FileEvalCache::iterator i;
     if ((i = fileEvalCache.find(path)) != fileEvalCache.end()) {
-        v = i->second;
+        VRtoV(v) = i->second;
         return;
     }
 
     auto resolvedPath = resolveExprPath(path);
     if ((i = fileEvalCache.find(resolvedPath)) != fileEvalCache.end()) {
-        v = i->second;
+        VRtoV(v) = i->second;
         return;
     }
 
@@ -1262,15 +1262,15 @@ void EvalState::evalFile(const SourcePath & path, Value & v, bool mustBeTrivial)
         // computation.
         if (mustBeTrivial && !(dynamic_cast<ExprAttrs *>(e)))
             error<EvalError>("file '%s' must be an attribute set", path).debugThrow();
-        eval(e, v);
+        eval(e, VRtoV(v));
     } catch (Error & e) {
         addErrorTrace(e, "while evaluating the file '%1%':", resolvedPath.to_string());
         throw;
     }
 
-    fileEvalCache.emplace(resolvedPath, v);
+    fileEvalCache.emplace(resolvedPath, VRtoV(v));
     if (path != resolvedPath)
-        fileEvalCache.emplace(path, v);
+        fileEvalCache.emplace(path, VRtoV(v));
 }
 
 void EvalState::resetFileCache()

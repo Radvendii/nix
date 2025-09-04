@@ -496,7 +496,7 @@ Installables SourceExprCommand::parseInstallables(ref<Store> store, std::vector<
             state->eval(e, *state->VRtoVP(vFile));
         } else if (file) {
             auto dir = absPath(getCommandBaseDir());
-            state->evalFile(lookupFileArg(*state, *file, &dir), *state->VRtoVP(vFile));
+            state->evalFile(lookupFileArg(*state, *file, &dir), vFile);
         } else {
             Path dir = absPath(getCommandBaseDir());
             auto e = state->parseExprFromString(*expr, state->rootPath(dir));

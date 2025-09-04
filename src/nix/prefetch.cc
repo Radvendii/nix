@@ -203,7 +203,7 @@ static int main_nix_prefetch_url(int argc, char ** argv)
             url = args[0];
         } else {
             Value vRoot;
-            state->evalFile(resolveExprPath(lookupFileArg(*state, args.empty() ? "." : args[0])), vRoot);
+            state->evalFile(resolveExprPath(lookupFileArg(*state, args.empty() ? "." : args[0])), state->VPtoVR(&vRoot));
             Value & v(*findAlongAttrPath(*state, attrPath, autoArgs, vRoot).first);
             state->forceAttrs(v, noPos, "while evaluating the source attribute to prefetch");
 

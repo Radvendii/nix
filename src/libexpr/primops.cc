@@ -301,7 +301,7 @@ static void import(EvalState & state, const PosIdx pos, Value & vPath, Value * v
     } else if (vScope) {
         scopedImport(state, pos, path, vScope, v);
     } else {
-        state.evalFile(path, state.VRtoV(v));
+        state.evalFile(path, v);
     }
 }
 
@@ -5262,7 +5262,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
 
     /* Note: we have to initialize the 'derivation' constant *after*
        building baseEnv/staticBaseEnv because it uses 'builtins'. */
-    evalFile(derivationInternal, *VRtoVP(vDerivation));
+    evalFile(derivationInternal, vDerivation);
 }
 
 } // namespace nix
