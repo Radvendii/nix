@@ -602,28 +602,28 @@ public:
     /**
      * Force `v`, and then verify that it has the expected type.
      */
-    NixInt forceInt(Value & v, const PosIdx pos, std::string_view errorCtx);
-    NixFloat forceFloat(Value & v, const PosIdx pos, std::string_view errorCtx);
-    bool forceBool(Value & v, const PosIdx pos, std::string_view errorCtx);
+    NixInt forceInt(ValueRef v, const PosIdx pos, std::string_view errorCtx);
+    NixFloat forceFloat(ValueRef v, const PosIdx pos, std::string_view errorCtx);
+    bool forceBool(ValueRef v, const PosIdx pos, std::string_view errorCtx);
 
-    void forceAttrs(Value & v, const PosIdx pos, std::string_view errorCtx);
+    void forceAttrs(ValueRef v, const PosIdx pos, std::string_view errorCtx);
 
     template<typename Callable>
-    inline void forceAttrs(Value & v, Callable getPos, std::string_view errorCtx);
+    inline void forceAttrs(ValueRef v, Callable getPos, std::string_view errorCtx);
 
-    inline void forceList(Value & v, const PosIdx pos, std::string_view errorCtx);
+    inline void forceList(ValueRef v, const PosIdx pos, std::string_view errorCtx);
     /**
      * @param v either lambda or primop
      */
-    void forceFunction(Value & v, const PosIdx pos, std::string_view errorCtx);
-    std::string_view forceString(Value & v, const PosIdx pos, std::string_view errorCtx);
+    void forceFunction(ValueRef v, const PosIdx pos, std::string_view errorCtx);
+    std::string_view forceString(ValueRef v, const PosIdx pos, std::string_view errorCtx);
     std::string_view forceString(
-        Value & v,
+        ValueRef v,
         NixStringContext & context,
         const PosIdx pos,
         std::string_view errorCtx,
         const ExperimentalFeatureSettings & xpSettings = experimentalFeatureSettings);
-    std::string_view forceStringNoCtx(Value & v, const PosIdx pos, std::string_view errorCtx);
+    std::string_view forceStringNoCtx(ValueRef v, const PosIdx pos, std::string_view errorCtx);
 
     /**
      * Get attribute from an attribute set and throw an error if it doesn't exist.

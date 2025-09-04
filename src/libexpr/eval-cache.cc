@@ -342,7 +342,7 @@ Value & AttrCursor::getValue()
     if (!_value) {
         if (parent) {
             auto & vParent = parent->first->getValue();
-            root->state.forceAttrs(vParent, noPos, "while searching for an attribute");
+            root->state.forceAttrs(root->state.VPtoVR(&vParent), noPos, "while searching for an attribute");
             auto attr = vParent.attrs()->get(parent->second);
             if (!attr)
                 throw Error("attribute '%s' is unexpectedly missing", getAttrPathStr());
@@ -653,7 +653,7 @@ std::vector<std::string> AttrCursor::getListOfStrings()
 
     for (auto elem : v.listView())
         res.push_back(
-            std::string(root->state.forceStringNoCtx(*root->state.VRtoVP(elem), noPos, "while evaluating an attribute for caching")));
+            std::string(root->state.forceStringNoCtx(elem, noPos, "while evaluating an attribute for caching")));
 
     if (root->db)
         cachedValue = {root->db->setListOfStrings(getKey(), res), res};

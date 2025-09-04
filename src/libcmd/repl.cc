@@ -289,7 +289,7 @@ StringSet NixRepl::completePrefix(const std::string & prefix)
             Value v;
             e->eval(*state, *env, v);
             state->forceAttrs(
-                v,
+                state->VPtoVR(&v),
                 noPos,
                 "while evaluating an attrset for the purpose of completion (this error should not be displayed; file an issue?)");
 
@@ -628,7 +628,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
             auto name = select->evalExceptFinalSelect(*state, *env, vAttrs);
             fallbackName = state->symbols[name];
 
-            state->forceAttrs(vAttrs, noPos, "while evaluating an attribute set to look for documentation");
+            state->forceAttrs(state->VPtoVR(&vAttrs), noPos, "while evaluating an attribute set to look for documentation");
             auto attrs = vAttrs.attrs();
             assert(attrs);
             auto attr = attrs->get(name);
@@ -822,7 +822,7 @@ void NixRepl::loadFlakes()
 void NixRepl::addAttrsToScope(Value & attrs)
 {
     state->forceAttrs(
-        attrs,
+        state->VPtoVR(&attrs),
         [&]() { return attrs.determinePos(*state, noPos); },
         "while evaluating an attribute set to be merged in the global scope");
     if (displ + attrs.attrs()->size() >= envSize)

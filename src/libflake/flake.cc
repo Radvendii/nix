@@ -272,17 +272,17 @@ static Flake readFlake(
             forceTrivialValue(state, *state.VRtoVP(setting.value), setting.pos);
             if (state.VRtoVP(setting.value)->type() == nString)
                 flake.config.settings.emplace(
-                    state.symbols[setting.name], std::string(state.forceStringNoCtx(*state.VRtoVP(setting.value), setting.pos, "")));
+                    state.symbols[setting.name], std::string(state.forceStringNoCtx(setting.value, setting.pos, "")));
             else if (state.VRtoVP(setting.value)->type() == nPath) {
                 auto storePath =
                     fetchToStore(state.fetchSettings, *state.store, state.VRtoVP(setting.value)->path(), FetchMode::Copy);
                 flake.config.settings.emplace(state.symbols[setting.name], state.store->printStorePath(storePath));
             } else if (state.VRtoVP(setting.value)->type() == nInt)
                 flake.config.settings.emplace(
-                    state.symbols[setting.name], state.forceInt(*state.VRtoVP(setting.value), setting.pos, "").value);
+                    state.symbols[setting.name], state.forceInt(setting.value, setting.pos, "").value);
             else if (state.VRtoVP(setting.value)->type() == nBool)
                 flake.config.settings.emplace(
-                    state.symbols[setting.name], Explicit<bool>{state.forceBool(*state.VRtoVP(setting.value), setting.pos, "")});
+                    state.symbols[setting.name], Explicit<bool>{state.forceBool(setting.value, setting.pos, "")});
             else if (state.VRtoVP(setting.value)->type() == nList) {
                 std::vector<std::string> ss;
                 for (auto elem : state.VRtoVP(setting.value)->listView()) {
@@ -293,7 +293,7 @@ static Flake readFlake(
                                 state.symbols[setting.name],
                                 showType(state, *state.VRtoVP(setting.value)))
                             .debugThrow();
-                    ss.emplace_back(state.forceStringNoCtx(*state.VRtoVP(elem), setting.pos, ""));
+                    ss.emplace_back(state.forceStringNoCtx(elem, setting.pos, ""));
                 }
                 flake.config.settings.emplace(state.symbols[setting.name], ss);
             } else

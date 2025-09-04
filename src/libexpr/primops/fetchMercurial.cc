@@ -36,14 +36,14 @@ static void prim_fetchMercurial(EvalState & state, const PosIdx pos, ValueRef * 
                 // Ugly: unlike fetchGit, here the "rev" attribute can
                 // be both a revision or a branch/tag name.
                 auto value = state.forceStringNoCtx(
-                    *state.VRtoVP(attr.value), attr.pos, "while evaluating the `rev` attribute passed to builtins.fetchMercurial");
+                    attr.value, attr.pos, "while evaluating the `rev` attribute passed to builtins.fetchMercurial");
                 if (std::regex_match(value.begin(), value.end(), revRegex))
                     rev = Hash::parseAny(value, HashAlgorithm::SHA1);
                 else
                     ref = value;
             } else if (n == "name")
                 name = state.forceStringNoCtx(
-                    *state.VRtoVP(attr.value), attr.pos, "while evaluating the `name` attribute passed to builtins.fetchMercurial");
+                    attr.value, attr.pos, "while evaluating the `name` attribute passed to builtins.fetchMercurial");
             else
                 state.error<EvalError>("unsupported argument '%s' to 'fetchMercurial'", state.symbols[attr.name])
                     .atPos(attr.pos)

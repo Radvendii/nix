@@ -125,7 +125,7 @@ struct CmdBundle : InstallableValueCommand
             auto * attr = evalState->VRtoVP(vRes)->attrs()->get(evalState->sName);
             if (!attr)
                 throw Error("attribute 'name' missing");
-            outLink = evalState->forceStringNoCtx(*evalState->VRtoVP(attr->value), attr->pos, "");
+            outLink = evalState->forceStringNoCtx(attr->value, attr->pos, "");
         }
 
         // TODO: will crash if not a localFSStore?

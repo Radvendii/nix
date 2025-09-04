@@ -183,10 +183,10 @@ FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value
         if (primOp.name == "derivationStrict") {
             try {
                 /* Error context strings don't actually matter, since we ignore all eval errors. */
-                state.forceAttrs(*state.VRtoVP(args[0]), pos, "");
+                state.forceAttrs(args[0], pos, "");
                 auto attrs = state.VRtoVP(args[0])->attrs();
                 auto nameAttr = state.getAttr(state.sName, attrs, "");
-                auto drvName = std::string(state.forceStringNoCtx(*state.VRtoVP(nameAttr->value), pos, ""));
+                auto drvName = std::string(state.forceStringNoCtx(nameAttr->value, pos, ""));
                 return DerivationStrictFrameInfo{.callPos = pos, .drvName = std::move(drvName)};
             } catch (...) {
                 /* Ignore all errors, since those will be diagnosed by the evaluator itself. */

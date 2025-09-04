@@ -112,30 +112,30 @@ void EvalState::forceValue(ValueRef v, const PosIdx pos)
 }
 
 [[gnu::always_inline]]
-inline void EvalState::forceAttrs(Value & v, const PosIdx pos, std::string_view errorCtx)
+inline void EvalState::forceAttrs(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     forceAttrs(v, [&]() { return pos; }, errorCtx);
 }
 
 template<typename Callable>
 [[gnu::always_inline]]
-inline void EvalState::forceAttrs(Value & v, Callable getPos, std::string_view errorCtx)
+inline void EvalState::forceAttrs(ValueRef v, Callable getPos, std::string_view errorCtx)
 {
     PosIdx pos = getPos();
-    forceValue(VPtoVR(&v), pos);
-    if (v.type() != nAttrs) {
-        error<TypeError>("expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
+    forceValue(v, pos);
+    if (VRtoV(v).type() != nAttrs) {
+        error<TypeError>("expected a set but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
             .withTrace(pos, errorCtx)
             .debugThrow();
     }
 }
 
 [[gnu::always_inline]]
-inline void EvalState::forceList(Value & v, const PosIdx pos, std::string_view errorCtx)
+inline void EvalState::forceList(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
-    forceValue(VPtoVR(&v), pos);
-    if (!v.isList()) {
-        error<TypeError>("expected a list but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
+    forceValue(v, pos);
+    if (!VRtoV(v).isList()) {
+        error<TypeError>("expected a list but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
             .withTrace(pos, errorCtx)
             .debugThrow();
     }

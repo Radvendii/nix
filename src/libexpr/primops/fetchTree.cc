@@ -91,7 +91,7 @@ static void fetchTree(
     state.forceValue(args[0], pos);
 
     if (state.VRtoVP(args[0])->type() == nAttrs) {
-        state.forceAttrs(*state.VRtoVP(args[0]), pos, fmt("while evaluating the argument passed to '%s'", fetcher));
+        state.forceAttrs(args[0], pos, fmt("while evaluating the argument passed to '%s'", fetcher));
 
         fetchers::Attrs attrs;
 
@@ -99,7 +99,7 @@ static void fetchTree(
             if (type)
                 state.error<EvalError>("unexpected argument 'type'").atPos(pos).debugThrow();
             type = state.forceStringNoCtx(
-                *state.VRtoVP(aType->value), aType->pos, fmt("while evaluating the `type` argument passed to '%s'", fetcher));
+                aType->value, aType->pos, fmt("while evaluating the `type` argument passed to '%s'", fetcher));
         } else if (!type)
             state.error<EvalError>("argument 'type' is missing in call to '%s'", fetcher).atPos(pos).debugThrow();
 
@@ -494,16 +494,16 @@ static void fetch(
         for (auto & attr : *state.VRtoVP(args[0])->attrs()) {
             std::string_view n(state.symbols[attr.name]);
             if (n == "url")
-                url = state.forceStringNoCtx(*state.VRtoVP(attr.value), attr.pos, "while evaluating the url we should fetch");
+                url = state.forceStringNoCtx(attr.value, attr.pos, "while evaluating the url we should fetch");
             else if (n == "sha256")
                 expectedHash = newHashAllowEmpty(
                     state.forceStringNoCtx(
-                        *state.VRtoVP(attr.value), attr.pos, "while evaluating the sha256 of the content we should fetch"),
+                        attr.value, attr.pos, "while evaluating the sha256 of the content we should fetch"),
                     HashAlgorithm::SHA256);
             else if (n == "name") {
                 nameAttrPassed = true;
                 name = state.forceStringNoCtx(
-                    *state.VRtoVP(attr.value), attr.pos, "while evaluating the name of the content we should fetch");
+                    attr.value, attr.pos, "while evaluating the name of the content we should fetch");
             } else
                 state.error<EvalError>("unsupported argument '%s' to '%s'", n, who).atPos(pos).debugThrow();
         }
@@ -511,7 +511,7 @@ static void fetch(
         if (!url)
             state.error<EvalError>("'url' argument required").atPos(pos).debugThrow();
     } else
-        url = state.forceStringNoCtx(*state.VRtoVP(args[0]), pos, "while evaluating the url we should fetch");
+        url = state.forceStringNoCtx(args[0], pos, "while evaluating the url we should fetch");
 
     if (who == "fetchTarball")
         url = state.settings.resolvePseudoUrl(*url);

@@ -121,7 +121,7 @@ typedef std::optional<StorePath> StorePathOrGap;
 
 static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
-    state.forceAttrs(*state.VRtoVP(args[0]), pos, "while evaluating the argument passed to builtins.fetchClosure");
+    state.forceAttrs(args[0], pos, "while evaluating the argument passed to builtins.fetchClosure");
 
     std::optional<std::string> fromStoreUrl;
     std::optional<StorePath> fromPath;
@@ -151,10 +151,10 @@ static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * ar
         }
 
         else if (attrName == "fromStore")
-            fromStoreUrl = state.forceStringNoCtx(*state.VRtoVP(attr.value), attr.pos, attrHint());
+            fromStoreUrl = state.forceStringNoCtx(attr.value, attr.pos, attrHint());
 
         else if (attrName == "inputAddressed")
-            inputAddressedMaybe = state.forceBool(*state.VRtoVP(attr.value), attr.pos, attrHint());
+            inputAddressedMaybe = state.forceBool(attr.value, attr.pos, attrHint());
 
         else
             throw Error(

@@ -48,7 +48,7 @@ std::string PackageInfo::queryName() const
         auto i = attrs->find(state->sName);
         if (i == attrs->end())
             state->error<TypeError>("derivation name missing").debugThrow();
-        name = state->forceStringNoCtx(*state->VRtoVP(i->value), noPos, "while evaluating the 'name' attribute of a derivation");
+        name = state->forceStringNoCtx(i->value, noPos, "while evaluating the 'name' attribute of a derivation");
     }
     return name;
 }
@@ -60,7 +60,7 @@ std::string PackageInfo::querySystem() const
         system =
             i == attrs->end()
                 ? "unknown"
-                : state->forceStringNoCtx(*state->VRtoVP(i->value), i->pos, "while evaluating the 'system' attribute of a derivation");
+                : state->forceStringNoCtx(i->value, i->pos, "while evaluating the 'system' attribute of a derivation");
     }
     return system;
 }
@@ -112,19 +112,19 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
         /* Get the ‘outputs’ list. */
         const Attr * i;
         if (attrs && (i = attrs->get(state->sOutputs))) {
-            state->forceList(*state->VRtoVP(i->value), i->pos, "while evaluating the 'outputs' attribute of a derivation");
+            state->forceList(i->value, i->pos, "while evaluating the 'outputs' attribute of a derivation");
 
             /* For each output... */
             for (auto elem : state->VRtoVP(i->value)->listView()) {
                 std::string output(
-                    state->forceStringNoCtx(*state->VRtoVP(elem), i->pos, "while evaluating the name of an output of a derivation"));
+                    state->forceStringNoCtx(elem, i->pos, "while evaluating the name of an output of a derivation"));
 
                 if (withPaths) {
                     /* Evaluate the corresponding set. */
                     auto out = attrs->get(state->symbols.create(output));
                     if (!out)
                         continue; // FIXME: throw error?
-                    state->forceAttrs(*state->VRtoVP(out->value), i->pos, "while evaluating an output of a derivation");
+                    state->forceAttrs(out->value, i->pos, "while evaluating an output of a derivation");
 
                     /* And evaluate its ‘outPath’ attribute. */
                     auto outPath = state->VRtoVP(out->value)->attrs()->get(state->sOutPath);
@@ -147,7 +147,7 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
 
     const Attr * i;
     if (attrs && (i = attrs->get(state->sOutputSpecified))
-        && state->forceBool(*state->VRtoVP(i->value), i->pos, "while evaluating the 'outputSpecified' attribute of a derivation")) {
+        && state->forceBool(i->value, i->pos, "while evaluating the 'outputSpecified' attribute of a derivation")) {
         Outputs result;
         auto out = outputs.find(queryOutputName());
         if (out == outputs.end())
@@ -183,7 +183,7 @@ std::string PackageInfo::queryOutputName() const
     if (outputName == "" && attrs) {
         auto i = attrs->get(state->sOutputName);
         outputName =
-            i ? state->forceStringNoCtx(*state->VRtoVP(i->value), noPos, "while evaluating the output name of a derivation") : "";
+            i ? state->forceStringNoCtx(i->value, noPos, "while evaluating the output name of a derivation") : "";
     }
     return outputName;
 }
@@ -197,7 +197,7 @@ const Bindings * PackageInfo::getMeta()
     auto a = attrs->get(state->sMeta);
     if (!a)
         return 0;
-    state->forceAttrs(*state->VRtoVP(a->value), a->pos, "while evaluating the 'meta' attribute of a derivation");
+    state->forceAttrs(a->value, a->pos, "while evaluating the 'meta' attribute of a derivation");
     meta = state->VRtoVP(a->value)->attrs();
     return meta;
 }
@@ -414,7 +414,7 @@ static void getDerivations(
                         auto j = state.VRtoVP(i->value)->attrs()->get(state.sRecurseForDerivations);
                         if (j
                             && state.forceBool(
-                                *state.VRtoVP(j->value), j->pos, "while evaluating the attribute `recurseForDerivations`"))
+                                j->value, j->pos, "while evaluating the attribute `recurseForDerivations`"))
                             getDerivations(
                                 state, *state.VRtoVP(i->value), pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
                     }

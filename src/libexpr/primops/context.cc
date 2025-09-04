@@ -25,7 +25,7 @@ static RegisterPrimOp primop_unsafeDiscardStringContext({
 static void prim_hasContext(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     NixStringContext context;
-    state.forceString(*state.VRtoVP(args[0]), context, pos, "while evaluating the argument passed to builtins.hasContext");
+    state.forceString(args[0], context, pos, "while evaluating the argument passed to builtins.hasContext");
     state.VRtoV(v).mkBool(!context.empty());
 }
 
@@ -187,7 +187,7 @@ static void prim_getContext(EvalState & state, const PosIdx pos, ValueRef * args
     };
 
     NixStringContext context;
-    state.forceString(*state.VRtoVP(args[0]), context, pos, "while evaluating the argument passed to builtins.getContext");
+    state.forceString(args[0], context, pos, "while evaluating the argument passed to builtins.getContext");
     auto contextInfos = std::map<StorePath, ContextInfo>();
     for (auto && i : context) {
         std::visit(
@@ -259,9 +259,9 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
 {
     NixStringContext context;
     auto orig = state.forceString(
-        *state.VRtoVP(args[0]), context, noPos, "while evaluating the first argument passed to builtins.appendContext");
+        args[0], context, noPos, "while evaluating the first argument passed to builtins.appendContext");
 
-    state.forceAttrs(*state.VRtoVP(args[1]), pos, "while evaluating the second argument passed to builtins.appendContext");
+    state.forceAttrs(args[1], pos, "while evaluating the second argument passed to builtins.appendContext");
 
     auto sPath = state.symbols.create("path");
     auto sAllOutputs = state.symbols.create("allOutputs");
@@ -272,10 +272,10 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
         auto namePath = state.store->parseStorePath(name);
         if (!settings.readOnlyMode)
             state.store->ensurePath(namePath);
-        state.forceAttrs(*state.VRtoVP(i.value), i.pos, "while evaluating the value of a string context");
+        state.forceAttrs(i.value, i.pos, "while evaluating the value of a string context");
 
         if (auto attr = state.VRtoVP(i.value)->attrs()->get(sPath)) {
-            if (state.forceBool(*state.VRtoVP(attr->value), attr->pos, "while evaluating the `path` attribute of a string context"))
+            if (state.forceBool(attr->value, attr->pos, "while evaluating the `path` attribute of a string context"))
                 context.emplace(
                     NixStringContextElem::Opaque{
                         .path = namePath,
@@ -284,7 +284,7 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
 
         if (auto attr = state.VRtoVP(i.value)->attrs()->get(sAllOutputs)) {
             if (state.forceBool(
-                    *state.VRtoVP(attr->value), attr->pos, "while evaluating the `allOutputs` attribute of a string context")) {
+                    attr->value, attr->pos, "while evaluating the `allOutputs` attribute of a string context")) {
                 if (!isDerivation(name)) {
                     state
                         .error<EvalError>(
@@ -300,7 +300,7 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
         }
 
         if (auto attr = state.VRtoVP(i.value)->attrs()->get(state.sOutputs)) {
-            state.forceList(*state.VRtoVP(attr->value), attr->pos, "while evaluating the `outputs` attribute of a string context");
+            state.forceList(attr->value, attr->pos, "while evaluating the `outputs` attribute of a string context");
             if (state.VRtoVP(attr->value)->listSize() && !isDerivation(name)) {
                 state
                     .error<EvalError>(
@@ -310,7 +310,7 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
             }
             for (auto elem : state.VRtoVP(attr->value)->listView()) {
                 auto outputName =
-                    state.forceStringNoCtx(*state.VRtoVP(elem), attr->pos, "while evaluating an output name within a string context");
+                    state.forceStringNoCtx(elem, attr->pos, "while evaluating an output name within a string context");
                 context.emplace(
                     NixStringContextElem::Built{
                         .drvPath = makeConstantStorePathRef(namePath),

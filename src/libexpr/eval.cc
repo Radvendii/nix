@@ -244,7 +244,7 @@ static SymbolRef getName(const AttrName & name, EvalState & state, Env & env)
     } else {
         Value nameValue;
         name.expr->eval(state, env, nameValue);
-        state.forceStringNoCtx(nameValue, name.expr->getPos(), "while evaluating an attribute name");
+        state.forceStringNoCtx(state.VPtoVR(&nameValue), name.expr->getPos(), "while evaluating an attribute name");
         return state.symbols.create(nameValue.string_view());
     }
 }
@@ -1055,7 +1055,7 @@ inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
 
     auto * fromWith = var.fromWith;
     while (1) {
-        forceAttrs(*VRtoVP(env->values[0]), fromWith->pos, "while evaluating the first subexpression of a with expression");
+        forceAttrs(env->values[0], fromWith->pos, "while evaluating the first subexpression of a with expression");
         if (auto j = VRtoVP(env->values[0])->attrs()->get(var.name)) {
             if (countCalls)
                 attrSelects[j->pos]++;
@@ -1398,7 +1398,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
         if (hasOverrides) {
             Value * vOverrides = state.VRtoVP((*bindings.bindings)[overrides->second.displ].value);
             state.forceAttrs(
-                *vOverrides,
+                state.VPtoVR(vOverrides),
                 [&]() { return vOverrides->determinePos(state, noPos); },
                 "while evaluating the `__overrides` attribute");
             bindings.grow(state.allocBindings(bindings.capacity() + vOverrides->attrs()->size()));
@@ -1428,7 +1428,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
         state.forceValue(state.VPtoVR(&nameVal), i.pos);
         if (nameVal.type() == nNull)
             continue;
-        state.forceStringNoCtx(nameVal, i.pos, "while evaluating the name of a dynamic attribute");
+        state.forceStringNoCtx(state.VPtoVR(&nameVal), i.pos, "while evaluating the name of a dynamic attribute");
         auto nameSym = state.symbols.create(nameVal.string_view());
         if (sort)
             // FIXME: inefficient
@@ -1549,7 +1549,7 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
                     return;
                 }
             } else {
-                state.forceAttrs(*vAttrs, pos, "while selecting an attribute");
+                state.forceAttrs(state.VPtoVR(vAttrs), pos, "while selecting an attribute");
                 if (!(j = vAttrs->attrs()->get(name))) {
                     StringSet allAttrNames;
                     for (auto & attr : *vAttrs->attrs())
@@ -1671,7 +1671,7 @@ void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes
                 env2.values[displ++] = args[0];
             else {
                 try {
-                    forceAttrs(*VRtoVP(args[0]), lambda.pos, "while evaluating the value passed for the lambda argument");
+                    forceAttrs(args[0], lambda.pos, "while evaluating the value passed for the lambda argument");
                 } catch (Error & e) {
                     if (pos)
                         e.addTrace(positions[pos], "from call site");
@@ -2097,7 +2097,7 @@ void EvalState::concatLists(
     Value * nonEmpty = 0;
     size_t len = 0;
     for (size_t n = 0; n < nrLists; ++n) {
-        forceList(*VRtoVP(lists[n]), pos, errorCtx);
+        forceList(lists[n], pos, errorCtx);
         auto l = VRtoVP(lists[n])->listSize();
         len += l;
         if (l)
@@ -2303,58 +2303,58 @@ void EvalState::forceValueDeep(ValueRef v)
     recurse(v);
 }
 
-NixInt EvalState::forceInt(Value & v, const PosIdx pos, std::string_view errorCtx)
+NixInt EvalState::forceInt(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(VPtoVR(&v), pos);
-        if (v.type() != nInt)
+        forceValue(v, pos);
+        if (VRtoV(v).type() != nInt)
             error<TypeError>(
-                "expected an integer but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected an integer but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
-        return v.integer();
+        return VRtoV(v).integer();
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
     }
 
-    return v.integer();
+    return VRtoV(v).integer();
 }
 
-NixFloat EvalState::forceFloat(Value & v, const PosIdx pos, std::string_view errorCtx)
+NixFloat EvalState::forceFloat(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(VPtoVR(&v), pos);
-        if (v.type() == nInt)
-            return v.integer().value;
-        else if (v.type() != nFloat)
+        forceValue(v, pos);
+        if (VRtoV(v).type() == nInt)
+            return VRtoV(v).integer().value;
+        else if (VRtoV(v).type() != nFloat)
             error<TypeError>(
-                "expected a float but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a float but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
-        return v.fpoint();
+        return VRtoV(v).fpoint();
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
     }
 }
 
-bool EvalState::forceBool(Value & v, const PosIdx pos, std::string_view errorCtx)
+bool EvalState::forceBool(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(VPtoVR(&v), pos);
-        if (v.type() != nBool)
+        forceValue(v, pos);
+        if (VRtoV(v).type() != nBool)
             error<TypeError>(
-                "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a Boolean but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
-        return v.boolean();
+        return VRtoV(v).boolean();
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
     }
 
-    return v.boolean();
+    return VRtoV(v).boolean();
 }
 
 Bindings::const_iterator EvalState::getAttr(SymbolRef attrSym, const Bindings * attrSet, std::string_view errorCtx)
@@ -2371,13 +2371,13 @@ bool EvalState::isFunctor(const Value & fun) const
     return fun.type() == nAttrs && fun.attrs()->find(sFunctor) != fun.attrs()->end();
 }
 
-void EvalState::forceFunction(Value & v, const PosIdx pos, std::string_view errorCtx)
+void EvalState::forceFunction(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(VPtoVR(&v), pos);
-        if (v.type() != nFunction && !isFunctor(v))
+        forceValue(v, pos);
+        if (VRtoV(v).type() != nFunction && !isFunctor(VRtoV(v)))
             error<TypeError>(
-                "expected a function but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a function but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
     } catch (Error & e) {
@@ -2386,16 +2386,16 @@ void EvalState::forceFunction(Value & v, const PosIdx pos, std::string_view erro
     }
 }
 
-std::string_view EvalState::forceString(Value & v, const PosIdx pos, std::string_view errorCtx)
+std::string_view EvalState::forceString(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(VPtoVR(&v), pos);
-        if (v.type() != nString)
+        forceValue(v, pos);
+        if (VRtoV(v).type() != nString)
             error<TypeError>(
-                "expected a string but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
+                "expected a string but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
-        return v.string_view();
+        return VRtoV(v).string_view();
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
@@ -2410,23 +2410,23 @@ void copyContext(EvalState & state, /* XXX [speed ] const */ ValueRef v, NixStri
 }
 
 std::string_view EvalState::forceString(
-    Value & v,
+    ValueRef v,
     NixStringContext & context,
     const PosIdx pos,
     std::string_view errorCtx,
     const ExperimentalFeatureSettings & xpSettings)
 {
     auto s = forceString(v, pos, errorCtx);
-    copyContext(*this, VPtoVR(&v), context, xpSettings);
+    copyContext(*this, v, context, xpSettings);
     return s;
 }
 
-std::string_view EvalState::forceStringNoCtx(Value & v, const PosIdx pos, std::string_view errorCtx)
+std::string_view EvalState::forceStringNoCtx(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     auto s = forceString(v, pos, errorCtx);
-    if (v.context()) {
+    if (VRtoV(v).context()) {
         error<EvalError>(
-            "the string '%1%' is not allowed to refer to a store path (such as '%2%')", v.string_view(), v.context()[0])
+            "the string '%1%' is not allowed to refer to a store path (such as '%2%')", VRtoV(v).string_view(), VRtoV(v).context()[0])
             .withTrace(pos, errorCtx)
             .debugThrow();
     }
@@ -2631,7 +2631,7 @@ std::pair<SingleDerivedPath, std::string_view> EvalState::coerceToSingleDerivedP
     const PosIdx pos, Value & v, std::string_view errorCtx, const ExperimentalFeatureSettings & xpSettings)
 {
     NixStringContext context;
-    auto s = forceString(v, context, pos, errorCtx, xpSettings);
+    auto s = forceString(VPtoVR(&v), context, pos, errorCtx, xpSettings);
     auto csize = context.size();
     if (csize != 1)
         error<EvalError>("string '%s' has %d entries in its context. It should only have exactly one entry", s, csize)

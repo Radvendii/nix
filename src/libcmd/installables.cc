@@ -451,7 +451,7 @@ ref<eval_cache::EvalCache> openEvalCache(EvalState & state, std::shared_ptr<flak
         auto vFlake = state.allocValue();
         flake::callFlake(state, *lockedFlake, *state.VRtoVP(vFlake));
 
-        state.forceAttrs(*state.VRtoVP(vFlake), noPos, "while parsing cached flake data");
+        state.forceAttrs(vFlake, noPos, "while parsing cached flake data");
 
         auto aOutputs = state.VRtoVP(vFlake)->attrs()->get(state.symbols.create("outputs"));
         assert(aOutputs);
