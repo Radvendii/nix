@@ -404,13 +404,12 @@ private:
     /**
      * A cache from path names to values.
      */
-     // XXX [speed] this is using plain Values. does it need to be ValueRefs? (probably)
+     // XXX [speed] It's fine for this to use Values rather than ValueRefs, because things are only copied in and out. We may want to use ValueRefs, but that's an optimization question, not correctness.
     typedef std::unordered_map<
         SourcePath,
         Value,
         std::hash<SourcePath>,
         std::equal_to<SourcePath>,
-        // XXX [speed]: missed a Value! (maybe? how does anything work?)
         traceable_allocator<std::pair<const SourcePath, Value>>>
         FileEvalCache;
     FileEvalCache fileEvalCache;
