@@ -120,7 +120,7 @@ std::pair<SourcePath, uint32_t> findPackageFilename(EvalState & state, Value & v
     //        toString + parsing?
     NixStringContext context;
     auto path =
-        state.coerceToPath(noPos, *v2, context, "while evaluating the 'meta.position' attribute of a derivation");
+        state.coerceToPath(noPos, state.VPtoVR(v2), context, "while evaluating the 'meta.position' attribute of a derivation");
 
     auto fn = path.path.abs();
 

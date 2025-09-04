@@ -71,7 +71,7 @@ std::optional<StorePath> PackageInfo::queryDrvPath() const
         if (auto i = attrs->get(state->sDrvPath)) {
             NixStringContext context;
             auto found = state->coerceToStorePath(
-                i->pos, *state->VRtoVP(i->value), context, "while evaluating the 'drvPath' attribute of a derivation");
+                i->pos, i->value, context, "while evaluating the 'drvPath' attribute of a derivation");
             try {
                 found.requireDerivation();
             } catch (Error & e) {
@@ -99,7 +99,7 @@ StorePath PackageInfo::queryOutPath() const
         NixStringContext context;
         if (i != attrs->end())
             outPath = state->coerceToStorePath(
-                i->pos, *state->VRtoVP(i->value), context, "while evaluating the output path of a derivation");
+                i->pos, i->value, context, "while evaluating the output path of a derivation");
     }
     if (!outPath)
         throw UnimplementedError("CA derivations are not yet supported");
@@ -134,7 +134,7 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
                     outputs.emplace(
                         output,
                         state->coerceToStorePath(
-                            outPath->pos, *state->VRtoVP(outPath->value), context, "while evaluating an output path of a derivation"));
+                            outPath->pos, outPath->value, context, "while evaluating an output path of a derivation"));
                 } else
                     outputs.emplace(output, std::nullopt);
             }

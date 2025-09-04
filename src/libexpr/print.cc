@@ -275,7 +275,7 @@ private:
         if (auto i = v.attrs()->get(state.sDrvPath)) {
             NixStringContext context;
             storePath =
-                state.coerceToStorePath(i->pos, *state.VRtoVP(i->value), context, "while evaluating the drvPath of a derivation");
+                state.coerceToStorePath(i->pos, i->value, context, "while evaluating the drvPath of a derivation");
         }
 
         /* This unfortunately breaks printing nested values because of

@@ -495,7 +495,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         const auto [path, line] = [&]() -> std::pair<SourcePath, uint32_t> {
             if (v.type() == nPath || v.type() == nString) {
                 NixStringContext context;
-                auto path = state->coerceToPath(noPos, v, context, "while evaluating the filename to edit");
+                auto path = state->coerceToPath(noPos, state->VPtoVR(&v), context, "while evaluating the filename to edit");
                 return {path, 0};
             } else if (v.isLambda()) {
                 auto pos = state->positions[v.lambda().fun->pos];

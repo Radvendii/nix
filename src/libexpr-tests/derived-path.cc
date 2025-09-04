@@ -23,7 +23,7 @@ RC_GTEST_FIXTURE_PROP(DerivedPathExpressionTest, prop_opaque_path_round_trip, (c
 {
     auto v = state.allocValue();
     state.mkStorePathString(o.path, *state.VRtoVP(v));
-    auto d = state.coerceToSingleDerivedPath(noPos, *state.VRtoVP(v), "");
+    auto d = state.coerceToSingleDerivedPath(noPos, v, "");
     RC_ASSERT(SingleDerivedPath{o} == d);
 }
 
@@ -42,7 +42,7 @@ RC_GTEST_FIXTURE_PROP(
 
     auto v = state.allocValue();
     state.mkOutputString(*state.VRtoVP(v), b, std::nullopt, mockXpSettings);
-    auto [d, _] = state.coerceToSingleDerivedPathUnchecked(noPos, *state.VRtoVP(v), "", mockXpSettings);
+    auto [d, _] = state.coerceToSingleDerivedPathUnchecked(noPos, v, "", mockXpSettings);
     RC_ASSERT(SingleDerivedPath{b} == d);
 }
 
@@ -56,7 +56,7 @@ RC_GTEST_FIXTURE_PROP(
 
     auto v = state.allocValue();
     state.mkOutputString(*state.VRtoVP(v), b, outPath, mockXpSettings);
-    auto [d, _] = state.coerceToSingleDerivedPathUnchecked(noPos, *state.VRtoVP(v), "", mockXpSettings);
+    auto [d, _] = state.coerceToSingleDerivedPathUnchecked(noPos, v, "", mockXpSettings);
     RC_ASSERT(SingleDerivedPath{b} == d);
 }
 

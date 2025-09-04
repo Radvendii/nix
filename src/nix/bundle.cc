@@ -104,7 +104,7 @@ struct CmdBundle : InstallableValueCommand
             throw Error("the bundler '%s' does not produce a derivation", bundler.what());
 
         NixStringContext context2;
-        auto drvPath = evalState->coerceToStorePath(attr1->pos, *evalState->VRtoVP(attr1->value), context2, "");
+        auto drvPath = evalState->coerceToStorePath(attr1->pos, attr1->value, context2, "");
 
         drvPath.requireDerivation();
 
@@ -112,7 +112,7 @@ struct CmdBundle : InstallableValueCommand
         if (!attr2)
             throw Error("the bundler '%s' does not produce a derivation", bundler.what());
 
-        auto outPath = evalState->coerceToStorePath(attr2->pos, *evalState->VRtoVP(attr2->value), context2, "");
+        auto outPath = evalState->coerceToStorePath(attr2->pos, attr2->value, context2, "");
 
         store->buildPaths({
             DerivedPath::Built{

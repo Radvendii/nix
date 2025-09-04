@@ -2586,52 +2586,52 @@ StorePath EvalState::copyPathToStore(NixStringContext & context, const SourcePat
     return dstPath;
 }
 
-SourcePath EvalState::coerceToPath(const PosIdx pos, Value & v, NixStringContext & context, std::string_view errorCtx)
+SourcePath EvalState::coerceToPath(const PosIdx pos, ValueRef v, NixStringContext & context, std::string_view errorCtx)
 {
     try {
-        forceValue(VPtoVR(&v), pos);
+        forceValue(v, pos);
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
     }
 
     /* Handle path values directly, without coercing to a string. */
-    if (v.type() == nPath)
-        return v.path();
+    if (VRtoV(v).type() == nPath)
+        return VRtoV(v).path();
 
     /* Similarly, handle __toString where the result may be a path
        value. */
-    if (v.type() == nAttrs) {
-        auto i = v.attrs()->find(sToString);
-        if (i != v.attrs()->end()) {
+    if (VRtoV(v).type() == nAttrs) {
+        auto i = VRtoV(v).attrs()->find(sToString);
+        if (i != VRtoV(v).attrs()->end()) {
             Value v1;
-            callFunction(*VRtoVP(i->value), VPtoVR(&v), v1, pos);
-            return coerceToPath(pos, v1, context, errorCtx);
+            callFunction(*VRtoVP(i->value), v, v1, pos);
+            return coerceToPath(pos, VPtoVR(&v1), context, errorCtx);
         }
     }
 
     /* Any other value should be coercible to a string, interpreted
        relative to the root filesystem. */
-    auto path = coerceToString(pos, VPtoVR(&v), context, errorCtx, false, false, true).toOwned();
+    auto path = coerceToString(pos, v, context, errorCtx, false, false, true).toOwned();
     if (path == "" || path[0] != '/')
         error<EvalError>("string '%1%' doesn't represent an absolute path", path).withTrace(pos, errorCtx).debugThrow();
     return rootPath(path);
 }
 
 StorePath
-EvalState::coerceToStorePath(const PosIdx pos, Value & v, NixStringContext & context, std::string_view errorCtx)
+EvalState::coerceToStorePath(const PosIdx pos, ValueRef v, NixStringContext & context, std::string_view errorCtx)
 {
-    auto path = coerceToString(pos, VPtoVR(&v), context, errorCtx, false, false, true).toOwned();
+    auto path = coerceToString(pos, v, context, errorCtx, false, false, true).toOwned();
     if (auto storePath = store->maybeParseStorePath(path))
         return *storePath;
     error<EvalError>("path '%1%' is not in the Nix store", path).withTrace(pos, errorCtx).debugThrow();
 }
 
 std::pair<SingleDerivedPath, std::string_view> EvalState::coerceToSingleDerivedPathUnchecked(
-    const PosIdx pos, Value & v, std::string_view errorCtx, const ExperimentalFeatureSettings & xpSettings)
+    const PosIdx pos, ValueRef v, std::string_view errorCtx, const ExperimentalFeatureSettings & xpSettings)
 {
     NixStringContext context;
-    auto s = forceString(VPtoVR(&v), context, pos, errorCtx, xpSettings);
+    auto s = forceString(v, context, pos, errorCtx, xpSettings);
     auto csize = context.size();
     if (csize != 1)
         error<EvalError>("string '%s' has %d entries in its context. It should only have exactly one entry", s, csize)
@@ -2656,7 +2656,7 @@ std::pair<SingleDerivedPath, std::string_view> EvalState::coerceToSingleDerivedP
     };
 }
 
-SingleDerivedPath EvalState::coerceToSingleDerivedPath(const PosIdx pos, Value & v, std::string_view errorCtx)
+SingleDerivedPath EvalState::coerceToSingleDerivedPath(const PosIdx pos, ValueRef v, std::string_view errorCtx)
 {
     auto [derivedPath, s_] = coerceToSingleDerivedPathUnchecked(pos, v, errorCtx);
     auto s = s_;

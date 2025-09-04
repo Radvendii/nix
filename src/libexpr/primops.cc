@@ -155,7 +155,7 @@ static SourcePath realisePath(
 {
     NixStringContext context;
 
-    auto path = state.coerceToPath(noPos, v, context, "while realising the context of a path");
+    auto path = state.coerceToPath(noPos, state.VPtoVR(&v), context, "while realising the context of a path");
 
     try {
         if (!context.empty() && path.accessor == state.rootFS) {
@@ -1779,7 +1779,7 @@ static void prim_toPath(EvalState & state, const PosIdx pos, ValueRef * args, Va
 {
     NixStringContext context;
     auto path =
-        state.coerceToPath(pos, *state.VRtoVP(args[0]), context, "while evaluating the first argument passed to builtins.toPath");
+        state.coerceToPath(pos, args[0], context, "while evaluating the first argument passed to builtins.toPath");
     state.VRtoV(v).mkString(path.path.abs(), context);
 }
 
@@ -1810,7 +1810,7 @@ static void prim_storePath(EvalState & state, const PosIdx pos, ValueRef * args,
 
     NixStringContext context;
     auto path =
-        state.coerceToPath(pos, *state.VRtoVP(args[0]), context, "while evaluating the first argument passed to 'builtins.storePath'")
+        state.coerceToPath(pos, args[0], context, "while evaluating the first argument passed to 'builtins.storePath'")
             .path;
     /* Resolve symlinks in ‘path’, unless ‘path’ itself is a symlink
        directly in the store.  The latter condition is necessary so
@@ -2295,7 +2295,7 @@ static RegisterPrimOp primop_readDir({
 static void prim_outputOf(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     SingleDerivedPath drvPath =
-        state.coerceToSingleDerivedPath(pos, *state.VRtoVP(args[0]), "while evaluating the first argument to builtins.outputOf");
+        state.coerceToSingleDerivedPath(pos, args[0], "while evaluating the first argument to builtins.outputOf");
 
     OutputNameView outputName =
         state.forceStringNoCtx(args[1], pos, "while evaluating the second argument to builtins.outputOf");
@@ -2706,7 +2706,7 @@ static void prim_filterSource(EvalState & state, const PosIdx pos, ValueRef * ar
     NixStringContext context;
     auto path = state.coerceToPath(
         pos,
-        *state.VRtoVP(args[1]),
+        args[1],
         context,
         "while evaluating the second argument (the path to filter) passed to 'builtins.filterSource'");
     state.forceFunction(args[0], pos, "while evaluating the first argument passed to builtins.filterSource");
@@ -2785,7 +2785,7 @@ static void prim_path(EvalState & state, const PosIdx pos, ValueRef * args, Valu
         auto n = state.symbols[attr.name];
         if (n == "path")
             path.emplace(state.coerceToPath(
-                attr.pos, *state.VRtoVP(attr.value), context, "while evaluating the 'path' attribute passed to 'builtins.path'"));
+                attr.pos, attr.value, context, "while evaluating the 'path' attribute passed to 'builtins.path'"));
         else if (attr.name == state.sName)
             name = state.forceStringNoCtx(
                 attr.value, attr.pos, "while evaluating the `name` attribute passed to builtins.path");

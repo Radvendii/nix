@@ -673,19 +673,19 @@ public:
      * path.  The result is guaranteed to be a canonicalised, absolute
      * path.  Nothing is copied to the store.
      */
-    SourcePath coerceToPath(const PosIdx pos, Value & v, NixStringContext & context, std::string_view errorCtx);
+    SourcePath coerceToPath(const PosIdx pos, ValueRef v, NixStringContext & context, std::string_view errorCtx);
 
     /**
      * Like coerceToPath, but the result must be a store path.
      */
-    StorePath coerceToStorePath(const PosIdx pos, Value & v, NixStringContext & context, std::string_view errorCtx);
+    StorePath coerceToStorePath(const PosIdx pos, ValueRef v, NixStringContext & context, std::string_view errorCtx);
 
     /**
      * Part of `coerceToSingleDerivedPath()` without any store IO which is exposed for unit testing only.
      */
     std::pair<SingleDerivedPath, std::string_view> coerceToSingleDerivedPathUnchecked(
         const PosIdx pos,
-        Value & v,
+        ValueRef v,
         std::string_view errorCtx,
         const ExperimentalFeatureSettings & xpSettings = experimentalFeatureSettings);
 
@@ -704,7 +704,7 @@ public:
      * source of truth, and ultimately tells us what we want, and then
      * we ensure the string corresponds to it.
      */
-    SingleDerivedPath coerceToSingleDerivedPath(const PosIdx pos, Value & v, std::string_view errorCtx);
+    SingleDerivedPath coerceToSingleDerivedPath(const PosIdx pos, ValueRef v, std::string_view errorCtx);
 
 #if NIX_USE_BOEHMGC
     /** A GC root for the baseEnv reference. */

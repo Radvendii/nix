@@ -136,7 +136,7 @@ static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * ar
 
         if (attrName == "fromPath") {
             NixStringContext context;
-            fromPath = state.coerceToStorePath(attr.pos, *state.VRtoVP(attr.value), context, attrHint());
+            fromPath = state.coerceToStorePath(attr.pos, attr.value, context, attrHint());
         }
 
         else if (attrName == "toPath") {
@@ -146,7 +146,7 @@ static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * ar
                 toPath = StorePathOrGap{};
             } else {
                 NixStringContext context;
-                toPath = state.coerceToStorePath(attr.pos, *state.VRtoVP(attr.value), context, attrHint());
+                toPath = state.coerceToStorePath(attr.pos, attr.value, context, attrHint());
             }
         }
 
