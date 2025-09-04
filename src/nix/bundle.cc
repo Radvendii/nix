@@ -94,7 +94,7 @@ struct CmdBundle : InstallableValueCommand
             lockFlags};
 
         auto vRes = evalState->allocValue();
-        evalState->callFunction(*bundler.toValue(*evalState).first, evalState->VPtoVR(val), *evalState->VRtoVP(vRes), noPos);
+        evalState->callFunction(evalState->VPtoVR(bundler.toValue(*evalState).first), evalState->VPtoVR(val), vRes, noPos);
 
         if (!evalState->isDerivation(vRes))
             throw Error("the bundler '%s' does not produce a derivation", bundler.what());

@@ -836,9 +836,9 @@ public:
 
     bool isFunctor(/* XXX [speed] const */ ValueRef fun) /* XXX [speed] const */;
 
-    void callFunction(Value & fun, std::span<ValueRef> args, Value & vRes, const PosIdx pos);
+    void callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vRes, const PosIdx pos);
 
-    void callFunction(Value & fun, ValueRef arg, Value & vRes, const PosIdx pos)
+    void callFunction(ValueRef fun, ValueRef arg, ValueRef vRes, const PosIdx pos)
     {
         ValueRef args[] = {arg};
         callFunction(fun, args, vRes, pos);

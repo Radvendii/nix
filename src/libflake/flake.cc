@@ -932,7 +932,7 @@ void callFlake(EvalState & state, const LockedFlake & lockedFlake, Value & vRes)
     assert(vFetchFinalTree);
 
     ValueRef args[] = {vLocks, state.VPtoVR(&vOverrides), *vFetchFinalTree};
-    state.callFunction(*vCallFlake, args, vRes, noPos);
+    state.callFunction(state.VPtoVR(vCallFlake), args, state.VPtoVR(&vRes), noPos);
 }
 
 } // namespace flake

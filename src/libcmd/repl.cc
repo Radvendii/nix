@@ -534,7 +534,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         evalString(arg, v);
         evalString("drv: (import <nixpkgs> {}).runCommand \"shell\" { buildInputs = [ drv ]; } \"\"", f);
         // XXX [speed]: illegal conversion to ValueRef
-        state->callFunction(f, state->VPtoVR(&v), result, PosIdx());
+        state->callFunction(state->VPtoVR(&f), state->VPtoVR(&v), state->VPtoVR(&result), PosIdx());
 
         StorePath drvPath = getDerivationPath(result);
         runNix("nix-shell", {state->store->printStorePath(drvPath)});

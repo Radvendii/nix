@@ -730,7 +730,7 @@ std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
             // So preferably we show docs that are relevant to the
             // "partially applied" function returned by e.g. `const`.
             // We apply the first argument:
-            callFunction(VRtoV(functor), vp, partiallyApplied, noPos);
+            callFunction(functor, vp, VPtoVR(&partiallyApplied), noPos);
             auto _level = addCallDepth(noPos);
             return getDoc(VPtoVR(&partiallyApplied));
         } catch (Error & e) {
@@ -1627,29 +1627,29 @@ void ExprLambda::eval(EvalState & state, Env & env, Value & v)
     v.mkLambda(&env, this);
 }
 
-void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes, const PosIdx pos)
+void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vRes, const PosIdx pos)
 {
     auto _level = addCallDepth(pos);
 
     auto neededHooks = profiler.getNeededHooks();
     if (neededHooks.test(EvalProfiler::preFunctionCall)) [[unlikely]]
-        profiler.preFunctionCallHook(*this, fun, args, pos);
+        profiler.preFunctionCallHook(*this, VRtoV(fun), args, pos);
 
     Finally traceExit_{[&]() {
         if (profiler.getNeededHooks().test(EvalProfiler::postFunctionCall)) [[unlikely]]
-            profiler.postFunctionCallHook(*this, fun, args, pos);
+            profiler.postFunctionCallHook(*this, VRtoV(fun), args, pos);
     }};
 
-    forceValue(VPtoVR(&fun), pos);
+    forceValue(fun, pos);
 
-    Value vCur(fun);
+    Value vCur(VRtoV(fun));
 
     auto makeAppChain = [&]() {
-        vRes = vCur;
+        VRtoV(vRes) = vCur;
         for (auto arg : args) {
             auto fun2 = allocValue();
-            *VRtoVP(fun2) = vRes;
-            vRes.mkPrimOpApp(*this, VRtoVP(fun2), VRtoVP(arg));
+            *VRtoVP(fun2) = VRtoV(vRes);
+            VRtoV(vRes).mkPrimOpApp(*this, VRtoVP(fun2), VRtoVP(arg));
         }
     };
 
@@ -1848,7 +1848,7 @@ void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes
             ValueRef args2[] = {allocValue(), args[0]};
             *VRtoVP(args2[0]) = vCur;
             try {
-                callFunction(*VRtoVP(functor->value), args2, vCur, functor->pos);
+                callFunction(functor->value, args2, VPtoVR(&vCur), functor->pos);
             } catch (Error & e) {
                 e.addTrace(positions[pos], "while calling a functor (an attribute set with a '__functor' attribute)");
                 throw;
@@ -1865,7 +1865,7 @@ void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes
                 .debugThrow();
     }
 
-    vRes = vCur;
+    VRtoV(vRes) = vCur;
 }
 
 void ExprCall::eval(EvalState & state, Env & env, Value & v)
@@ -1886,7 +1886,7 @@ void ExprCall::eval(EvalState & state, Env & env, Value & v)
     for (size_t i = 0; i < args.size(); ++i)
         vArgs[i] = state.VPtoVR(args[i]->maybeThunk(state, env));
 
-    state.callFunction(vFun, vArgs, v, pos);
+    state.callFunction(state.VPtoVR(&vFun), vArgs, state.VPtoVR(&v), pos);
 }
 
 // Lifted out of callFunction() because it creates a temporary that
@@ -1906,7 +1906,7 @@ void EvalState::autoCallFunction(const Bindings & args, Value & fun, Value & res
         auto found = fun.attrs()->find(sFunctor);
         if (found != fun.attrs()->end()) {
             ValueRef v = allocValue();
-            callFunction(*VRtoVP(found->value), VPtoVR(&fun), *VRtoVP(v), pos);
+            callFunction(found->value, VPtoVR(&fun), v, pos);
             forceValue(v, pos);
             return autoCallFunction(args, *VRtoVP(v), res);
         }
@@ -1946,7 +1946,7 @@ https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
         }
     }
 
-    callFunction(fun, VPtoVR(&VRtoVP(allocValue())->mkAttrs(attrs)), res, pos);
+    callFunction(VPtoVR(&fun), VPtoVR(&VRtoVP(allocValue())->mkAttrs(attrs)), VPtoVR(&res), pos);
 }
 
 void ExprWith::eval(EvalState & state, Env & env, Value & v)
@@ -2452,7 +2452,7 @@ EvalState::tryAttrsToString(const PosIdx pos, ValueRef v, NixStringContext & con
     auto i = VRtoV(v).attrs()->find(sToString);
     if (i != VRtoV(v).attrs()->end()) {
         Value v1;
-        callFunction(*VRtoVP(i->value), v, v1, pos);
+        callFunction(i->value, v, VPtoVR(&v1), pos);
         return coerceToString(
                    pos,
                    VPtoVR(&v1),
@@ -2605,7 +2605,7 @@ SourcePath EvalState::coerceToPath(const PosIdx pos, ValueRef v, NixStringContex
         auto i = VRtoV(v).attrs()->find(sToString);
         if (i != VRtoV(v).attrs()->end()) {
             Value v1;
-            callFunction(*VRtoVP(i->value), v, v1, pos);
+            callFunction(i->value, v, VPtoVR(&v1), pos);
             return coerceToPath(pos, VPtoVR(&v1), context, errorCtx);
         }
     }
