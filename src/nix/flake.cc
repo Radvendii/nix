@@ -497,13 +497,13 @@ struct CmdFlakeCheck : FlakeCommand
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking Hydra job '%s'", attrPath));
                 state->forceAttrs(state->VPtoVR(&v), pos, "");
 
-                if (state->isDerivation(v))
+                if (state->isDerivation(state->VPtoVR(&v)))
                     throw Error("jobset should not be a derivation at top-level");
 
                 for (auto & attr : *v.attrs()) {
                     state->forceAttrs(attr.value, attr.pos, "");
                     auto attrPath2 = concatStrings(attrPath, ".", state->symbols[attr.name]);
-                    if (state->isDerivation(*state->VRtoVP(attr.value))) {
+                    if (state->isDerivation(attr.value)) {
                         Activity act(*logger, lvlInfo, actUnknown, fmt("checking Hydra job '%s'", attrPath2));
                         checkDerivation(attrPath2, *state->VRtoVP(attr.value), attr.pos);
                     } else
@@ -522,7 +522,7 @@ struct CmdFlakeCheck : FlakeCommand
                 Bindings & bindings(*state->allocBindings(0));
                 auto vToplevel = findAlongAttrPath(*state, "config.system.build.toplevel", bindings, v).first;
                 state->forceValue(state->VPtoVR(vToplevel), pos);
-                if (!state->isDerivation(*vToplevel))
+                if (!state->isDerivation(state->VPtoVR(vToplevel)))
                     throw Error("attribute 'config.system.build.toplevel' is not a derivation");
             } catch (Error & e) {
                 e.addTrace(resolve(pos), HintFmt("while checking the NixOS configuration '%s'", attrPath));

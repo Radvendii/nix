@@ -2433,11 +2433,11 @@ std::string_view EvalState::forceStringNoCtx(ValueRef v, const PosIdx pos, std::
     return s;
 }
 
-bool EvalState::isDerivation(Value & v)
+bool EvalState::isDerivation(ValueRef v)
 {
-    if (v.type() != nAttrs)
+    if (VRtoV(v).type() != nAttrs)
         return false;
-    auto i = v.attrs()->get(sType);
+    auto i = VRtoV(v).attrs()->get(sType);
     if (!i)
         return false;
     forceValue(i->value, i->pos);
@@ -2791,7 +2791,7 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         return;
 
     case nAttrs: {
-        if (isDerivation(v1) && isDerivation(v2)) {
+        if (isDerivation(VPtoVR(&v1)) && isDerivation(VPtoVR(&v2))) {
             auto i = v1.attrs()->get(sOutPath);
             auto j = v2.attrs()->get(sOutPath);
             if (i && j) {
@@ -2945,7 +2945,7 @@ bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_v
     case nAttrs: {
         /* If both sets denote a derivation (type = "derivation"),
            then compare their outPaths. */
-        if (isDerivation(v1) && isDerivation(v2)) {
+        if (isDerivation(VPtoVR(&v1)) && isDerivation(VPtoVR(&v2))) {
             auto i = v1.attrs()->get(sOutPath);
             auto j = v2.attrs()->get(sOutPath);
             if (i && j)

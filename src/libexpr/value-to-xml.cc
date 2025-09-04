@@ -94,7 +94,7 @@ static void printValueAsXML(
         break;
 
     case nAttrs:
-        if (state.isDerivation(v)) {
+        if (state.isDerivation(state.VPtoVR(&v))) {
             XMLAttrs xmlAttrs;
 
             Path drvPath;

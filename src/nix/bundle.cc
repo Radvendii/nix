@@ -96,7 +96,7 @@ struct CmdBundle : InstallableValueCommand
         auto vRes = evalState->allocValue();
         evalState->callFunction(*bundler.toValue(*evalState).first, evalState->VPtoVR(val), *evalState->VRtoVP(vRes), noPos);
 
-        if (!evalState->isDerivation(*evalState->VRtoVP(vRes)))
+        if (!evalState->isDerivation(vRes))
             throw Error("the bundler '%s' does not produce a derivation", bundler.what());
 
         auto attr1 = evalState->VRtoVP(vRes)->attrs()->get(evalState->sDrvPath);

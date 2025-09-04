@@ -642,7 +642,7 @@ public:
      * @return true iff the value `v` denotes a derivation (i.e. a
      * set with attribute `type = "derivation"`).
      */
-    bool isDerivation(Value & v);
+    bool isDerivation(ValueRef v);
 
     std::optional<std::string> tryAttrsToString(
         const PosIdx pos, Value & v, NixStringContext & context, bool coerceMore = false, bool copyToStore = true);

@@ -334,7 +334,7 @@ private:
             return;
         }
 
-        if (options.force && options.derivationPaths && state.isDerivation(v)) {
+        if (options.force && options.derivationPaths && state.isDerivation(state.VPtoVR(&v))) {
             printDerivation(v);
         } else if (depth < options.maxDepth) {
             increaseIndent();

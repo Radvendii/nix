@@ -330,7 +330,7 @@ static bool getDerivation(
 {
     try {
         state.forceValue(state.VPtoVR(&v), v.determinePos(state, noPos));
-        if (!state.isDerivation(v))
+        if (!state.isDerivation(state.VPtoVR(&v)))
             return true;
 
         /* Remove spurious duplicates (e.g., a set like `rec { x =
