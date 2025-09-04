@@ -103,10 +103,10 @@ std::ostream & operator<<(std::ostream & os, const ValueType t)
     return os;
 }
 
-std::string printValue(EvalState & state, Value & v)
+std::string printValue(EvalState & state, ValueRef v)
 {
     std::ostringstream out;
-    v.print(state, out);
+    state.VRtoV(v).print(state, out);
     return out.str();
 }
 

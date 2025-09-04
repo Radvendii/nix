@@ -181,7 +181,8 @@ void copyContext(
     NixStringContext & context,
     const ExperimentalFeatureSettings & xpSettings = experimentalFeatureSettings);
 
-std::string printValue(EvalState & state, Value & v);
+// XXX [speed]: this never gets called anywhere
+std::string printValue(EvalState & state, ValueRef v);
 std::ostream & operator<<(std::ostream & os, const ValueType t);
 
 struct RegexCache;
