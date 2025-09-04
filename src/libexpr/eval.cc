@@ -1977,7 +1977,7 @@ void ExprAssert::eval(EvalState & state, Env & env, Value & v)
                 eq->e1->eval(state, env, v1);
                 Value v2;
                 eq->e2->eval(state, env, v2);
-                state.assertEqValues(v1, v2, eq->pos, "in an equality assertion");
+                state.assertEqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), eq->pos, "in an equality assertion");
             } catch (AssertionError & e) {
                 e.addTrace(state.positions[pos], "while evaluating the condition of the assertion '%s'", exprStr);
                 throw;
@@ -2689,80 +2689,80 @@ SingleDerivedPath EvalState::coerceToSingleDerivedPath(const PosIdx pos, ValueRe
 // NOTE: This implementation must match eqValues!
 // We accept this burden because informative error messages for
 // `assert a == b; x` are critical for our users' testing UX.
-void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::string_view errorCtx)
+void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string_view errorCtx)
 {
     // This implementation must match eqValues.
-    forceValue(VPtoVR(&v1), pos);
-    forceValue(VPtoVR(&v2), pos);
+    forceValue(v1, pos);
+    forceValue(v2, pos);
 
-    if (&v1 == &v2)
+    if (VRtoVP(v1) == VRtoVP(v2))
         return;
 
     // Special case type-compatibility between float and int
-    if ((v1.type() == nInt || v1.type() == nFloat) && (v2.type() == nInt || v2.type() == nFloat)) {
-        if (eqValues(VPtoVR(&v1), VPtoVR(&v2), pos, errorCtx)) {
+    if ((VRtoV(v1).type() == nInt || VRtoV(v1).type() == nFloat) && (VRtoV(v2).type() == nInt || VRtoV(v2).type() == nFloat)) {
+        if (eqValues(v1, v2, pos, errorCtx)) {
             return;
         } else {
             error<AssertionError>(
                 "%s with value '%s' is not equal to %s with value '%s'",
-                showType(*this, v1),
-                ValuePrinter(*this, v1, errorPrintOptions),
-                showType(*this, v2),
-                ValuePrinter(*this, v2, errorPrintOptions))
+                showType(*this, VRtoV(v1)),
+                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                showType(*this, VRtoV(v2)),
+                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                 .debugThrow();
         }
     }
 
-    if (v1.type() != v2.type()) {
+    if (VRtoV(v1).type() != VRtoV(v2).type()) {
         error<AssertionError>(
             "%s of value '%s' is not equal to %s of value '%s'",
-            showType(*this, v1),
-            ValuePrinter(*this, v1, errorPrintOptions),
-            showType(*this, v2),
-            ValuePrinter(*this, v2, errorPrintOptions))
+            showType(*this, VRtoV(v1)),
+            ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+            showType(*this, VRtoV(v2)),
+            ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
             .debugThrow();
     }
 
-    switch (v1.type()) {
+    switch (VRtoV(v1).type()) {
     case nInt:
-        if (v1.integer() != v2.integer()) {
-            error<AssertionError>("integer '%d' is not equal to integer '%d'", v1.integer(), v2.integer()).debugThrow();
+        if (VRtoV(v1).integer() != VRtoV(v2).integer()) {
+            error<AssertionError>("integer '%d' is not equal to integer '%d'", VRtoV(v1).integer(), VRtoV(v2).integer()).debugThrow();
         }
         return;
 
     case nBool:
-        if (v1.boolean() != v2.boolean()) {
+        if (VRtoV(v1).boolean() != VRtoV(v2).boolean()) {
             error<AssertionError>(
                 "boolean '%s' is not equal to boolean '%s'",
-                ValuePrinter(*this, v1, errorPrintOptions),
-                ValuePrinter(*this, v2, errorPrintOptions))
+                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                 .debugThrow();
         }
         return;
 
     case nString:
-        if (strcmp(v1.c_str(), v2.c_str()) != 0) {
+        if (strcmp(VRtoV(v1).c_str(), VRtoV(v2).c_str()) != 0) {
             error<AssertionError>(
                 "string '%s' is not equal to string '%s'",
-                ValuePrinter(*this, v1, errorPrintOptions),
-                ValuePrinter(*this, v2, errorPrintOptions))
+                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                 .debugThrow();
         }
         return;
 
     case nPath:
-        if (v1.pathAccessor() != v2.pathAccessor()) {
+        if (VRtoV(v1).pathAccessor() != VRtoV(v2).pathAccessor()) {
             error<AssertionError>(
                 "path '%s' is not equal to path '%s' because their accessors are different",
-                ValuePrinter(*this, v1, errorPrintOptions),
-                ValuePrinter(*this, v2, errorPrintOptions))
+                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                 .debugThrow();
         }
-        if (strcmp(v1.pathStr(), v2.pathStr()) != 0) {
+        if (strcmp(VRtoV(v1).pathStr(), VRtoV(v2).pathStr()) != 0) {
             error<AssertionError>(
                 "path '%s' is not equal to path '%s'",
-                ValuePrinter(*this, v1, errorPrintOptions),
-                ValuePrinter(*this, v2, errorPrintOptions))
+                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                 .debugThrow();
         }
         return;
@@ -2771,18 +2771,18 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         return;
 
     case nList:
-        if (v1.listSize() != v2.listSize()) {
+        if (VRtoV(v1).listSize() != VRtoV(v2).listSize()) {
             error<AssertionError>(
                 "list of size '%d' is not equal to list of size '%d', left hand side is '%s', right hand side is '%s'",
-                v1.listSize(),
-                v2.listSize(),
-                ValuePrinter(*this, v1, errorPrintOptions),
-                ValuePrinter(*this, v2, errorPrintOptions))
+                VRtoV(v1).listSize(),
+                VRtoV(v2).listSize(),
+                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                 .debugThrow();
         }
-        for (size_t n = 0; n < v1.listSize(); ++n) {
+        for (size_t n = 0; n < VRtoV(v1).listSize(); ++n) {
             try {
-                assertEqValues(*VRtoVP(v1.listView()[n]), *VRtoVP(v2.listView()[n]), pos, errorCtx);
+                assertEqValues(VRtoV(v1).listView()[n], VRtoV(v2).listView()[n], pos, errorCtx);
             } catch (Error & e) {
                 e.addTrace(positions[pos], "while comparing list element %d", n);
                 throw;
@@ -2791,12 +2791,12 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         return;
 
     case nAttrs: {
-        if (isDerivation(VPtoVR(&v1)) && isDerivation(VPtoVR(&v2))) {
-            auto i = v1.attrs()->get(sOutPath);
-            auto j = v2.attrs()->get(sOutPath);
+        if (isDerivation(v1) && isDerivation(v2)) {
+            auto i = VRtoV(v1).attrs()->get(sOutPath);
+            auto j = VRtoV(v2).attrs()->get(sOutPath);
             if (i && j) {
                 try {
-                    assertEqValues(*VRtoVP(i->value), *VRtoVP(j->value), pos, errorCtx);
+                    assertEqValues(i->value, j->value, pos, errorCtx);
                     return;
                 } catch (Error & e) {
                     e.addTrace(positions[pos], "while comparing a derivation by its '%s' attribute", "outPath");
@@ -2806,11 +2806,11 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
             }
         }
 
-        if (v1.attrs()->size() != v2.attrs()->size()) {
+        if (VRtoV(v1).attrs()->size() != VRtoV(v2).attrs()->size()) {
             error<AssertionError>(
                 "attribute names of attribute set '%s' differs from attribute set '%s'",
-                ValuePrinter(*this, v1, errorPrintOptions),
-                ValuePrinter(*this, v2, errorPrintOptions))
+                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                 .debugThrow();
         }
 
@@ -2819,30 +2819,30 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         // report about its result, we should follow in its literal footsteps and not
         // try anything fancy that could lead to an error.
         Bindings::const_iterator i, j;
-        for (i = v1.attrs()->begin(), j = v2.attrs()->begin(); i != v1.attrs()->end(); ++i, ++j) {
+        for (i = VRtoV(v1).attrs()->begin(), j = VRtoV(v2).attrs()->begin(); i != VRtoV(v1).attrs()->end(); ++i, ++j) {
             if (i->name != j->name) {
                 // A difference in a sorted list means that one attribute is not contained in the other, but we don't
                 // know which. Let's find out. Could use <, but this is more clear.
-                if (!v2.attrs()->get(i->name)) {
+                if (!VRtoV(v2).attrs()->get(i->name)) {
                     error<AssertionError>(
                         "attribute name '%s' is contained in '%s', but not in '%s'",
                         symbols[i->name],
-                        ValuePrinter(*this, v1, errorPrintOptions),
-                        ValuePrinter(*this, v2, errorPrintOptions))
+                        ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                        ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                         .debugThrow();
                 }
-                if (!v1.attrs()->get(j->name)) {
+                if (!VRtoV(v1).attrs()->get(j->name)) {
                     error<AssertionError>(
                         "attribute name '%s' is missing in '%s', but is contained in '%s'",
                         symbols[j->name],
-                        ValuePrinter(*this, v1, errorPrintOptions),
-                        ValuePrinter(*this, v2, errorPrintOptions))
+                        ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                        ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                         .debugThrow();
                 }
                 assert(false);
             }
             try {
-                assertEqValues(*VRtoVP(i->value), *VRtoVP(j->value), pos, errorCtx);
+                assertEqValues(i->value, j->value, pos, errorCtx);
             } catch (Error & e) {
                 // The order of traces is reversed, so this presents as
                 //  where left hand side is
@@ -2866,19 +2866,19 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
             .debugThrow();
 
     case nExternal:
-        if (!(*v1.external() == *v2.external())) {
+        if (!(*VRtoV(v1).external() == *VRtoV(v2).external())) {
             error<AssertionError>(
                 "external value '%s' is not equal to external value '%s'",
-                ValuePrinter(*this, v1, errorPrintOptions),
-                ValuePrinter(*this, v2, errorPrintOptions))
+                ValuePrinter(*this, VRtoV(v1), errorPrintOptions),
+                ValuePrinter(*this, VRtoV(v2), errorPrintOptions))
                 .debugThrow();
         }
         return;
 
     case nFloat:
         // !!!
-        if (!(v1.fpoint() == v2.fpoint())) {
-            error<AssertionError>("float '%f' is not equal to float '%f'", v1.fpoint(), v2.fpoint()).debugThrow();
+        if (!(VRtoV(v1).fpoint() == VRtoV(v2).fpoint())) {
+            error<AssertionError>("float '%f' is not equal to float '%f'", VRtoV(v1).fpoint(), VRtoV(v2).fpoint()).debugThrow();
         }
         return;
 
@@ -2888,7 +2888,7 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
         // Also note that this probably ran after `eqValues`, which implements
         // the same logic more efficiently (without having to unwind stacks),
         // so maybe `assertEqValues` and `eqValues` are out of sync. Check it for solutions.
-        error<EvalError>("assertEqValues: cannot compare %1% with %2%", showType(*this, v1), showType(*this, v2))
+        error<EvalError>("assertEqValues: cannot compare %1% with %2%", showType(*this, VRtoV(v1)), showType(*this, VRtoV(v2)))
             .withTrace(pos, errorCtx)
             .panic();
     }
