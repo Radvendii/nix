@@ -720,7 +720,7 @@ std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
             .doc = makeImmutableString(toView(s)), // NOTE: memory leak when compiled without GC
         };
     }
-    if (isFunctor(VRtoV(v))) {
+    if (isFunctor(v)) {
         try {
             ValueRef functor = VRtoV(v).attrs()->find(sFunctor)->value;
             ValueRef vp[] = {v};
@@ -2366,16 +2366,16 @@ Bindings::const_iterator EvalState::getAttr(SymbolRef attrSym, const Bindings * 
     return value;
 }
 
-bool EvalState::isFunctor(const Value & fun) const
+bool EvalState::isFunctor(/* XXX [speed]: const */ ValueRef fun) /* XXX [speed] const */
 {
-    return fun.type() == nAttrs && fun.attrs()->find(sFunctor) != fun.attrs()->end();
+    return VRtoV(fun).type() == nAttrs && VRtoV(fun).attrs()->find(sFunctor) != VRtoV(fun).attrs()->end();
 }
 
 void EvalState::forceFunction(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
         forceValue(v, pos);
-        if (VRtoV(v).type() != nFunction && !isFunctor(VRtoV(v)))
+        if (VRtoV(v).type() != nFunction && !isFunctor(v))
             error<TypeError>(
                 "expected a function but found %1%: %2%", showType(*this, VRtoV(v)), ValuePrinter(*this, VRtoV(v), errorPrintOptions))
                 .atPos(pos)

@@ -63,7 +63,7 @@ public:
      * @param args Function arguments.
      * @param pos Function position.
      */
-    virtual void preFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos);
+    virtual void preFunctionCallHook(EvalState & state, /* const */ Value & v, std::span<ValueRef> args, const PosIdx pos);
 
     /**
      * Hook called on EvalState::callFunction exit.
@@ -105,7 +105,7 @@ public:
     void addProfiler(ref<EvalProfiler> profiler);
 
     [[gnu::noinline]] void
-    preFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) override;
+    preFunctionCallHook(EvalState & state, /* const */ Value & v, std::span<ValueRef> args, const PosIdx pos) override;
     [[gnu::noinline]] void
     postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) override;
 };

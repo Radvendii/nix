@@ -834,7 +834,7 @@ public:
      */
     void assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string_view errorCtx);
 
-    bool isFunctor(const Value & fun) const;
+    bool isFunctor(/* XXX [speed] const */ ValueRef fun) /* XXX [speed] const */;
 
     void callFunction(Value & fun, std::span<ValueRef> args, Value & vRes, const PosIdx pos);
 

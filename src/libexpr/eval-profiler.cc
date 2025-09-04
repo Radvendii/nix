@@ -5,14 +5,14 @@
 
 namespace nix {
 
-void EvalProfiler::preFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) {}
+void EvalProfiler::preFunctionCallHook(EvalState & state, /* XXX [xpeed] const */ Value & v, std::span<ValueRef> args, const PosIdx pos) {}
 
 void EvalProfiler::postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
 {
 }
 
 void MultiEvalProfiler::preFunctionCallHook(
-    EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
+    EvalState & state, /* XXX [speed] const */ Value & v, std::span<ValueRef> args, const PosIdx pos)
 {
     for (auto & profiler : profilers) {
         if (profiler->getNeededHooks().test(Hook::preFunctionCall))
@@ -147,13 +147,13 @@ public:
     }
 
     [[gnu::noinline]] void
-    preFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) override;
+    preFunctionCallHook(EvalState & state, /* XXX [speed] const */ Value & v, std::span<ValueRef> args, const PosIdx pos) override;
     [[gnu::noinline]] void
     postFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos) override;
 
     void maybeSaveProfile(std::chrono::time_point<std::chrono::high_resolution_clock> now);
     void saveProfile();
-    FrameInfo getFrameInfoFromValueAndPos(const Value & v, std::span<ValueRef> args, PosIdx pos);
+    FrameInfo getFrameInfoFromValueAndPos(/* XXX [speed] const */ Value & v, std::span<ValueRef> args, PosIdx pos);
 
     SampleStack(SampleStack &&) = default;
     SampleStack & operator=(SampleStack &&) = delete;
@@ -199,7 +199,7 @@ FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value
     return derivationInfo.value_or(PrimOpFrameInfo{.expr = &primOp, .callPos = pos});
 }
 
-FrameInfo SampleStack::getFrameInfoFromValueAndPos(const Value & v, std::span<ValueRef> args, PosIdx pos)
+FrameInfo SampleStack::getFrameInfoFromValueAndPos(/* XXX [speed] const */ Value & v, std::span<ValueRef> args, PosIdx pos)
 {
     /* NOTE: No actual references to garbage collected values are not held in
        the profiler. */
@@ -210,7 +210,7 @@ FrameInfo SampleStack::getFrameInfoFromValueAndPos(const Value & v, std::span<Va
     } else if (v.isPrimOpApp())
         /* Resolve primOp eagerly. Must not hold on to a reference to a Value. */
         return PrimOpFrameInfo{.expr = v.primOpAppPrimOp(state), .callPos = pos};
-    else if (state.isFunctor(v)) {
+    else if (state.isFunctor(state.VPtoVR(&v))) {
         const auto functor = v.attrs()->get(state.sFunctor);
         if (auto pos_ = posCache.lookup(pos); std::holds_alternative<std::monostate>(pos_.origin))
             /* HACK: In case callsite position is unresolved. */
@@ -223,7 +223,7 @@ FrameInfo SampleStack::getFrameInfoFromValueAndPos(const Value & v, std::span<Va
 }
 
 [[gnu::noinline]] void
-SampleStack::preFunctionCallHook(EvalState & state, const Value & v, std::span<ValueRef> args, const PosIdx pos)
+SampleStack::preFunctionCallHook(EvalState & state, /* const */ Value & v, std::span<ValueRef> args, const PosIdx pos)
 {
     stack.push_back(getFrameInfoFromValueAndPos(v, args, pos));
 
