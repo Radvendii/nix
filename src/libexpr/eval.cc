@@ -2249,9 +2249,9 @@ void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] Env & env, Value & 
 // always force this to be separate, otherwise forceValue may inline it and take
 // a massive perf hit
 [[gnu::noinline]]
-void EvalState::tryFixupBlackHolePos(Value & v, PosIdx pos)
+void EvalState::tryFixupBlackHolePos(ValueRef v, PosIdx pos)
 {
-    if (!v.isBlackhole())
+    if (!VRtoV(v).isBlackhole())
         return;
     auto e = std::current_exception();
     try {

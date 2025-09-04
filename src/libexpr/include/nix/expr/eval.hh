@@ -591,7 +591,7 @@ public:
      */
     inline void forceValue(ValueRef v, const PosIdx pos);
 
-    void tryFixupBlackHolePos(Value & v, PosIdx pos);
+    void tryFixupBlackHolePos(ValueRef v, PosIdx pos);
 
     /**
      * Force a value, then recursively force list elements and

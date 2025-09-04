@@ -104,7 +104,7 @@ void EvalState::forceValue(ValueRef v, const PosIdx pos)
                 ExprBlackHole::throwInfiniteRecursionError(*this, VRtoV(v));
         } catch (...) {
             VRtoV(v).mkThunk(env, expr);
-            tryFixupBlackHolePos(VRtoV(v), pos);
+            tryFixupBlackHolePos(v, pos);
             throw;
         }
     } else if (VRtoV(v).isApp())
