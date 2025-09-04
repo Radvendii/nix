@@ -823,7 +823,7 @@ public:
      * Do a deep equality test between two values.  That is, list
      * elements and attributes are compared recursively.
      */
-    bool eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_view errorCtx);
+    bool eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string_view errorCtx);
 
     /**
      * Like `eqValues`, but throws an `AssertionError` if not equal.

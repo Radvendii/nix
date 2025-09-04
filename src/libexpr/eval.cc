@@ -2000,7 +2000,7 @@ void ExprOpEq::eval(EvalState & state, Env & env, Value & v)
     e1->eval(state, env, v1);
     Value v2;
     e2->eval(state, env, v2);
-    v.mkBool(state.eqValues(v1, v2, pos, "while testing two values for equality"));
+    v.mkBool(state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for equality"));
 }
 
 void ExprOpNEq::eval(EvalState & state, Env & env, Value & v)
@@ -2009,7 +2009,7 @@ void ExprOpNEq::eval(EvalState & state, Env & env, Value & v)
     e1->eval(state, env, v1);
     Value v2;
     e2->eval(state, env, v2);
-    v.mkBool(!state.eqValues(v1, v2, pos, "while testing two values for inequality"));
+    v.mkBool(!state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for inequality"));
 }
 
 void ExprOpAnd::eval(EvalState & state, Env & env, Value & v)
@@ -2700,7 +2700,7 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
 
     // Special case type-compatibility between float and int
     if ((v1.type() == nInt || v1.type() == nFloat) && (v2.type() == nInt || v2.type() == nFloat)) {
-        if (eqValues(v1, v2, pos, errorCtx)) {
+        if (eqValues(VPtoVR(&v1), VPtoVR(&v2), pos, errorCtx)) {
             return;
         } else {
             error<AssertionError>(
@@ -2895,70 +2895,71 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
 }
 
 // This implementation must match assertEqValues
-bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_view errorCtx)
+bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string_view errorCtx)
 {
-    forceValue(VPtoVR(&v1), pos);
-    forceValue(VPtoVR(&v2), pos);
+    forceValue(v1, pos);
+    forceValue(v2, pos);
 
+    // XXX [speed]: go look into this. maybe this works differently with ValueRefs
     /* !!! Hack to support some old broken code that relies on pointer
        equality tests between sets.  (Specifically, builderDefs calls
        uniqList on a list of sets.)  Will remove this eventually. */
-    if (&v1 == &v2)
+    if (VRtoVP(v1) == VRtoVP(v2))
         return true;
 
     // Special case type-compatibility between float and int
-    if (v1.type() == nInt && v2.type() == nFloat)
-        return v1.integer().value == v2.fpoint();
-    if (v1.type() == nFloat && v2.type() == nInt)
-        return v1.fpoint() == v2.integer().value;
+    if (VRtoV(v1).type() == nInt && VRtoV(v2).type() == nFloat)
+        return VRtoV(v1).integer().value == VRtoV(v2).fpoint();
+    if (VRtoV(v1).type() == nFloat && VRtoV(v2).type() == nInt)
+        return VRtoV(v1).fpoint() == VRtoV(v2).integer().value;
 
     // All other types are not compatible with each other.
-    if (v1.type() != v2.type())
+    if (VRtoV(v1).type() != VRtoV(v2).type())
         return false;
 
-    switch (v1.type()) {
+    switch (VRtoV(v1).type()) {
     case nInt:
-        return v1.integer() == v2.integer();
+        return VRtoV(v1).integer() == VRtoV(v2).integer();
 
     case nBool:
-        return v1.boolean() == v2.boolean();
+        return VRtoV(v1).boolean() == VRtoV(v2).boolean();
 
     case nString:
-        return strcmp(v1.c_str(), v2.c_str()) == 0;
+        return strcmp(VRtoV(v1).c_str(), VRtoV(v2).c_str()) == 0;
 
     case nPath:
         return
             // FIXME: compare accessors by their fingerprint.
-            v1.pathAccessor() == v2.pathAccessor() && strcmp(v1.pathStr(), v2.pathStr()) == 0;
+            VRtoV(v1).pathAccessor() == VRtoV(v2).pathAccessor() && strcmp(VRtoV(v1).pathStr(), VRtoV(v2).pathStr()) == 0;
 
     case nNull:
         return true;
 
     case nList:
-        if (v1.listSize() != v2.listSize())
+        if (VRtoV(v1).listSize() != VRtoV(v2).listSize())
             return false;
-        for (size_t n = 0; n < v1.listSize(); ++n)
-            if (!eqValues(*VRtoVP(v1.listView()[n]), *VRtoVP(v2.listView()[n]), pos, errorCtx))
+        for (size_t n = 0; n < VRtoV(v1).listSize(); ++n)
+            if (!eqValues(VRtoV(v1).listView()[n], VRtoV(v2).listView()[n], pos, errorCtx))
                 return false;
         return true;
 
     case nAttrs: {
         /* If both sets denote a derivation (type = "derivation"),
            then compare their outPaths. */
-        if (isDerivation(VPtoVR(&v1)) && isDerivation(VPtoVR(&v2))) {
-            auto i = v1.attrs()->get(sOutPath);
-            auto j = v2.attrs()->get(sOutPath);
+        if (isDerivation(v1) && isDerivation(v2)) {
+            auto i = VRtoV(v1).attrs()->get(sOutPath);
+            auto j = VRtoV(v2).attrs()->get(sOutPath);
             if (i && j)
-                return eqValues(*VRtoVP(i->value), *VRtoVP(j->value), pos, errorCtx);
+                return eqValues(i->value, j->value, pos, errorCtx);
         }
 
-        if (v1.attrs()->size() != v2.attrs()->size())
+        if (VRtoV(v1).attrs()->size() != VRtoV(v2).attrs()->size())
             return false;
 
         /* Otherwise, compare the attributes one by one. */
         Bindings::const_iterator i, j;
-        for (i = v1.attrs()->begin(), j = v2.attrs()->begin(); i != v1.attrs()->end(); ++i, ++j)
-            if (i->name != j->name || !eqValues(*VRtoVP(i->value), *VRtoVP(j->value), pos, errorCtx))
+        for (i = VRtoV(v1).attrs()->begin(), j = VRtoV(v2).attrs()->begin(); i != VRtoV(v1).attrs()->end(); ++i, ++j)
+            if (i->name != j->name || !eqValues(i->value, j->value, pos, errorCtx))
                 return false;
 
         return true;
@@ -2969,16 +2970,16 @@ bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_v
         return false;
 
     case nExternal:
-        return *v1.external() == *v2.external();
+        return *VRtoV(v1).external() == *VRtoV(v2).external();
 
     case nFloat:
         // !!!
-        return v1.fpoint() == v2.fpoint();
+        return VRtoV(v1).fpoint() == VRtoV(v2).fpoint();
 
     case nThunk: // Must not be left by forceValue
         assert(false);
     default: // Note that we pass compiler flags that should make `default:` unreachable.
-        error<EvalError>("eqValues: cannot compare %1% with %2%", showType(*this, v1), showType(*this, v2))
+        error<EvalError>("eqValues: cannot compare %1% with %2%", showType(*this, VRtoV(v1)), showType(*this, VRtoV(v2)))
             .withTrace(pos, errorCtx)
             .panic();
     }

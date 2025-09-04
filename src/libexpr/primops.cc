@@ -704,7 +704,7 @@ struct CompareValues
                         return false;
                     } else if (i == state.VRtoVP(v1)->listSize()) {
                         return true;
-                    } else if (!state.eqValues(*state.VRtoVP(state.VRtoVP(v1)->listView()[i]), *state.VRtoVP(state.VRtoVP(v2)->listView()[i]), pos, errorCtx)) {
+                    } else if (!state.eqValues(state.VRtoVP(v1)->listView()[i], state.VRtoVP(v2)->listView()[i], pos, errorCtx)) {
                         return (*this)(state.VRtoVP(v1)->listView()[i], state.VRtoVP(v2)->listView()[i], "while comparing two list elements");
                     }
                 }
@@ -3628,7 +3628,7 @@ static void prim_elem(EvalState & state, const PosIdx pos, ValueRef * args, Valu
     bool res = false;
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.elem");
     for (auto elem : state.VRtoVP(args[1])->listView())
-        if (state.eqValues(*state.VRtoVP(args[0]), *state.VRtoVP(elem), pos, "while searching for the presence of the given element in the list")) {
+        if (state.eqValues(args[0], elem, pos, "while searching for the presence of the given element in the list")) {
             res = true;
             break;
         }
