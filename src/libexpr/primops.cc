@@ -4958,7 +4958,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkAttrs(buildBindings(128).finish());
     addConstant(
         "builtins",
-        v,
+        VPtoVR(&v),
         {
             .type = nAttrs,
             .doc = R"(
@@ -4976,7 +4976,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkBool(true);
     addConstant(
         "true",
-        v,
+        VPtoVR(&v),
         {
             .type = nBool,
             .doc = R"(
@@ -5000,7 +5000,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkBool(false);
     addConstant(
         "false",
-        v,
+        VPtoVR(&v),
         {
             .type = nBool,
             .doc = R"(
@@ -5022,7 +5022,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
 
     addConstant(
         "null",
-        VRtoVP(vNull),
+        vNull,
         {
             .type = nNull,
             .doc = R"(
@@ -5042,7 +5042,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     }
     addConstant(
         "__currentTime",
-        v,
+        VPtoVR(&v),
         {
             .type = nInt,
             .doc = R"(
@@ -5071,7 +5071,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
         v.mkString(settings.getCurrentSystem());
     addConstant(
         "__currentSystem",
-        v,
+        VPtoVR(&v),
         {
             .type = nString,
             .doc = R"(
@@ -5103,7 +5103,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkString(nixVersion);
     addConstant(
         "__nixVersion",
-        v,
+        VPtoVR(&v),
         {
             .type = nString,
             .doc = R"(
@@ -5128,7 +5128,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkString(store->storeDir);
     addConstant(
         "__storeDir",
-        v,
+        VPtoVR(&v),
         {
             .type = nString,
             .doc = R"(
@@ -5150,7 +5150,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkInt(6);
     addConstant(
         "__langVersion",
-        v,
+        VPtoVR(&v),
         {
             .type = nInt,
             .doc = R"(
@@ -5197,7 +5197,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
     v.mkList(list);
     addConstant(
         "__nixPath",
-        v,
+        VPtoVR(&v),
         {
             .type = nList,
             .doc = R"(

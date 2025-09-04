@@ -749,7 +749,7 @@ private:
 
     void createBaseEnv(const EvalSettings & settings);
 
-    Value * addConstant(const std::string & name, Value & v, Constant info);
+    Value * addConstant(const std::string & name, ValueRef v, Constant info);
 
     void addConstant(const std::string & name, Value * v, Constant info);
 

@@ -551,10 +551,10 @@ void EvalState::checkURI(const std::string & uri)
     throw RestrictedPathError("access to URI '%s' is forbidden in restricted mode", uri);
 }
 
-Value * EvalState::addConstant(const std::string & name, Value & v, Constant info)
+Value * EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 {
     ValueRef v2 = allocValue();
-    *VRtoVP(v2) = v;
+    *VRtoVP(v2) = VRtoV(v);
     addConstant(name, VRtoVP(v2), info);
     return VRtoVP(v2);
 }
@@ -626,7 +626,7 @@ Value * EvalState::addPrimOp(PrimOp && primOp)
         v.mkApp(*this, VRtoVP(vPrimOp), VRtoVP(vPrimOp));
         return addConstant(
             primOp.name,
-            v,
+            VPtoVR(&v),
             {
                 .type = nThunk, // FIXME
                 .doc = primOp.doc,
