@@ -917,7 +917,7 @@ public:
      */
     void mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef v);
 
-    void concatLists(Value & v, size_t nrLists, ValueRef const * lists, const PosIdx pos, std::string_view errorCtx);
+    void concatLists(ValueRef v, size_t nrLists, ValueRef const * lists, const PosIdx pos, std::string_view errorCtx);
 
     /**
      * Print statistics, if enabled.

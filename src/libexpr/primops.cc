@@ -3651,7 +3651,7 @@ static void prim_concatLists(EvalState & state, const PosIdx pos, ValueRef * arg
     state.forceList(args[0], pos, "while evaluating the first argument passed to builtins.concatLists");
     auto listView = state.VRtoVP(args[0])->listView();
     state.concatLists(
-        state.VRtoV(v),
+        v,
         state.VRtoVP(args[0])->listSize(),
         listView.data(),
         pos,

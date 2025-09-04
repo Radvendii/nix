@@ -2086,11 +2086,11 @@ void ExprOpConcatLists::eval(EvalState & state, Env & env, Value & v)
     e2->eval(state, env, v2);
     ValueRef lists[2] = {state.VPtoVR(&v1), state.VPtoVR(&v2)};
     // XXX [speed]: these can be local again
-    state.concatLists(v, 2, lists, pos, "while evaluating one of the elements to concatenate");
+    state.concatLists(state.VPtoVR(&v), 2, lists, pos, "while evaluating one of the elements to concatenate");
 }
 
 void EvalState::concatLists(
-    Value & v, size_t nrLists, ValueRef const * lists, const PosIdx pos, std::string_view errorCtx)
+    ValueRef v, size_t nrLists, ValueRef const * lists, const PosIdx pos, std::string_view errorCtx)
 {
     nrListConcats++;
 
@@ -2105,7 +2105,7 @@ void EvalState::concatLists(
     }
 
     if (nonEmpty && len == nonEmpty->listSize()) {
-        v = *nonEmpty;
+        VRtoV(v) = *nonEmpty;
         return;
     }
 
@@ -2118,7 +2118,7 @@ void EvalState::concatLists(
             memcpy(out + pos, listView.data(), l * sizeof(ValueRef));
         pos += l;
     }
-    v.mkList(list);
+    VRtoV(v).mkList(list);
 }
 
 void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
