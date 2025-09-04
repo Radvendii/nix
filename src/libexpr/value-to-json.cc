@@ -32,7 +32,7 @@ json printValueAsJSON(
         break;
 
     case nString:
-        copyContext(v, context);
+        copyContext(state, state.VPtoVR(&v), context);
         out = v.c_str();
         break;
 

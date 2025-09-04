@@ -2402,10 +2402,10 @@ std::string_view EvalState::forceString(Value & v, const PosIdx pos, std::string
     }
 }
 
-void copyContext(const Value & v, NixStringContext & context, const ExperimentalFeatureSettings & xpSettings)
+void copyContext(EvalState & state, /* XXX [speed ] const */ ValueRef v, NixStringContext & context, const ExperimentalFeatureSettings & xpSettings)
 {
-    if (v.context())
-        for (const char ** p = v.context(); *p; ++p)
+    if (state.VRtoV(v).context())
+        for (const char ** p = state.VRtoV(v).context(); *p; ++p)
             context.insert(NixStringContextElem::parse(*p, xpSettings));
 }
 
@@ -2417,7 +2417,7 @@ std::string_view EvalState::forceString(
     const ExperimentalFeatureSettings & xpSettings)
 {
     auto s = forceString(v, pos, errorCtx);
-    copyContext(v, context, xpSettings);
+    copyContext(*this, VPtoVR(&v), context, xpSettings);
     return s;
 }
 
@@ -2478,7 +2478,7 @@ BackedStringView EvalState::coerceToString(
     forceValue(v, pos);
 
     if (v.type() == nString) {
-        copyContext(v, context);
+        copyContext(*this, VPtoVR(&v), context);
         return v.string_view();
     }
 

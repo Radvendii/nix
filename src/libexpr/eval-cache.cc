@@ -578,7 +578,7 @@ string_t AttrCursor::getStringWithContext()
 
     if (v.type() == nString) {
         NixStringContext context;
-        copyContext(v, context);
+        copyContext(root->state, root->state.VPtoVR(&v), context);
         return {v.c_str(), std::move(context)};
     } else if (v.type() == nPath)
         return {v.path().to_string(), {}};

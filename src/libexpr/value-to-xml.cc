@@ -81,7 +81,7 @@ static void printValueAsXML(
 
     case nString:
         /* !!! show the context? */
-        copyContext(v, context);
+        copyContext(state, state.VPtoVR(&v), context);
         doc.writeEmptyElement("string", singletonAttrs("value", v.c_str()));
         break;
 

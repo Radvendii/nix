@@ -176,7 +176,8 @@ void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & 
 std::unique_ptr<ValMap> mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const Env & env);
 
 void copyContext(
-    const Value & v,
+    EvalState & state,
+    /* XXX [speed] const */ ValueRef v,
     NixStringContext & context,
     const ExperimentalFeatureSettings & xpSettings = experimentalFeatureSettings);
 
