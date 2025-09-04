@@ -412,11 +412,11 @@ TEST_F(ValuePrintingTests, ansiColorsDerivation)
 
 TEST_F(ValuePrintingTests, ansiColorsError)
 {
-    Value throw_ = state.getBuiltin("throw");
+    ValueRef throw_ = state.getBuiltin("throw");
     Value message;
     message.mkString("uh oh!");
     Value vError;
-    vError.mkApp(state, &throw_, &message);
+    vError.mkApp(state, &state.VRtoV(throw_), &message);
 
     test(
         vError,
@@ -429,11 +429,11 @@ TEST_F(ValuePrintingTests, ansiColorsError)
 
 TEST_F(ValuePrintingTests, ansiColorsDerivationError)
 {
-    Value throw_ = state.getBuiltin("throw");
+    ValueRef throw_ = state.getBuiltin("throw");
     Value message;
     message.mkString("uh oh!");
     Value vError;
-    vError.mkApp(state, &throw_, &message);
+    vError.mkApp(state, &state.VRtoV(throw_), &message);
 
     Value vDerivation;
     vDerivation.mkString("derivation");

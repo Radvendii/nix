@@ -2249,7 +2249,7 @@ static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, V
     // using `getFileType` on some systems.
     // In order to reduce system calls we make each lookup lazy by using
     // `builtins.readFileType` application.
-    Value * readFileType = nullptr;
+    ValueRef readFileType = ValueRefNull;
 
     for (auto & [name, type] : entries) {
         if (!type) {
@@ -2260,8 +2260,8 @@ static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, V
             auto epath = state.allocValue();
             state.VRtoVP(epath)->mkPath(path / name);
             if (!readFileType)
-                readFileType = &state.getBuiltin("readFileType");
-            attr.mkApp(state, readFileType, state.VRtoVP(epath));
+                readFileType = state.getBuiltin("readFileType");
+            attr.mkApp(state, state.VRtoVP(readFileType), state.VRtoVP(epath));
         } else {
             // This branch of the conditional is much more likely.
             // Here we just stringize the directory entry type.
@@ -5256,7 +5256,7 @@ void EvalState::createBaseEnv(const EvalSettings & evalSettings)
 
     /* Now that we've added all primops, sort the `builtins' set,
        because attribute lookups expect it to be sorted. */
-    const_cast<Bindings *>(getBuiltins().attrs())->sort();
+    const_cast<Bindings *>(VRtoV(getBuiltins()).attrs())->sort();
 
     staticBaseEnv->sort();
 

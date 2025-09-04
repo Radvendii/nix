@@ -256,7 +256,7 @@ static void showHelp(std::vector<std::string> subcommand, NixArgs & toplevel)
     state.VRtoVP(vDump)->mkString(toplevel.dumpCli());
 
     auto vRes = state.allocValue();
-    state.callFunction(*state.VRtoVP(vGenerateManpage), state.VPtoVR(&state.getBuiltin("false")), *state.VRtoVP(vRes), noPos);
+    state.callFunction(*state.VRtoVP(vGenerateManpage), state.getBuiltin("false"), *state.VRtoVP(vRes), noPos);
     state.callFunction(*state.VRtoVP(vRes), vDump, *state.VRtoVP(vRes), noPos);
 
     auto attr = state.VRtoVP(vRes)->attrs()->get(state.symbols.create(mdName + ".md"));
@@ -431,7 +431,7 @@ void mainWrapped(int argc, char ** argv)
         evalSettings.pureEval = false;
         EvalState state({}, openStore("dummy://"), fetchSettings, evalSettings);
         auto builtinsJson = nlohmann::json::object();
-        for (auto & builtinPtr : state.getBuiltins().attrs()->lexicographicOrder(state.symbols)) {
+        for (auto & builtinPtr : state.VRtoV(state.getBuiltins()).attrs()->lexicographicOrder(state.symbols)) {
             auto & builtin = *builtinPtr;
             auto b = nlohmann::json::object();
             if (!state.VRtoVP(builtin.value)->isPrimOp())
