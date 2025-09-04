@@ -110,7 +110,7 @@ static void fetchTree(
                 continue;
             state.forceValue(attr.value, attr.pos);
             if (state.VRtoVP(attr.value)->type() == nPath || state.VRtoVP(attr.value)->type() == nString) {
-                auto s = state.coerceToString(attr.pos, *state.VRtoVP(attr.value), context, "", false, false).toOwned();
+                auto s = state.coerceToString(attr.pos, attr.value, context, "", false, false).toOwned();
                 attrs.emplace(
                     state.symbols[attr.name],
                     params.isFetchGit && state.symbols[attr.name] == "url" ? fixGitURL(s) : s);
@@ -165,7 +165,7 @@ static void fetchTree(
         auto url = state
                        .coerceToString(
                            pos,
-                           *state.VRtoVP(args[0]),
+                           args[0],
                            context,
                            fmt("while evaluating the first argument passed to '%s'", fetcher),
                            false,

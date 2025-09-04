@@ -9,7 +9,7 @@ static void prim_unsafeDiscardStringContext(EvalState & state, const PosIdx pos,
 {
     NixStringContext context;
     auto s = state.coerceToString(
-        pos, *state.VRtoVP(args[0]), context, "while evaluating the argument passed to builtins.unsafeDiscardStringContext");
+        pos, args[0], context, "while evaluating the argument passed to builtins.unsafeDiscardStringContext");
     state.VRtoV(v).mkString(*s);
 }
 
@@ -56,7 +56,7 @@ static void prim_unsafeDiscardOutputDependency(EvalState & state, const PosIdx p
 {
     NixStringContext context;
     auto s = state.coerceToString(
-        pos, *state.VRtoVP(args[0]), context, "while evaluating the argument passed to builtins.unsafeDiscardOutputDependency");
+        pos, args[0], context, "while evaluating the argument passed to builtins.unsafeDiscardOutputDependency");
 
     NixStringContext context2;
     for (auto && c : context) {
@@ -97,7 +97,7 @@ static void prim_addDrvOutputDependencies(EvalState & state, const PosIdx pos, V
 {
     NixStringContext context;
     auto s = state.coerceToString(
-        pos, *state.VRtoVP(args[0]), context, "while evaluating the argument passed to builtins.addDrvOutputDependencies");
+        pos, args[0], context, "while evaluating the argument passed to builtins.addDrvOutputDependencies");
 
     auto contextSize = context.size();
     if (contextSize != 1) {

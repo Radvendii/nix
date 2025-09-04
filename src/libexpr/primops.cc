@@ -50,7 +50,7 @@ static inline Value * mkString(EvalState & state, const std::csub_match & match)
 std::string EvalState::realiseString(Value & s, StorePathSet * storePathsOutMaybe, bool isIFD, const PosIdx pos)
 {
     nix::NixStringContext stringContext;
-    auto rawStr = coerceToString(pos, s, stringContext, "while realising a string").toOwned();
+    auto rawStr = coerceToString(pos, VPtoVR(&s), stringContext, "while realising a string").toOwned();
     auto rewrites = realiseContext(stringContext, storePathsOutMaybe, isIFD);
 
     return nix::rewriteStrings(rawStr, rewrites);
@@ -434,7 +434,7 @@ void prim_exec(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
     auto program = state
                        .coerceToString(
                            pos,
-                           *state.VRtoVP(elems[0]),
+                           elems[0],
                            context,
                            "while evaluating the first element of the argument passed to builtins.exec",
                            false,
@@ -445,7 +445,7 @@ void prim_exec(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
         commandArgs.push_back(state
                                   .coerceToString(
                                       pos,
-                                      *state.VRtoVP(elems[i]),
+                                      elems[i],
                                       context,
                                       "while evaluating an element of the argument passed to builtins.exec",
                                       false,
@@ -893,7 +893,7 @@ static RegisterPrimOp primop_abort(
      .fun = [](EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v) {
          NixStringContext context;
          auto s =
-             state.coerceToString(pos, *state.VRtoVP(args[0]), context, "while evaluating the error message passed to builtins.abort")
+             state.coerceToString(pos, args[0], context, "while evaluating the error message passed to builtins.abort")
                  .toOwned();
          state.error<Abort>("evaluation aborted with the following error message: '%1%'", s)
              .setIsFromExpr()
@@ -913,7 +913,7 @@ static RegisterPrimOp primop_throw(
      .fun = [](EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v) {
          NixStringContext context;
          auto s =
-             state.coerceToString(pos, *state.VRtoVP(args[0]), context, "while evaluating the error message passed to builtin.throw")
+             state.coerceToString(pos, args[0], context, "while evaluating the error message passed to builtin.throw")
                  .toOwned();
          state.error<ThrownError>(s).setIsFromExpr().debugThrow();
      }});
@@ -928,7 +928,7 @@ static void prim_addErrorContext(EvalState & state, const PosIdx pos, ValueRef *
         auto message = state
                            .coerceToString(
                                pos,
-                               *state.VRtoVP(args[0]),
+                               args[0],
                                context,
                                "while evaluating the error message passed to builtins.addErrorContext",
                                false,
@@ -1470,7 +1470,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
                 for (auto elem : state.VRtoVP(i->value)->listView()) {
                     auto s = state
                                  .coerceToString(
-                                     pos, *state.VRtoVP(elem), context, "while evaluating an element of the argument list", true)
+                                     pos, elem, context, "while evaluating an element of the argument list", true)
                                  .toOwned();
                     drv.args.push_back(s);
                 }
@@ -1532,7 +1532,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
                             drvName);
 
                 } else {
-                    auto s = state.coerceToString(pos, *state.VRtoVP(i->value), context, context_below, true).toOwned();
+                    auto s = state.coerceToString(pos, i->value, context, context_below, true).toOwned();
                     if (i->name == state.sJson) {
                         warn(
                             "In derivation '%s': setting structured attributes via '__json' is deprecated, and may be disallowed in future versions of Nix. Set '__structuredAttrs = true' instead.",
@@ -1904,7 +1904,7 @@ static void prim_baseNameOf(EvalState & state, const PosIdx pos, ValueRef * args
     NixStringContext context;
     state.VRtoV(v).mkString(
         legacyBaseNameOf(*state.coerceToString(
-            pos, *state.VRtoVP(args[0]), context, "while evaluating the first argument passed to builtins.baseNameOf", false, false)),
+            pos, args[0], context, "while evaluating the first argument passed to builtins.baseNameOf", false, false)),
         context);
 }
 
@@ -1938,7 +1938,7 @@ static void prim_dirOf(EvalState & state, const PosIdx pos, ValueRef * args, Val
     } else {
         NixStringContext context;
         auto path = state.coerceToString(
-            pos, *state.VRtoVP(args[0]), context, "while evaluating the first argument passed to 'builtins.dirOf'", false, false);
+            pos, args[0], context, "while evaluating the first argument passed to 'builtins.dirOf'", false, false);
         auto dir = dirOf(*path);
         state.VRtoV(v).mkString(dir, context);
     }
@@ -2020,7 +2020,7 @@ static void prim_findFile(EvalState & state, const PosIdx pos, ValueRef * args, 
             state
                 .coerceToString(
                     pos,
-                    *state.VRtoVP(i->value),
+                    i->value,
                     context,
                     "while evaluating the `path` attribute of an element of the list passed to builtins.findFile",
                     false,
@@ -4281,7 +4281,7 @@ static void prim_toString(EvalState & state, const PosIdx pos, ValueRef * args, 
 {
     NixStringContext context;
     auto s = state.coerceToString(
-        pos, *state.VRtoVP(args[0]), context, "while evaluating the first argument passed to builtins.toString", true, false);
+        pos, args[0], context, "while evaluating the first argument passed to builtins.toString", true, false);
     state.VRtoV(v).mkString(*s, context);
 }
 
@@ -4353,7 +4353,7 @@ static void prim_substring(EvalState & state, const PosIdx pos, ValueRef * args,
 
     NixStringContext context;
     auto s = state.coerceToString(
-        pos, *state.VRtoVP(args[2]), context, "while evaluating the third argument (the string) passed to builtins.substring");
+        pos, args[2], context, "while evaluating the third argument (the string) passed to builtins.substring");
 
     state.VRtoV(v).mkString(NixUInt(start) >= s->size() ? "" : s->substr(start, _len), context);
 }
@@ -4383,7 +4383,7 @@ static void prim_stringLength(EvalState & state, const PosIdx pos, ValueRef * ar
 {
     NixStringContext context;
     auto s =
-        state.coerceToString(pos, *state.VRtoVP(args[0]), context, "while evaluating the argument passed to builtins.stringLength");
+        state.coerceToString(pos, args[0], context, "while evaluating the argument passed to builtins.stringLength");
     state.VRtoV(v).mkInt(NixInt::Inner(s->size()));
 }
 
@@ -4754,7 +4754,7 @@ static void prim_concatStringsSep(EvalState & state, const PosIdx pos, ValueRef 
             res += sep;
         res += *state.coerceToString(
             pos,
-            *state.VRtoVP(elem),
+            elem,
             context,
             "while evaluating one element of the list of strings to concat passed to builtins.concatStringsSep");
     }

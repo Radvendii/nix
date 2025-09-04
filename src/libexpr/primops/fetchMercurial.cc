@@ -26,7 +26,7 @@ static void prim_fetchMercurial(EvalState & state, const PosIdx pos, ValueRef * 
                 url = state
                           .coerceToString(
                               attr.pos,
-                              *state.VRtoVP(attr.value),
+                              attr.value,
                               context,
                               "while evaluating the `url` attribute passed to builtins.fetchMercurial",
                               false,
@@ -57,7 +57,7 @@ static void prim_fetchMercurial(EvalState & state, const PosIdx pos, ValueRef * 
         url = state
                   .coerceToString(
                       pos,
-                      *state.VRtoVP(args[0]),
+                      args[0],
                       context,
                       "while evaluating the first argument passed to builtins.fetchMercurial",
                       false,

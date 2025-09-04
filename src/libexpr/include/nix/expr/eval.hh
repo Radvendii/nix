@@ -657,7 +657,7 @@ public:
      */
     BackedStringView coerceToString(
         const PosIdx pos,
-        Value & v,
+        ValueRef v,
         NixStringContext & context,
         std::string_view errorCtx,
         bool coerceMore = false,

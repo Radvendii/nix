@@ -56,7 +56,7 @@ void processExpr(
             else
                 state.autoCallFunction(autoArgs, v, vRes);
             if (output == okRaw)
-                std::cout << *state.coerceToString(noPos, vRes, context, "while generating the nix-instantiate output");
+                std::cout << *state.coerceToString(noPos, state.VPtoVR(&vRes), context, "while generating the nix-instantiate output");
             // We intentionally don't output a newline here. The default PS1 for Bash in NixOS starts with a newline
             // and other interactive shells like Zsh are smart enough to print a missing newline before the prompt.
             else if (output == okXML)
