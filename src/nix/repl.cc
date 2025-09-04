@@ -89,7 +89,7 @@ struct CmdRepl : RawInstallablesCommand
                     state->forceValue(state->VPtoVR(val), pos);
                     auto autoArgs = getAutoArgs(*state);
                     auto valPost = state->allocValue();
-                    state->autoCallFunction(*autoArgs, *val, *state->VRtoVP(valPost));
+                    state->autoCallFunction(*autoArgs, state->VPtoVR(val), valPost);
                     state->forceValue(valPost, pos);
                     values.push_back({valPost, what});
                 } else {

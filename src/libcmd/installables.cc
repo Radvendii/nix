@@ -279,7 +279,7 @@ void SourceExprCommand::completeInstallable(AddCompletions & completions, std::s
             Value & v1(*v);
             state->forceValue(state->VPtoVR(&v1), pos);
             Value v2;
-            state->autoCallFunction(*autoArgs, v1, v2);
+            state->autoCallFunction(*autoArgs, state->VPtoVR(&v1), state->VPtoVR(&v2));
 
             if (v2.type() == nAttrs) {
                 for (auto & i : *v2.attrs()) {

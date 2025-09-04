@@ -380,7 +380,7 @@ static void getDerivations(
     bool ignoreAssertionFailures)
 {
     Value v;
-    state.autoCallFunction(autoArgs, vIn, v);
+    state.autoCallFunction(autoArgs, state.VPtoVR(&vIn), state.VPtoVR(&v));
 
     /* Process the expression. */
     if (!getDerivation(state, v, pathPrefix, drvs, done, ignoreAssertionFailures))

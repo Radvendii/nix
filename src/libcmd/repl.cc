@@ -722,7 +722,7 @@ void NixRepl::loadFile(const Path & path)
     loadedFiles.push_back(path);
     Value v, v2;
     state->evalFile(lookupFileArg(*state, path), state->VPtoVR(&v));
-    state->autoCallFunction(*autoArgs, v, v2);
+    state->autoCallFunction(*autoArgs, state->VPtoVR(&v), state->VPtoVR(&v2));
     addAttrsToScope(v2);
 }
 

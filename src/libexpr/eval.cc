@@ -1896,30 +1896,30 @@ void EvalState::incrFunctionCall(ExprLambda * fun)
     functionCalls[fun]++;
 }
 
-void EvalState::autoCallFunction(const Bindings & args, Value & fun, Value & res)
+void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef res)
 {
-    auto pos = fun.determinePos(*this, noPos);
+    auto pos = VRtoV(fun).determinePos(*this, noPos);
 
-    forceValue(VPtoVR(&fun), pos);
+    forceValue(fun, pos);
 
-    if (fun.type() == nAttrs) {
-        auto found = fun.attrs()->find(sFunctor);
-        if (found != fun.attrs()->end()) {
+    if (VRtoV(fun).type() == nAttrs) {
+        auto found = VRtoV(fun).attrs()->find(sFunctor);
+        if (found != VRtoV(fun).attrs()->end()) {
             ValueRef v = allocValue();
-            callFunction(found->value, VPtoVR(&fun), v, pos);
+            callFunction(found->value, fun, v, pos);
             forceValue(v, pos);
-            return autoCallFunction(args, *VRtoVP(v), res);
+            return autoCallFunction(args, v, res);
         }
     }
 
-    if (!fun.isLambda() || !fun.lambda().fun->hasFormals()) {
+    if (!VRtoV(fun).isLambda() || !VRtoV(fun).lambda().fun->hasFormals()) {
         res = fun;
         return;
     }
 
-    auto attrs = buildBindings(std::max(static_cast<uint32_t>(fun.lambda().fun->formals->formals.size()), args.size()));
+    auto attrs = buildBindings(std::max(static_cast<uint32_t>(VRtoV(fun).lambda().fun->formals->formals.size()), args.size()));
 
-    if (fun.lambda().fun->formals->ellipsis) {
+    if (VRtoV(fun).lambda().fun->formals->ellipsis) {
         // If the formals have an ellipsis (eg the function accepts extra args) pass
         // all available automatic arguments (which includes arguments specified on
         // the command line via --arg/--argstr)
@@ -1927,7 +1927,7 @@ void EvalState::autoCallFunction(const Bindings & args, Value & fun, Value & res
             attrs.insert(v);
     } else {
         // Otherwise, only pass the arguments that the function accepts
-        for (auto & i : fun.lambda().fun->formals->formals) {
+        for (auto & i : VRtoV(fun).lambda().fun->formals->formals) {
             auto j = args.get(i.name);
             if (j) {
                 attrs.insert(*j);
@@ -1940,13 +1940,13 @@ values, or passed explicitly with '--arg' or '--argstr'. See
 https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
                     symbols[i.name])
                     .atPos(i.pos)
-                    .withFrame(*fun.lambda().env, *fun.lambda().fun)
+                    .withFrame(*VRtoV(fun).lambda().env, *VRtoV(fun).lambda().fun)
                     .debugThrow();
             }
         }
     }
 
-    callFunction(VPtoVR(&fun), VPtoVR(&VRtoVP(allocValue())->mkAttrs(attrs)), VPtoVR(&res), pos);
+    callFunction(fun, VPtoVR(&VRtoVP(allocValue())->mkAttrs(attrs)), res, pos);
 }
 
 void ExprWith::eval(EvalState & state, Env & env, Value & v)
