@@ -1425,7 +1425,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
     for (auto & i : dynamicAttrs) {
         Value nameVal;
         i.nameExpr->eval(state, *dynamicEnv, nameVal);
-        state.forceValue(nameVal, i.pos);
+        state.forceValue(state.VPtoVR(&nameVal), i.pos);
         if (nameVal.type() == nNull)
             continue;
         state.forceStringNoCtx(nameVal, i.pos, "while evaluating the name of a dynamic attribute");
@@ -1495,7 +1495,7 @@ Value * ExprList::maybeThunk(EvalState & state, Env & env)
 void ExprVar::eval(EvalState & state, Env & env, Value & v)
 {
     Value * v2 = state.lookupVar(&env, *this, false);
-    state.forceValue(*v2, pos);
+    state.forceValue(state.VPtoVR(v2), pos);
     v = *v2;
 }
 
@@ -1543,7 +1543,7 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
             const Attr * j;
             auto name = getName(i, state, env);
             if (def) {
-                state.forceValue(*vAttrs, pos);
+                state.forceValue(state.VPtoVR(vAttrs), pos);
                 if (vAttrs->type() != nAttrs || !(j = vAttrs->attrs()->get(name))) {
                     def->eval(state, env, v);
                     return;
@@ -1568,7 +1568,7 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
                 state.attrSelects[pos2]++;
         }
 
-        state.forceValue(*vAttrs, (pos2 ? pos2 : this->pos));
+        state.forceValue(state.VPtoVR(vAttrs), (pos2 ? pos2 : this->pos));
 
     } catch (Error & e) {
         if (pos2) {
@@ -1608,7 +1608,7 @@ void ExprOpHasAttr::eval(EvalState & state, Env & env, Value & v)
     e->eval(state, env, vTmp);
 
     for (auto & i : attrPath) {
-        state.forceValue(*vAttrs, getPos());
+        state.forceValue(state.VPtoVR(vAttrs), getPos());
         const Attr * j;
         auto name = getName(i, state, env);
         if (vAttrs->type() == nAttrs && (j = vAttrs->attrs()->get(name))) {
@@ -1640,7 +1640,7 @@ void EvalState::callFunction(Value & fun, std::span<ValueRef> args, Value & vRes
             profiler.postFunctionCallHook(*this, fun, args, pos);
     }};
 
-    forceValue(fun, pos);
+    forceValue(VPtoVR(&fun), pos);
 
     Value vCur(fun);
 
@@ -1900,14 +1900,14 @@ void EvalState::autoCallFunction(const Bindings & args, Value & fun, Value & res
 {
     auto pos = fun.determinePos(*this, noPos);
 
-    forceValue(fun, pos);
+    forceValue(VPtoVR(&fun), pos);
 
     if (fun.type() == nAttrs) {
         auto found = fun.attrs()->find(sFunctor);
         if (found != fun.attrs()->end()) {
             ValueRef v = allocValue();
             callFunction(*VRtoVP(found->value), VPtoVR(&fun), *VRtoVP(v), pos);
-            forceValue(*VRtoVP(v), pos);
+            forceValue(v, pos);
             return autoCallFunction(args, *VRtoVP(v), res);
         }
     }
@@ -2272,7 +2272,7 @@ void EvalState::forceValueDeep(Value & v)
         if (!seen.insert(&v).second)
             return;
 
-        forceValue(v, v.determinePos(*this, noPos));
+        forceValue(VPtoVR(&v), v.determinePos(*this, noPos));
 
         if (v.type() == nAttrs) {
             for (auto & i : *v.attrs())
@@ -2306,7 +2306,7 @@ void EvalState::forceValueDeep(Value & v)
 NixInt EvalState::forceInt(Value & v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(v, pos);
+        forceValue(VPtoVR(&v), pos);
         if (v.type() != nInt)
             error<TypeError>(
                 "expected an integer but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
@@ -2324,7 +2324,7 @@ NixInt EvalState::forceInt(Value & v, const PosIdx pos, std::string_view errorCt
 NixFloat EvalState::forceFloat(Value & v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(v, pos);
+        forceValue(VPtoVR(&v), pos);
         if (v.type() == nInt)
             return v.integer().value;
         else if (v.type() != nFloat)
@@ -2342,7 +2342,7 @@ NixFloat EvalState::forceFloat(Value & v, const PosIdx pos, std::string_view err
 bool EvalState::forceBool(Value & v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(v, pos);
+        forceValue(VPtoVR(&v), pos);
         if (v.type() != nBool)
             error<TypeError>(
                 "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
@@ -2374,7 +2374,7 @@ bool EvalState::isFunctor(const Value & fun) const
 void EvalState::forceFunction(Value & v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(v, pos);
+        forceValue(VPtoVR(&v), pos);
         if (v.type() != nFunction && !isFunctor(v))
             error<TypeError>(
                 "expected a function but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
@@ -2389,7 +2389,7 @@ void EvalState::forceFunction(Value & v, const PosIdx pos, std::string_view erro
 std::string_view EvalState::forceString(Value & v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        forceValue(v, pos);
+        forceValue(VPtoVR(&v), pos);
         if (v.type() != nString)
             error<TypeError>(
                 "expected a string but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
@@ -2440,7 +2440,7 @@ bool EvalState::isDerivation(Value & v)
     auto i = v.attrs()->get(sType);
     if (!i)
         return false;
-    forceValue(*VRtoVP(i->value), i->pos);
+    forceValue(i->value, i->pos);
     if (VRtoVP(i->value)->type() != nString)
         return false;
     return VRtoVP(i->value)->string_view().compare("derivation") == 0;
@@ -2475,7 +2475,7 @@ BackedStringView EvalState::coerceToString(
     bool copyToStore,
     bool canonicalizePath)
 {
-    forceValue(v, pos);
+    forceValue(VPtoVR(&v), pos);
 
     if (v.type() == nString) {
         copyContext(*this, VPtoVR(&v), context);
@@ -2589,7 +2589,7 @@ StorePath EvalState::copyPathToStore(NixStringContext & context, const SourcePat
 SourcePath EvalState::coerceToPath(const PosIdx pos, Value & v, NixStringContext & context, std::string_view errorCtx)
 {
     try {
-        forceValue(v, pos);
+        forceValue(VPtoVR(&v), pos);
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
@@ -2692,8 +2692,8 @@ SingleDerivedPath EvalState::coerceToSingleDerivedPath(const PosIdx pos, Value &
 void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::string_view errorCtx)
 {
     // This implementation must match eqValues.
-    forceValue(v1, pos);
-    forceValue(v2, pos);
+    forceValue(VPtoVR(&v1), pos);
+    forceValue(VPtoVR(&v2), pos);
 
     if (&v1 == &v2)
         return;
@@ -2897,8 +2897,8 @@ void EvalState::assertEqValues(Value & v1, Value & v2, const PosIdx pos, std::st
 // This implementation must match assertEqValues
 bool EvalState::eqValues(Value & v1, Value & v2, const PosIdx pos, std::string_view errorCtx)
 {
-    forceValue(v1, pos);
-    forceValue(v2, pos);
+    forceValue(VPtoVR(&v1), pos);
+    forceValue(VPtoVR(&v2), pos);
 
     /* !!! Hack to support some old broken code that relies on pointer
        equality tests between sets.  (Specifically, builderDefs calls

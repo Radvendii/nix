@@ -16,7 +16,7 @@ static void prim_fetchMercurial(EvalState & state, const PosIdx pos, ValueRef * 
     std::string_view name = "source";
     NixStringContext context;
 
-    state.forceValue(*state.VRtoVP(args[0]), pos);
+    state.forceValue(args[0], pos);
 
     if (state.VRtoVP(args[0])->type() == nAttrs) {
 

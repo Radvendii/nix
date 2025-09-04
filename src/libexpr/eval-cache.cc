@@ -23,7 +23,7 @@ void CachedEvalError::force()
     if (v.type() == nAttrs) {
         auto a = v.attrs()->get(this->attr);
 
-        state.forceValue(cursor->root->state.VRtoV(a->value), a->pos);
+        state.forceValue(a->value, a->pos);
     }
 
     // Shouldn't happen.
@@ -395,7 +395,7 @@ Value & AttrCursor::forceValue()
     auto & v = getValue();
 
     try {
-        root->state.forceValue(v, noPos);
+        root->state.forceValue(root->state.VPtoVR(&v), noPos);
     } catch (EvalError &) {
         debug("setting '%s' to failed", getAttrPathStr());
         if (root->db)
@@ -644,7 +644,7 @@ std::vector<std::string> AttrCursor::getListOfStrings()
     debug("evaluating uncached attribute '%s'", getAttrPathStr());
 
     auto & v = getValue();
-    root->state.forceValue(v, noPos);
+    root->state.forceValue(root->state.VPtoVR(&v), noPos);
 
     if (v.type() != nList)
         root->state.error<TypeError>("'%s' is not a list", getAttrPathStr()).debugThrow();

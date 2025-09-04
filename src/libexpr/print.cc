@@ -319,7 +319,7 @@ private:
         }
 
         // It is ok to force the item(s) here, because they will be printed anyway.
-        state.forceValue(*item, item->determinePos(state, noPos));
+        state.forceValue(state.VPtoVR(item), item->determinePos(state, noPos));
 
         // Pretty-print single-item attrsets only if they contain nested
         // structures.
@@ -397,7 +397,7 @@ private:
         }
 
         // It is ok to force the item(s) here, because they will be printed anyway.
-        state.forceValue(*item, item->determinePos(state, noPos));
+        state.forceValue(state.VPtoVR(item), item->determinePos(state, noPos));
 
         // Pretty-print single-item lists only if they contain nested
         // structures.
@@ -538,7 +538,7 @@ private:
 
         try {
             if (options.force) {
-                state.forceValue(v, v.determinePos(state, noPos));
+                state.forceValue(state.VPtoVR(&v), v.determinePos(state, noPos));
             }
 
             switch (v.type()) {

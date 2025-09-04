@@ -55,7 +55,7 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
         ValueRef vNew = state.allocValue();
         state.autoCallFunction(autoArgs, *v, *state.VRtoVP(vNew));
         v = state.VRtoVP(vNew);
-        state.forceValue(*v, noPos);
+        state.forceValue(state.VPtoVR(v), noPos);
 
         /* It should evaluate to either a set or an expression,
            according to what is specified in the attrPath. */

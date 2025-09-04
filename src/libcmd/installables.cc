@@ -277,7 +277,7 @@ void SourceExprCommand::completeInstallable(AddCompletions & completions, std::s
 
             auto [v, pos] = findAlongAttrPath(*state, prefix_, *autoArgs, root);
             Value & v1(*v);
-            state->forceValue(v1, pos);
+            state->forceValue(state->VPtoVR(&v1), pos);
             Value v2;
             state->autoCallFunction(*autoArgs, v1, v2);
 

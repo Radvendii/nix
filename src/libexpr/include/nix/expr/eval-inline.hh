@@ -89,26 +89,26 @@ Env & EvalState::allocEnv(size_t size)
 }
 
 [[gnu::always_inline]]
-void EvalState::forceValue(Value & v, const PosIdx pos)
+void EvalState::forceValue(ValueRef v, const PosIdx pos)
 {
-    if (v.isThunk()) {
-        Env * env = v.thunk().env;
-        assert(env || v.isBlackhole());
-        Expr * expr = v.thunk().expr;
+    if (VRtoV(v).isThunk()) {
+        Env * env = VRtoV(v).thunk().env;
+        assert(env || VRtoV(v).isBlackhole());
+        Expr * expr = VRtoV(v).thunk().expr;
         try {
-            v.mkBlackhole();
+            VRtoV(v).mkBlackhole();
             // checkInterrupt();
             if (env) [[likely]]
-                expr->eval(*this, *env, v);
+                expr->eval(*this, *env, VRtoV(v));
             else
-                ExprBlackHole::throwInfiniteRecursionError(*this, v);
+                ExprBlackHole::throwInfiniteRecursionError(*this, VRtoV(v));
         } catch (...) {
-            v.mkThunk(env, expr);
-            tryFixupBlackHolePos(v, pos);
+            VRtoV(v).mkThunk(env, expr);
+            tryFixupBlackHolePos(VRtoV(v), pos);
             throw;
         }
-    } else if (v.isApp())
-        callFunction(*VRtoVP(v.app().left), v.app().right, v, pos);
+    } else if (VRtoV(v).isApp())
+        callFunction(*VRtoVP(VRtoV(v).app().left), VRtoV(v).app().right, VRtoV(v), pos);
 }
 
 [[gnu::always_inline]]
@@ -122,7 +122,7 @@ template<typename Callable>
 inline void EvalState::forceAttrs(Value & v, Callable getPos, std::string_view errorCtx)
 {
     PosIdx pos = getPos();
-    forceValue(v, pos);
+    forceValue(VPtoVR(&v), pos);
     if (v.type() != nAttrs) {
         error<TypeError>("expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
             .withTrace(pos, errorCtx)
@@ -133,7 +133,7 @@ inline void EvalState::forceAttrs(Value & v, Callable getPos, std::string_view e
 [[gnu::always_inline]]
 inline void EvalState::forceList(Value & v, const PosIdx pos, std::string_view errorCtx)
 {
-    forceValue(v, pos);
+    forceValue(VPtoVR(&v), pos);
     if (!v.isList()) {
         error<TypeError>("expected a list but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
             .withTrace(pos, errorCtx)

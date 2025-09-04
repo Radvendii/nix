@@ -40,7 +40,7 @@ protected:
         assert(e);
         state.eval(e, state.VPtoVR(&v));
         if (forceValue)
-            state.forceValue(v, noPos);
+            state.forceValue(state.VPtoVR(&v), noPos);
         return v;
     }
 

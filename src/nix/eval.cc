@@ -88,7 +88,7 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
             std::function<void(Value & v, const PosIdx pos, const std::filesystem::path & path)> recurse;
 
             recurse = [&](Value & v, const PosIdx pos, const std::filesystem::path & path) {
-                state->forceValue(v, pos);
+                state->forceValue(state->VPtoVR(&v), pos);
                 if (v.type() == nString)
                     // FIXME: disallow strings with contexts?
                     writeFile(path.string(), v.string_view());

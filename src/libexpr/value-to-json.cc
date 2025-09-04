@@ -17,7 +17,7 @@ json printValueAsJSON(
     checkInterrupt();
 
     if (strict)
-        state.forceValue(v, pos);
+        state.forceValue(state.VPtoVR(&v), pos);
 
     json out;
 

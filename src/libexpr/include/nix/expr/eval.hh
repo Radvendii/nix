@@ -589,7 +589,7 @@ public:
      * application, call the function and overwrite `v` with the
      * result.  Otherwise, this is a no-op.
      */
-    inline void forceValue(Value & v, const PosIdx pos);
+    inline void forceValue(ValueRef v, const PosIdx pos);
 
     void tryFixupBlackHolePos(Value & v, PosIdx pos);
 

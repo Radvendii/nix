@@ -88,7 +88,7 @@ static void fetchTree(
     if (params.isFetchGit)
         type = "git";
 
-    state.forceValue(*state.VRtoVP(args[0]), pos);
+    state.forceValue(args[0], pos);
 
     if (state.VRtoVP(args[0])->type() == nAttrs) {
         state.forceAttrs(*state.VRtoVP(args[0]), pos, fmt("while evaluating the argument passed to '%s'", fetcher));
@@ -108,7 +108,7 @@ static void fetchTree(
         for (auto & attr : *state.VRtoVP(args[0])->attrs()) {
             if (attr.name == state.sType)
                 continue;
-            state.forceValue(*state.VRtoVP(attr.value), attr.pos);
+            state.forceValue(attr.value, attr.pos);
             if (state.VRtoVP(attr.value)->type() == nPath || state.VRtoVP(attr.value)->type() == nString) {
                 auto s = state.coerceToString(attr.pos, *state.VRtoVP(attr.value), context, "", false, false).toOwned();
                 attrs.emplace(
@@ -484,7 +484,7 @@ static void fetch(
     std::optional<std::string> url;
     std::optional<Hash> expectedHash;
 
-    state.forceValue(*state.VRtoVP(args[0]), pos);
+    state.forceValue(args[0], pos);
 
     bool isArgAttrs = state.VRtoVP(args[0])->type() == nAttrs;
     bool nameAttrPassed = false;

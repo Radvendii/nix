@@ -180,7 +180,7 @@ TEST_P(AttrSetMergeTrvialExpressionTest, attrsetMergeLazy)
     ASSERT_NE(a, nullptr);
 
     ASSERT_THAT(*state.VRtoVP(a->value), IsThunk());
-    state.forceValue(*state.VRtoVP(a->value), noPos);
+    state.forceValue(a->value, noPos);
 
     ASSERT_THAT(*state.VRtoVP(a->value), IsAttrsOfSize(2));
 

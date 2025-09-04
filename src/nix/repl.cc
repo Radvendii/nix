@@ -86,11 +86,11 @@ struct CmdRepl : RawInstallablesCommand
                 if (file) {
                     auto [val, pos] = installable.toValue(*state);
                     auto what = installable.what();
-                    state->forceValue(*val, pos);
+                    state->forceValue(state->VPtoVR(val), pos);
                     auto autoArgs = getAutoArgs(*state);
                     auto valPost = state->allocValue();
                     state->autoCallFunction(*autoArgs, *val, *state->VRtoVP(valPost));
-                    state->forceValue(*state->VRtoVP(valPost), pos);
+                    state->forceValue(valPost, pos);
                     values.push_back({valPost, what});
                 } else {
                     auto [val, pos] = installable.toValue(*state);

@@ -67,7 +67,7 @@ static void printValueAsXML(
     checkInterrupt();
 
     if (strict)
-        state.forceValue(v, pos);
+        state.forceValue(state.VPtoVR(&v), pos);
 
     switch (v.type()) {
 
@@ -100,14 +100,14 @@ static void printValueAsXML(
             Path drvPath;
             if (auto a = v.attrs()->get(state.sDrvPath)) {
                 if (strict)
-                    state.forceValue(*state.VRtoVP(a->value), a->pos);
+                    state.forceValue(a->value, a->pos);
                 if (state.VRtoVP(a->value)->type() == nString)
                     xmlAttrs["drvPath"] = drvPath = state.VRtoVP(a->value)->c_str();
             }
 
             if (auto a = v.attrs()->get(state.sOutPath)) {
                 if (strict)
-                    state.forceValue(*state.VRtoVP(a->value), a->pos);
+                    state.forceValue(a->value, a->pos);
                 if (state.VRtoVP(a->value)->type() == nString)
                     xmlAttrs["outPath"] = state.VRtoVP(a->value)->c_str();
             }

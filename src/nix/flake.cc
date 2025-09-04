@@ -466,7 +466,7 @@ struct CmdFlakeCheck : FlakeCommand
         auto checkOverlay = [&](std::string_view attrPath, Value & v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking overlay '%s'", attrPath));
-                state->forceValue(v, pos);
+                state->forceValue(state->VPtoVR(&v), pos);
                 if (!v.isLambda()) {
                     throw Error("overlay is not a function, but %s instead", showType(*state, v));
                 }
@@ -483,7 +483,7 @@ struct CmdFlakeCheck : FlakeCommand
         auto checkModule = [&](std::string_view attrPath, Value & v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking NixOS module '%s'", attrPath));
-                state->forceValue(v, pos);
+                state->forceValue(state->VPtoVR(&v), pos);
             } catch (Error & e) {
                 e.addTrace(resolve(pos), HintFmt("while checking the NixOS module '%s'", attrPath));
                 reportError(e);
@@ -521,7 +521,7 @@ struct CmdFlakeCheck : FlakeCommand
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking NixOS configuration '%s'", attrPath));
                 Bindings & bindings(*state->allocBindings(0));
                 auto vToplevel = findAlongAttrPath(*state, "config.system.build.toplevel", bindings, v).first;
-                state->forceValue(*vToplevel, pos);
+                state->forceValue(state->VPtoVR(vToplevel), pos);
                 if (!state->isDerivation(*vToplevel))
                     throw Error("attribute 'config.system.build.toplevel' is not a derivation");
             } catch (Error & e) {
@@ -566,7 +566,7 @@ struct CmdFlakeCheck : FlakeCommand
         auto checkBundler = [&](const std::string & attrPath, Value & v, const PosIdx pos) {
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking bundler '%s'", attrPath));
-                state->forceValue(v, pos);
+                state->forceValue(state->VPtoVR(&v), pos);
                 if (!v.isLambda())
                     throw Error("bundler must be a function");
                 // TODO: check types of inputs/outputs?
@@ -588,7 +588,7 @@ struct CmdFlakeCheck : FlakeCommand
                 try {
                     evalSettings.enableImportFromDerivation.setDefault(name != "hydraJobs");
 
-                    state->forceValue(vOutput, pos);
+                    state->forceValue(state->VPtoVR(&vOutput), pos);
 
                     std::string_view replacement = name == "defaultPackage"    ? "packages.<system>.default"
                                                    : name == "defaultApp"      ? "apps.<system>.default"

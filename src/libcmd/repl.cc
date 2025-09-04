@@ -890,7 +890,7 @@ void NixRepl::evalString(std::string s, Value & v)
             throw;
     }
     e->eval(*state, *env, v);
-    state->forceValue(v, v.determinePos(*state, noPos));
+    state->forceValue(state->VPtoVR(&v), v.determinePos(*state, noPos));
 }
 
 void NixRepl::runNix(Path program, const Strings & args, const std::optional<std::string> & input)

@@ -46,7 +46,7 @@ void processExpr(
 
     for (auto & i : attrPaths) {
         Value & v(*findAlongAttrPath(state, i, autoArgs, vRoot).first);
-        state.forceValue(v, v.determinePos(state, noPos));
+        state.forceValue(state.VPtoVR(&v), v.determinePos(state, noPos));
 
         NixStringContext context;
         if (evalOnly) {

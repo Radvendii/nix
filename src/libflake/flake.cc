@@ -42,7 +42,7 @@ static StorePath copyInputToStore(
 static void forceTrivialValue(EvalState & state, Value & value, const PosIdx pos)
 {
     if (value.isThunk() && value.isTrivial())
-        state.forceValue(value, pos);
+        state.forceValue(state.VPtoVR(&value), pos);
 }
 
 static void expectType(EvalState & state, ValueType type, Value & value, const PosIdx pos)
