@@ -580,6 +580,7 @@ public:
      * Evaluation the expression, then verify that it has the expected
      * type.
      */
+     // XXX [speed]: this version of evalBool is never used?
     inline bool evalBool(Env & env, Expr * e);
     inline bool evalBool(Env & env, Expr * e, const PosIdx pos, std::string_view errorCtx);
     inline void evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx);

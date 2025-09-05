@@ -2001,23 +2001,24 @@ void ExprOpNEq::eval(EvalState & state, Env & env, ValueRef v)
 
 void ExprOpAnd::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.VRtoV(v).mkBool(
-        state.evalBool(env, e1, pos, "in the left operand of the AND (&&) operator")
-        && state.evalBool(env, e2, pos, "in the right operand of the AND (&&) operator"));
+    auto b = state.evalBool(env, e1, pos, "in the left operand of the AND (&&) operator")
+             && state.evalBool(env, e2, pos, "in the right operand of the AND (&&) operator");
+    state.VRtoV(v).mkBool(b);
 }
 
 void ExprOpOr::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.VRtoV(v).mkBool(
-        state.evalBool(env, e1, pos, "in the left operand of the OR (||) operator")
-        || state.evalBool(env, e2, pos, "in the right operand of the OR (||) operator"));
+    // XXX [speed]: cursed. we can't put this expression inside mkBool() or it might allocValue() thus invalidating the return from VRtoV(v). This should get cleaned up when we make mkBool() act directly on ValueRefs.
+    auto b = state.evalBool(env, e1, pos, "in the left operand of the OR (||) operator")
+             || state.evalBool(env, e2, pos, "in the right operand of the OR (||) operator");
+    state.VRtoV(v).mkBool(b);
 }
 
 void ExprOpImpl::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.VRtoV(v).mkBool(
-        !state.evalBool(env, e1, pos, "in the left operand of the IMPL (->) operator")
-        || state.evalBool(env, e2, pos, "in the right operand of the IMPL (->) operator"));
+    auto b = !state.evalBool(env, e1, pos, "in the left operand of the IMPL (->) operator")
+             || state.evalBool(env, e2, pos, "in the right operand of the IMPL (->) operator");
+    state.VRtoV(v).mkBool(b);
 }
 
 void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
