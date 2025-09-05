@@ -63,8 +63,6 @@ unsigned long nrLambda = 0;
 unsigned long nrListN = 0;
 unsigned long nrString = 0;
 unsigned long nrPath = 0;
-unsigned long nrBytesAdded = 0;
-unsigned long nrStackValues = 0;
 
 static char * allocString(size_t size)
 {
@@ -989,28 +987,23 @@ ExprInt::ExprInt(EvalState & state, NixInt n)
 {
     v = state.allocValue();
     state.VRtoVP(v)->mkInt(n);
-    // these values used to be stored directly in the Expr. now we have a Value and a ValueRef
-    nrBytesAdded += sizeof(ValueRef);
 };
 
 ExprInt::ExprInt(EvalState & state, NixInt::Inner n)
 {
     v = state.allocValue();
     state.VRtoVP(v)->mkInt(n);
-    nrBytesAdded += sizeof(ValueRef);
 };
 ExprFloat::ExprFloat(EvalState & state, NixFloat nf)
 {
     v = state.allocValue();
     state.VRtoVP(v)->mkFloat(nf);
-    nrBytesAdded += sizeof(ValueRef);
 };
 ExprString::ExprString(EvalState & state, std::string && s)
     : s(std::move(s))
 {
     v = state.allocValue();
     state.VRtoVP(v)->mkString(this->s.data());
-    nrBytesAdded += sizeof(ValueRef);
 };
 ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string s)
     : accessor(accessor)
@@ -1018,7 +1011,6 @@ ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string 
 {
     v = state.allocValue();
     state.VRtoVP(v)->mkPath(&*accessor, this->s.c_str());
-    nrBytesAdded += sizeof(ValueRef);
 }
 // XXX [speed]
 
@@ -3039,7 +3031,6 @@ void EvalState::printStatistics()
 #  endif
 #endif
     };
-    topObj["bytesAdded"] = nrBytesAdded;
     topObj["envs"] = {
         {"number", nrEnvs},
         {"elements", nrValuesInEnvs},

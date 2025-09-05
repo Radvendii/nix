@@ -35,10 +35,6 @@ extern unsigned long nrLambda;
 extern unsigned long nrListN;
 extern unsigned long nrString;
 extern unsigned long nrPath;
-// XXX [speed]: how many bytes we have added during the speed refactor.
-extern unsigned long nrBytesAdded;
-// XXX [speed]: how many Values used to be allocated on the stack. if this is large, we should consider making our own stack just for Values.
-extern unsigned long nrStackValues;
 
 struct Value;
 // XXX [speed]: these might not be needed when we're done
