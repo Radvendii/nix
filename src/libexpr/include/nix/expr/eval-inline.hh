@@ -29,7 +29,7 @@ inline void * allocBytes(size_t n)
 ValueRef EvalState::allocValue()
 {
     nrValues++;
-    return VPtoVR(&values.emplace_back());
+    return VPtoVR(&values.values.emplace_back());
     // return values.size() - 1;
 // #if NIX_USE_BOEHMGC
 //     /* We use the boehm batch allocator to speed up allocations of Values (of which there are many).

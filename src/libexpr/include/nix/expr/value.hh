@@ -53,7 +53,7 @@ class ValueRef {
     }
 
     [[gnu::always_inline]]
-    constexpr explicit operator bool() const {
+    constexpr explicit operator bool() const noexcept {
         return ref;
     }
 
@@ -959,4 +959,28 @@ typedef std::shared_ptr<ValueRef> RootValue;
 RootValue allocRootValue(ValueRef v);
 
 void forceNoNullByte(std::string_view s, std::function<Pos()> = nullptr);
+
+class Values {
+    public:
+
+    std::vector<Value> values;
+
+    /**
+     * In order to refer to Values allocated on the stack in a ValueRef (32
+     * bits), we need a stable pointer to somewhere in the stack from which to
+     * offset. This is that pointer.
+     *
+     * XXX [speed]: figure out what to call this and where to put it
+     * XXX [speed]: figure out how this works with multiple threads?
+     */
+    size_t stackPtr;
+
+    Values() {
+        // grab a pointer to somewhere in the stack for later
+        // XXX [speed] if we make this a (Value *), we can maybe use alignment to make the indexable space even larger
+        char *stackValue;
+        stackPtr = (size_t) &stackValue;
+    }
+};
+
 } // namespace nix

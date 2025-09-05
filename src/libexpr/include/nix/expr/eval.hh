@@ -223,20 +223,11 @@ public:
     const EvalSettings & settings;
 
     /**
-     * Vector containing all allocated values
+     * Vector containing all heap-allocated values. Rather than using pointers
+     * to Values, we use ValueRefs which is a wrapper around indices into this
+     * vector.
      */
-    std::vector<Value> values;
-private:
-    /**
-     * In order to refer to Values allocated on the stack in a ValueRef (32
-     * bits), we need a stable pointer to somewhere in the stack from which to
-     * offset. This is that pointer.
-     *
-     * XXX [speed]: figure out what to call this and where to put it
-     * XXX [speed]: figure out how this works with multiple threads?
-     */
-    size_t stackPtr;
-public:
+    Values values;
 
     SymbolTable symbols;
     PosTable positions;
@@ -455,10 +446,10 @@ public:
         if (ref.ref & 0x1) {
             // use arithmetic shift to preserve sign bit
             int32_t offset = (int32_t)ref.ref >> 1;
-            return (Value *) (stackPtr + offset);
+            return (Value *) (values.stackPtr + offset);
         }
         // XXX [speed]: we could save a pointer to &Values.front() - 1, so we don't have to offset by 1 every time
-        return &values[(ref.ref >> 1) - 1];
+        return &values.values[(ref.ref >> 1) - 1];
     }
 
     Value & VRtoV(ValueRef ref) {
@@ -468,22 +459,22 @@ public:
     ValueRef VPtoVR(Value *v) {
         if (v == nullptr)
             return ValueRef::null;
-        if (v < &values.front() || v > &values.back()) {
+        if (v < &values.values.front() || v > &values.values.back()) {
             // assume stack pointer
             // XXX [speed]: would really be nice if we could error check this properly (i.e. is it on the stack)
-            size_t offset_64 = (size_t) v - stackPtr;
+            size_t offset_64 = (size_t) v - values.stackPtr;
             size_t int31_max = 0x3FFFFFFF;
             if (offset_64 > int31_max && -offset_64 > int31_max)
             {
-              std::cout << "value pointer out of range: " << std::hex << v << " (" << stackPtr << ")" << "\n";
+              std::cout << "value pointer out of range: " << std::hex << v << " (" << values.stackPtr << ")" << "\n";
             }
-            int32_t offset = (size_t) v - stackPtr;
+            int32_t offset = (size_t) v - values.stackPtr;
             ValueRef ret{(uint32_t) offset << 1 | 0x1};
             return ret;
         }
         // XXX [speed]: do we have to convert to size_t first?
         // Offset by 1 so we don't overlap with ValueRef::null
-        return ValueRef{(uint32_t)((v - &values.front() + 1) << 1)};
+        return ValueRef{(uint32_t)((v - &values.values.front() + 1) << 1)};
     }
 
     LookupPath getLookupPath()

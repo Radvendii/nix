@@ -394,11 +394,6 @@ EvalState::EvalState(
 #endif
     , staticBaseEnv{std::make_shared<StaticEnv>(nullptr, nullptr)}
 {
-    // grab a pointer to somewhere in the stack for later
-    // XXX [speed] if we make this a (Value *), we can maybe use alignment to make the indexable space even larger
-    char onStack;
-    stackPtr = (size_t) &onStack;
-
     corepkgsFS->setPathDisplay("<nix", ">");
     internalFS->setPathDisplay("«nix-internal»", "");
 
