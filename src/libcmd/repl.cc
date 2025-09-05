@@ -533,7 +533,6 @@ ProcessLineResult NixRepl::processLine(std::string line)
         Value v, f, result;
         evalString(arg, state->VPtoVR(&v));
         evalString("drv: (import <nixpkgs> {}).runCommand \"shell\" { buildInputs = [ drv ]; } \"\"", state->VPtoVR(&f));
-        // XXX [speed]: illegal conversion to ValueRef
         state->callFunction(state->VPtoVR(&f), state->VPtoVR(&v), state->VPtoVR(&result), PosIdx());
 
         StorePath drvPath = getDerivationPath(state->VPtoVR(&result));

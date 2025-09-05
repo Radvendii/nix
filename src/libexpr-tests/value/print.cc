@@ -80,7 +80,6 @@ TEST_F(ValuePrintingTests, tList)
     vTwo.mkInt(2);
 
     auto list = state.buildList(3);
-    // XXX [speed]: We need to change all these values to allocate in the values vector
     list.elems[0] = state.VPtoVR(&vOne);
     list.elems[1] = state.VPtoVR(&vTwo);
     Value vList;

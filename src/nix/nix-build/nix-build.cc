@@ -410,8 +410,8 @@ static void main_nix_build(int argc, char ** argv)
         Value vRoot;
         state->eval(e, state->VPtoVR(&vRoot));
 
-        std::function<bool(/* XXX [speed] const */ ValueRef v)> takesNixShellAttr;
-        takesNixShellAttr = [&](/* XXX [speed const */ ValueRef v) {
+        std::function<bool(const ValueRef v)> takesNixShellAttr;
+        takesNixShellAttr = [&](const ValueRef v) {
             if (!isNixShell) {
                 return false;
             }

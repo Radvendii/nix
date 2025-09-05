@@ -90,7 +90,6 @@ static const char * makeImmutableString(std::string_view s)
     return t;
 }
 
-// XXX [speed]: what is this doing?
 RootValue allocRootValue(ValueRef v)
 {
     return std::allocate_shared<ValueRef>(traceable_allocator<ValueRef>(), v);
@@ -111,7 +110,7 @@ std::string printValue(EvalState & state, ValueRef v)
 }
 
 /* XXX [speed] [[gnu::always_inline]] */
-/* XXX [speed] const */ ValueRef Symbol::valuePtr() const noexcept
+const ValueRef Symbol::valuePtr() const noexcept
 {
     return data->v;
 }
@@ -123,7 +122,7 @@ Symbol::Symbol(const Key & key)
     if (size >= std::numeric_limits<uint32_t>::max()) {
         throw Error("Size of symbol exceeds 4GiB and cannot be stored");
     }
-    // XXX [speed]: check if this still makes sense
+    // XXX [speed]: check if this comment still makes sense
     // for multi-threaded implementations: lock store and allocator here
     auto v = key.es.allocValue();
 
@@ -560,7 +559,7 @@ void EvalState::addConstant(const std::string & name, Value v, Constant info)
 void EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 {
     // Can't pass in a reference to value-on-the-stack. Pass in the stack value directly!
-    // XXX [speed]
+    // XXX [speed]: factor this out into a onStack() function
     if (v & 0x1) [[unlikely]]
         unreachable();
 
@@ -2384,7 +2383,7 @@ std::string_view EvalState::forceString(ValueRef v, const PosIdx pos, std::strin
     }
 }
 
-void copyContext(EvalState & state, /* XXX [speed] const */ ValueRef v, NixStringContext & context, const ExperimentalFeatureSettings & xpSettings)
+void copyContext(EvalState & state, const ValueRef v, NixStringContext & context, const ExperimentalFeatureSettings & xpSettings)
 {
     if (state.VRtoV(v).context())
         for (const char ** p = state.VRtoV(v).context(); *p; ++p)
@@ -2882,7 +2881,7 @@ bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string
     forceValue(v1, pos);
     forceValue(v2, pos);
 
-    // XXX [speed]: go look into this. maybe this works differently with ValueRefs
+    // XXX [speed]: go look into this. maybe this works differently with ValueRef. Neither "builderDefs" nor "uniqList" appear anywhere in the codebase. Is this still relevant at all?
     /* !!! Hack to support some old broken code that relies on pointer
        equality tests between sets.  (Specifically, builderDefs calls
        uniqList on a list of sets.)  Will remove this eventually. */

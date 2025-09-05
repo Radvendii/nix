@@ -178,11 +178,11 @@ std::unique_ptr<ValMap> mapStaticEnvBindings(EvalState & state, const SymbolTabl
 
 void copyContext(
     EvalState & state,
-    /* XXX [speed] const */ ValueRef v,
+    const ValueRef v,
     NixStringContext & context,
     const ExperimentalFeatureSettings & xpSettings = experimentalFeatureSettings);
 
-// XXX [speed]: this never gets called anywhere
+// YYY [speed]: this never gets called anywhere
 std::string printValue(EvalState & state, ValueRef v);
 std::ostream & operator<<(std::ostream & os, const ValueType t);
 
@@ -455,6 +455,7 @@ public:
             int32_t offset = (int32_t)ref >> 1;
             return (Value *) (stackPtr + offset);
         }
+        // XXX [speed]: we could save a pointer to &Values.front() - 1, so we don't have to offset by 1 every time
         return &values[(ref >> 1) - 1];
     }
 
@@ -580,7 +581,7 @@ public:
      * Evaluation the expression, then verify that it has the expected
      * type.
      */
-     // XXX [speed]: this version of evalBool is never used?
+     // YYY [speed]: this version of evalBool is never used?
     inline bool evalBool(Env & env, Expr * e);
     inline bool evalBool(Env & env, Expr * e, const PosIdx pos, std::string_view errorCtx);
     inline void evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx);
@@ -959,7 +960,7 @@ public:
      * @return the realised string
      * @throw EvalError if the value is not a string, path or derivation (see `coerceToString`)
      */
-     // XXX [speed]: only used in a test, that we've disabled for now
+     // YYY [speed]: only used in a test, that we've disabled for now
     std::string
     realiseString(ValueRef str, StorePathSet * storePathsOutMaybe, bool isIFD = true, const PosIdx pos = noPos);
 

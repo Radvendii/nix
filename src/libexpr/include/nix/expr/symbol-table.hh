@@ -193,7 +193,7 @@ class Symbol {
 
     /* Get the Value associated with the Symbol */
     /* XXX [speed] [[gnu::always_inline]] */
-    /* XXX [speed] const */ ValueRef valuePtr() const noexcept;
+    const ValueRef valuePtr() const noexcept;
 };
 
 class SymbolTable {

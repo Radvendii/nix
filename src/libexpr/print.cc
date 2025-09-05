@@ -154,7 +154,7 @@ struct ImportantFirstAttrNameCmp
 
 // Values seen can contain either a ValueRef or a Bindings *
 typedef std::set<size_t> ValuesSeen;
-// XXX [speed]: why is this not std::vector<AttrPair>?
+// YYY [speed]: why is this not std::vector<AttrPair>?
 typedef std::vector<std::pair<std::string, ValueRef>> AttrVec;
 
 class Printer
@@ -622,7 +622,7 @@ public:
             seen.reset();
         }
 
-        // XXX [speed]: is this a mistake? huh?
+        // YYY [speed]: is this a mistake? huh?
         ValuesSeen seen;
         print(v, 0);
     }

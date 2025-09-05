@@ -82,8 +82,7 @@ struct LexerState
 struct ParserState
 {
     const LexerState & lexerState;
-    // XXX [speed]: this already has several fields from EvalState. Should we
-    // roll those into this, or should we only take from EalState what we need?
+    // XXX [speed]: this already has several fields from EvalState. Should we roll those into this, or should we only take from EalState what we need?
     EvalState & evalState;
     SymbolTable & symbols;
     PosTable & positions;

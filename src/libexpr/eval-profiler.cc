@@ -153,7 +153,7 @@ public:
 
     void maybeSaveProfile(std::chrono::time_point<std::chrono::high_resolution_clock> now);
     void saveProfile();
-    FrameInfo getFrameInfoFromValueAndPos(/* XXX [speed] const */ ValueRef v, std::span<ValueRef> args, PosIdx pos);
+    FrameInfo getFrameInfoFromValueAndPos(const ValueRef v, std::span<ValueRef> args, PosIdx pos);
 
     SampleStack(SampleStack &&) = default;
     SampleStack & operator=(SampleStack &&) = delete;
@@ -199,7 +199,7 @@ FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value
     return derivationInfo.value_or(PrimOpFrameInfo{.expr = &primOp, .callPos = pos});
 }
 
-FrameInfo SampleStack::getFrameInfoFromValueAndPos(/* XXX [speed] const */ ValueRef v, std::span<ValueRef> args, PosIdx pos)
+FrameInfo SampleStack::getFrameInfoFromValueAndPos(const ValueRef v, std::span<ValueRef> args, PosIdx pos)
 {
     /* NOTE: No actual references to garbage collected values are not held in
        the profiler. */

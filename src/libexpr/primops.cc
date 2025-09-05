@@ -281,7 +281,6 @@ static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path,
 
 /* Load and evaluate an expression from path specified by the
    argument. */
- // XXX [speed]: why was vPath a Value & while vScope was a Value *??? I hate references.
 static void import(EvalState & state, const PosIdx pos, ValueRef vPath, ValueRef vScope, ValueRef v)
 {
     auto path = realisePath(state, pos, vPath, std::nullopt);
@@ -4036,7 +4035,6 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, ValueRef * args,
     // List of returned lists before concatenation. It is illegal to create a ValueRef to these Values.
     // XXX [speed]: this is a misuse of conservativeStackReservation. it's meant to be multiplied by sizeof(Value) not sizeof(ListView)
     // XXX [speed]: does this makes GC harder, since we can't cleanup a Value's auxillary data necessarily when we clean up the Value. But maybe that was alread true? We always run the risk of holding onto the pointer to the data without the Value being live.
-    // XXX [speed]: should we name this SmallVector?
     SmallListViewVector<conservativeStackReservation> lists(nrLists);
     size_t len = 0;
 
