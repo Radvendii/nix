@@ -62,7 +62,7 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
 
         if (!attrIndex) {
 
-            if (state.VRtoVP(v)->type() != nAttrs)
+            if (v.type(state.values) != nAttrs)
                 state
                     .error<TypeError>(
                         "the expression selected by the selection path '%1%' should be a set but is %2%",

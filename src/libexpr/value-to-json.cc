@@ -21,7 +21,7 @@ json printValueAsJSON(
 
     json out;
 
-    switch (state.VRtoV(v).type()) {
+    switch (v.type(state.values)) {
 
     case nInt:
         out = state.VRtoV(v).integer().value;

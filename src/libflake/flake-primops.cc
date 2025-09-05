@@ -102,7 +102,7 @@ static void prim_flakeRefToString(EvalState & state, const PosIdx pos, ValueRef 
     state.forceAttrs(args[0], noPos, "while evaluating the argument passed to builtins.flakeRefToString");
     fetchers::Attrs attrs;
     for (const auto & attr : *state.VRtoVP(args[0])->attrs()) {
-        auto t = state.VRtoVP(attr.value)->type();
+        auto t = attr.value.type(state.values);
         if (t == nInt) {
             auto intValue = state.VRtoVP(attr.value)->integer().value;
 

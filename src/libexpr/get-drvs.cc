@@ -167,7 +167,7 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
             throw errMsg;
         Outputs result;
         for (auto elem : state->VRtoVP(outTI)->listView()) {
-            if (state->VRtoVP(elem)->type() != nString)
+            if (elem.type(state->values) != nString)
                 throw errMsg;
             auto out = outputs.find(state->VRtoVP(elem)->c_str());
             if (out == outputs.end())
@@ -215,12 +215,12 @@ StringSet PackageInfo::queryMetaNames()
 bool PackageInfo::checkMeta(ValueRef v)
 {
     state->forceValue(v, state->VRtoV(v).determinePos(*state, noPos));
-    if (state->VRtoV(v).type() == nList) {
+    if (v.type(state->values) == nList) {
         for (auto elem : state->VRtoV(v).listView())
             if (!checkMeta(elem))
                 return false;
         return true;
-    } else if (state->VRtoV(v).type() == nAttrs) {
+    } else if (v.type(state->values) == nAttrs) {
         if (state->VRtoV(v).attrs()->get(state->sOutPath))
             return false;
         for (auto & i : *state->VRtoV(v).attrs())
@@ -228,7 +228,7 @@ bool PackageInfo::checkMeta(ValueRef v)
                 return false;
         return true;
     } else
-        return state->VRtoV(v).type() == nInt || state->VRtoV(v).type() == nBool || state->VRtoV(v).type() == nString || state->VRtoV(v).type() == nFloat;
+        return v.type(state->values) == nInt || v.type(state->values) == nBool || v.type(state->values) == nString || v.type(state->values) == nFloat;
 }
 
 ValueRef PackageInfo::queryMeta(const std::string & name)
@@ -244,7 +244,7 @@ ValueRef PackageInfo::queryMeta(const std::string & name)
 std::string PackageInfo::queryMetaString(const std::string & name)
 {
     ValueRef v = queryMeta(name);
-    if (!v || state->VRtoVP(v)->type() != nString)
+    if (!v || v.type(state->values) != nString)
         return "";
     return state->VRtoVP(v)->c_str();
 }
@@ -254,9 +254,9 @@ NixInt PackageInfo::queryMetaInt(const std::string & name, NixInt def)
     ValueRef v = queryMeta(name);
     if (!v)
         return def;
-    if (state->VRtoVP(v)->type() == nInt)
+    if (v.type(state->values) == nInt)
         return state->VRtoVP(v)->integer();
-    if (state->VRtoVP(v)->type() == nString) {
+    if (v.type(state->values) == nString) {
         /* Backwards compatibility with before we had support for
            integer meta fields. */
         if (auto n = string2Int<NixInt::Inner>(state->VRtoVP(v)->c_str()))
@@ -270,9 +270,9 @@ NixFloat PackageInfo::queryMetaFloat(const std::string & name, NixFloat def)
     ValueRef v = queryMeta(name);
     if (!v)
         return def;
-    if (state->VRtoVP(v)->type() == nFloat)
+    if (v.type(state->values) == nFloat)
         return state->VRtoVP(v)->fpoint();
-    if (state->VRtoVP(v)->type() == nString) {
+    if (v.type(state->values) == nString) {
         /* Backwards compatibility with before we had support for
            float meta fields. */
         if (auto n = string2Float<NixFloat>(state->VRtoVP(v)->c_str()))
@@ -286,9 +286,9 @@ bool PackageInfo::queryMetaBool(const std::string & name, bool def)
     ValueRef v = queryMeta(name);
     if (!v)
         return def;
-    if (state->VRtoVP(v)->type() == nBool)
+    if (v.type(state->values) == nBool)
         return state->VRtoVP(v)->boolean();
-    if (state->VRtoVP(v)->type() == nString) {
+    if (v.type(state->values) == nString) {
         /* Backwards compatibility with before we had support for
            Boolean meta fields. */
         if (state->VRtoVP(v)->string_view() == "true")
@@ -410,7 +410,7 @@ static void getDerivations(
                     /* If the value of this attribute is itself a set,
                     should we recurse into it?  => Only if it has a
                     `recurseForDerivations = true' attribute. */
-                    if (state.VRtoVP(i->value)->type() == nAttrs) {
+                    if (i->value.type(state.values) == nAttrs) {
                         auto j = state.VRtoVP(i->value)->attrs()->get(state.sRecurseForDerivations);
                         if (j
                             && state.forceBool(

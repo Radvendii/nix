@@ -141,7 +141,7 @@ static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * ar
 
         else if (attrName == "toPath") {
             state.forceValue(attr.value, attr.pos);
-            bool isEmptyString = state.VRtoVP(attr.value)->type() == nString && state.VRtoVP(attr.value)->string_view() == "";
+            bool isEmptyString = attr.value.type(state.values) == nString && state.VRtoVP(attr.value)->string_view() == "";
             if (isEmptyString) {
                 toPath = StorePathOrGap{};
             } else {

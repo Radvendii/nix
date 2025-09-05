@@ -89,10 +89,10 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
 
             recurse = [&](ValueRef v, const PosIdx pos, const std::filesystem::path & path) {
                 state->forceValue(v, pos);
-                if (state->VRtoV(v).type() == nString)
+                if (v.type(state->values) == nString)
                     // FIXME: disallow strings with contexts?
                     writeFile(path.string(), state->VRtoV(v).string_view());
-                else if (state->VRtoV(v).type() == nAttrs) {
+                else if (v.type(state->values) == nAttrs) {
                     [[maybe_unused]] bool directoryCreated = std::filesystem::create_directory(path);
                     // Directory should not already exist
                     assert(directoryCreated);

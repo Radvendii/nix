@@ -15,7 +15,7 @@ void printAmbiguous(
         str << "«too deep»";
         return;
     }
-    switch (state.VRtoV(v).type()) {
+    switch (v.type(state.values)) {
     case nInt:
         str << state.VRtoV(v).integer();
         break;

@@ -20,7 +20,7 @@ void CachedEvalError::force()
 {
     auto v = cursor->forceValue();
 
-    if (cursor->root->state.VRtoV(v).type() == nAttrs) {
+    if (v.type(cursor->root->state.values) == nAttrs) {
         auto a = cursor->root->state.VRtoV(v).attrs()->get(this->attr);
 
         state.forceValue(a->value, a->pos);
@@ -404,16 +404,16 @@ ValueRef AttrCursor::forceValue()
     }
 
     if (root->db && (!cachedValue || std::get_if<placeholder_t>(&cachedValue->second))) {
-        if (root->state.VRtoV(v).type() == nString)
+        if (v.type(root->state.values) == nString)
             cachedValue = {root->db->setString(getKey(), root->state.VRtoV(v).c_str(), root->state.VRtoV(v).context()), string_t{root->state.VRtoV(v).c_str(), {}}};
-        else if (root->state.VRtoV(v).type() == nPath) {
+        else if (v.type(root->state.values) == nPath) {
             auto path = root->state.VRtoV(v).path().path;
             cachedValue = {root->db->setString(getKey(), path.abs()), string_t{path.abs(), {}}};
-        } else if (root->state.VRtoV(v).type() == nBool)
+        } else if (v.type(root->state.values) == nBool)
             cachedValue = {root->db->setBool(getKey(), root->state.VRtoV(v).boolean()), root->state.VRtoV(v).boolean()};
-        else if (root->state.VRtoV(v).type() == nInt)
+        else if (v.type(root->state.values) == nInt)
             cachedValue = {root->db->setInt(getKey(), root->state.VRtoV(v).integer().value), int_t{root->state.VRtoV(v).integer()}};
-        else if (root->state.VRtoV(v).type() == nAttrs)
+        else if (v.type(root->state.values) == nAttrs)
             ; // FIXME: do something?
         else
             cachedValue = {root->db->setMisc(getKey()), misc_t()};
@@ -464,7 +464,7 @@ std::shared_ptr<AttrCursor> AttrCursor::maybeGetAttr(SymbolRef name)
 
     auto v = forceValue();
 
-    if (root->state.VRtoV(v).type() != nAttrs)
+    if (v.type(root->state.values) != nAttrs)
         return nullptr;
     // error<TypeError>("'%s' is not an attribute set", getAttrPathStr()).debugThrow();
 
@@ -537,10 +537,10 @@ std::string AttrCursor::getString()
 
     auto v = forceValue();
 
-    if (root->state.VRtoV(v).type() != nString && root->state.VRtoV(v).type() != nPath)
+    if (v.type(root->state.values) != nString && v.type(root->state.values) != nPath)
         root->state.error<TypeError>("'%s' is not a string but %s", getAttrPathStr(), showType(root->state, v)).debugThrow();
 
-    return root->state.VRtoV(v).type() == nString ? root->state.VRtoV(v).c_str() : root->state.VRtoV(v).path().to_string();
+    return v.type(root->state.values) == nString ? root->state.VRtoV(v).c_str() : root->state.VRtoV(v).path().to_string();
 }
 
 string_t AttrCursor::getStringWithContext()
@@ -576,11 +576,11 @@ string_t AttrCursor::getStringWithContext()
 
     auto v = forceValue();
 
-    if (root->state.VRtoV(v).type() == nString) {
+    if (v.type(root->state.values) == nString) {
         NixStringContext context;
         copyContext(root->state, v, context);
         return {root->state.VRtoV(v).c_str(), std::move(context)};
-    } else if (root->state.VRtoV(v).type() == nPath)
+    } else if (v.type(root->state.values) == nPath)
         return {root->state.VRtoV(v).path().to_string(), {}};
     else
         root->state.error<TypeError>("'%s' is not a string but %s", getAttrPathStr(), showType(root->state, v)).debugThrow();
@@ -601,7 +601,7 @@ bool AttrCursor::getBool()
 
     auto v = forceValue();
 
-    if (root->state.VRtoV(v).type() != nBool)
+    if (v.type(root->state.values) != nBool)
         root->state.error<TypeError>("'%s' is not a Boolean", getAttrPathStr()).debugThrow();
 
     return root->state.VRtoV(v).boolean();
@@ -622,7 +622,7 @@ NixInt AttrCursor::getInt()
 
     auto v = forceValue();
 
-    if (root->state.VRtoV(v).type() != nInt)
+    if (v.type(root->state.values) != nInt)
         root->state.error<TypeError>("'%s' is not an integer", getAttrPathStr()).debugThrow();
 
     return root->state.VRtoV(v).integer();
@@ -646,7 +646,7 @@ std::vector<std::string> AttrCursor::getListOfStrings()
     auto v = getValue();
     root->state.forceValue(v, noPos);
 
-    if (root->state.VRtoV(v).type() != nList)
+    if (v.type(root->state.values) != nList)
         root->state.error<TypeError>("'%s' is not a list", getAttrPathStr()).debugThrow();
 
     std::vector<std::string> res;
@@ -676,7 +676,7 @@ std::vector<SymbolRef> AttrCursor::getAttrs()
 
     auto v = forceValue();
 
-    if (root->state.VRtoV(v).type() != nAttrs)
+    if (v.type(root->state.values) != nAttrs)
         root->state.error<TypeError>("'%s' is not an attribute set", getAttrPathStr()).debugThrow();
 
     std::vector<SymbolRef> attrs;

@@ -18,7 +18,7 @@ static void prim_fetchMercurial(EvalState & state, const PosIdx pos, ValueRef * 
 
     state.forceValue(args[0], pos);
 
-    if (state.VRtoVP(args[0])->type() == nAttrs) {
+    if (args[0].type(state.values) == nAttrs) {
 
         for (auto & attr : *state.VRtoVP(args[0])->attrs()) {
             std::string_view n(state.symbols[attr.name]);

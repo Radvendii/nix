@@ -48,8 +48,8 @@ static void forceTrivialValue(EvalState & state, ValueRef value, const PosIdx po
 static void expectType(EvalState & state, ValueType type, ValueRef value, const PosIdx pos)
 {
     forceTrivialValue(state, value, pos);
-    if (state.VRtoV(value).type() != type)
-        throw Error("expected %s but got %s at %s", showType(type), showType(state.VRtoV(value).type()), state.positions[pos]);
+    if (value.type(state.values) != type)
+        throw Error("expected %s but got %s at %s", showType(type), showType(value.type(state.values)), state.positions[pos]);
 }
 
 static std::pair<std::map<FlakeId, FlakeInput>, fetchers::Attrs> parseFlakeInputs(
@@ -65,7 +65,7 @@ static void parseFlakeInputAttr(EvalState & state, const Attr & attr, fetchers::
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch-enum"
-    switch (state.VRtoVP(attr.value)->type()) {
+    switch (attr.value.type(state.values)) {
     case nString:
         attrs.emplace(state.symbols[attr.name], state.VRtoVP(attr.value)->c_str());
         break;
@@ -122,9 +122,9 @@ static FlakeInput parseFlakeInput(
         try {
             if (attr.name == sUrl) {
                 forceTrivialValue(state, attr.value, pos);
-                if (state.VRtoVP(attr.value)->type() == nString)
+                if (attr.value.type(state.values) == nString)
                     url = state.VRtoVP(attr.value)->string_view();
-                else if (state.VRtoVP(attr.value)->type() == nPath) {
+                else if (attr.value.type(state.values) == nPath) {
                     auto path = state.VRtoVP(attr.value)->path();
                     if (path.accessor != flakeDir.accessor)
                         throw Error(
@@ -136,7 +136,7 @@ static FlakeInput parseFlakeInput(
                 } else
                     throw Error(
                         "expected a string or a path but got %s at %s",
-                        showType(state.VRtoVP(attr.value)->type()),
+                        showType(attr.value.type(state.values)),
                         state.positions[attr.pos]);
                 attrs.emplace("url", *url);
             } else if (attr.name == sFlake) {
@@ -270,23 +270,23 @@ static Flake readFlake(
 
         for (auto & setting : *state.VRtoVP(nixConfig->value)->attrs()) {
             forceTrivialValue(state, setting.value, setting.pos);
-            if (state.VRtoVP(setting.value)->type() == nString)
+            if (setting.value.type(state.values) == nString)
                 flake.config.settings.emplace(
                     state.symbols[setting.name], std::string(state.forceStringNoCtx(setting.value, setting.pos, "")));
-            else if (state.VRtoVP(setting.value)->type() == nPath) {
+            else if (setting.value.type(state.values) == nPath) {
                 auto storePath =
                     fetchToStore(state.fetchSettings, *state.store, state.VRtoVP(setting.value)->path(), FetchMode::Copy);
                 flake.config.settings.emplace(state.symbols[setting.name], state.store->printStorePath(storePath));
-            } else if (state.VRtoVP(setting.value)->type() == nInt)
+            } else if (setting.value.type(state.values) == nInt)
                 flake.config.settings.emplace(
                     state.symbols[setting.name], state.forceInt(setting.value, setting.pos, "").value);
-            else if (state.VRtoVP(setting.value)->type() == nBool)
+            else if (setting.value.type(state.values) == nBool)
                 flake.config.settings.emplace(
                     state.symbols[setting.name], Explicit<bool>{state.forceBool(setting.value, setting.pos, "")});
-            else if (state.VRtoVP(setting.value)->type() == nList) {
+            else if (setting.value.type(state.values) == nList) {
                 std::vector<std::string> ss;
                 for (auto elem : state.VRtoVP(setting.value)->listView()) {
-                    if (state.VRtoVP(elem)->type() != nString)
+                    if (elem.type(state.values) != nString)
                         state
                             .error<TypeError>(
                                 "list element in flake configuration setting '%s' is %s while a string is expected",

@@ -90,7 +90,7 @@ static void fetchTree(
 
     state.forceValue(args[0], pos);
 
-    if (state.VRtoVP(args[0])->type() == nAttrs) {
+    if (args[0].type(state.values) == nAttrs) {
         state.forceAttrs(args[0], pos, fmt("while evaluating the argument passed to '%s'", fetcher));
 
         fetchers::Attrs attrs;
@@ -109,14 +109,14 @@ static void fetchTree(
             if (attr.name == state.sType)
                 continue;
             state.forceValue(attr.value, attr.pos);
-            if (state.VRtoVP(attr.value)->type() == nPath || state.VRtoVP(attr.value)->type() == nString) {
+            if (attr.value.type(state.values) == nPath || attr.value.type(state.values) == nString) {
                 auto s = state.coerceToString(attr.pos, attr.value, context, "", false, false).toOwned();
                 attrs.emplace(
                     state.symbols[attr.name],
                     params.isFetchGit && state.symbols[attr.name] == "url" ? fixGitURL(s) : s);
-            } else if (state.VRtoVP(attr.value)->type() == nBool)
+            } else if (attr.value.type(state.values) == nBool)
                 attrs.emplace(state.symbols[attr.name], Explicit<bool>{state.VRtoVP(attr.value)->boolean()});
-            else if (state.VRtoVP(attr.value)->type() == nInt) {
+            else if (attr.value.type(state.values) == nInt) {
                 auto intValue = state.VRtoVP(attr.value)->integer().value;
 
                 if (intValue < 0)
@@ -486,7 +486,7 @@ static void fetch(
 
     state.forceValue(args[0], pos);
 
-    bool isArgAttrs = state.VRtoVP(args[0])->type() == nAttrs;
+    bool isArgAttrs = args[0].type(state.values) == nAttrs;
     bool nameAttrPassed = false;
 
     if (isArgAttrs) {

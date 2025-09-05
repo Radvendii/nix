@@ -497,7 +497,7 @@ TEST_F(PrimOpTest, partition)
 
     auto wrong = v.attrs()->get(createSymbol("wrong"));
     ASSERT_NE(wrong, nullptr);
-    ASSERT_EQ(state.VRtoVP(wrong->value)->type(), nList);
+    ASSERT_EQ(wrong->value.type(state.values), nList);
     ASSERT_EQ(state.VRtoVP(wrong->value)->listSize(), 3u);
     ASSERT_THAT(*state.VRtoVP(wrong->value), IsListOfSize(3));
     ASSERT_THAT(*state.VRtoVP(state.VRtoVP(wrong->value)->listView()[0]), IsIntEq(1));

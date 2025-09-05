@@ -192,7 +192,7 @@ std::string showType(EvalState & state, const ValueRef v)
     case tApp:
         return "a function application";
     default:
-        return std::string(showType(state.VRtoV(v).type()));
+        return std::string(showType(v.type(state.values)));
     }
 #pragma GCC diagnostic pop
 }
@@ -554,7 +554,7 @@ void EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 
            We might know the type of a thunk in advance, so be allowed
            to just write it down in that case. */
-        if (auto gotType = VRtoVP(v)->type(true); gotType != nThunk)
+        if (auto gotType = v.type(values, true); gotType != nThunk)
             assert(info.type == gotType);
 
         /* Install value the base environment. */
@@ -1269,7 +1269,7 @@ inline void EvalState::evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx p
 {
     try {
         e->eval(*this, env, v);
-        if (VRtoV(v).type() != nAttrs)
+        if (v.type(values) != nAttrs)
             error<TypeError>(
                 "expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .withFrame(env, *e)
@@ -1506,7 +1506,7 @@ void ExprSelect::eval(EvalState & state, Env & env, ValueRef v)
             auto name = getName(i, state, env);
             if (def) {
                 state.forceValue(vAttrs, pos);
-                if (state.VRtoVP(vAttrs)->type() != nAttrs || !(j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
+                if (vAttrs.type(state.values) != nAttrs || !(j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
                     def->eval(state, env, v);
                     return;
                 }
@@ -1573,7 +1573,7 @@ void ExprOpHasAttr::eval(EvalState & state, Env & env, ValueRef v)
         state.forceValue(vAttrs, getPos());
         const Attr * j;
         auto name = getName(i, state, env);
-        if (state.VRtoVP(vAttrs)->type() == nAttrs && (j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
+        if (vAttrs.type(state.values) == nAttrs && (j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
             vAttrs = j->value;
         } else {
             state.VRtoV((v)).mkBool(false);
@@ -1864,7 +1864,7 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
 
     forceValue(fun, pos);
 
-    if (VRtoV(fun).type() == nAttrs) {
+    if (fun.type(values) == nAttrs) {
         auto found = VRtoV(fun).attrs()->find(sFunctor);
         if (found != VRtoV(fun).attrs()->end()) {
             ValueRef v = allocValue();
@@ -2233,7 +2233,7 @@ void EvalState::forceValueDeep(ValueRef v)
 
         forceValue(v, VRtoV(v).determinePos(*this, noPos));
 
-        if (VRtoV(v).type() == nAttrs) {
+        if (v.type(values) == nAttrs) {
             for (auto & i : *VRtoV(v).attrs())
                 try {
                     // If the value is a thunk, we're evaling. Otherwise no trace necessary.
@@ -2266,7 +2266,7 @@ NixInt EvalState::forceInt(ValueRef v, const PosIdx pos, std::string_view errorC
 {
     try {
         forceValue(v, pos);
-        if (VRtoV(v).type() != nInt)
+        if (v.type(values) != nInt)
             error<TypeError>(
                 "expected an integer but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
@@ -2284,9 +2284,9 @@ NixFloat EvalState::forceFloat(ValueRef v, const PosIdx pos, std::string_view er
 {
     try {
         forceValue(v, pos);
-        if (VRtoV(v).type() == nInt)
+        if (v.type(values) == nInt)
             return VRtoV(v).integer().value;
-        else if (VRtoV(v).type() != nFloat)
+        else if (v.type(values) != nFloat)
             error<TypeError>(
                 "expected a float but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
@@ -2302,7 +2302,7 @@ bool EvalState::forceBool(ValueRef v, const PosIdx pos, std::string_view errorCt
 {
     try {
         forceValue(v, pos);
-        if (VRtoV(v).type() != nBool)
+        if (v.type(values) != nBool)
             error<TypeError>(
                 "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
@@ -2327,14 +2327,14 @@ Bindings::const_iterator EvalState::getAttr(SymbolRef attrSym, const Bindings * 
 
 bool EvalState::isFunctor(const ValueRef fun) /* XXX [speed] const */
 {
-    return VRtoV(fun).type() == nAttrs && VRtoV(fun).attrs()->find(sFunctor) != VRtoV(fun).attrs()->end();
+    return fun.type(values) == nAttrs && VRtoV(fun).attrs()->find(sFunctor) != VRtoV(fun).attrs()->end();
 }
 
 void EvalState::forceFunction(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
         forceValue(v, pos);
-        if (VRtoV(v).type() != nFunction && !isFunctor(v))
+        if (v.type(values) != nFunction && !isFunctor(v))
             error<TypeError>(
                 "expected a function but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
@@ -2349,7 +2349,7 @@ std::string_view EvalState::forceString(ValueRef v, const PosIdx pos, std::strin
 {
     try {
         forceValue(v, pos);
-        if (VRtoV(v).type() != nString)
+        if (v.type(values) != nString)
             error<TypeError>(
                 "expected a string but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
@@ -2394,13 +2394,13 @@ std::string_view EvalState::forceStringNoCtx(ValueRef v, const PosIdx pos, std::
 
 bool EvalState::isDerivation(ValueRef v)
 {
-    if (VRtoV(v).type() != nAttrs)
+    if (v.type(values) != nAttrs)
         return false;
     auto i = VRtoV(v).attrs()->get(sType);
     if (!i)
         return false;
     forceValue(i->value, i->pos);
-    if (VRtoVP(i->value)->type() != nString)
+    if (i->value.type(values) != nString)
         return false;
     return VRtoVP(i->value)->string_view().compare("derivation") == 0;
 }
@@ -2436,12 +2436,12 @@ BackedStringView EvalState::coerceToString(
 {
     forceValue(v, pos);
 
-    if (VRtoV(v).type() == nString) {
+    if (v.type(values) == nString) {
         copyContext(*this, v, context);
         return VRtoV(v).string_view();
     }
 
-    if (VRtoV(v).type() == nPath) {
+    if (v.type(values) == nPath) {
         return !canonicalizePath && !copyToStore
                    ? // FIXME: hack to preserve path literals that end in a
                      // slash, as in /foo/${x}.
@@ -2450,7 +2450,7 @@ BackedStringView EvalState::coerceToString(
                                  : std::string(VRtoV(v).path().path.abs());
     }
 
-    if (VRtoV(v).type() == nAttrs) {
+    if (v.type(values) == nAttrs) {
         auto maybeString = tryAttrsToString(pos, v, context, coerceMore, copyToStore);
         if (maybeString)
             return std::move(*maybeString);
@@ -2464,7 +2464,7 @@ BackedStringView EvalState::coerceToString(
         return coerceToString(pos, i->value, context, errorCtx, coerceMore, copyToStore, canonicalizePath);
     }
 
-    if (VRtoV(v).type() == nExternal) {
+    if (v.type(values) == nExternal) {
         try {
             return VRtoV(v).external()->coerceToString(*this, pos, context, coerceMore, copyToStore);
         } catch (Error & e) {
@@ -2476,15 +2476,15 @@ BackedStringView EvalState::coerceToString(
     if (coerceMore) {
         /* Note that `false' is represented as an empty string for
            shell scripting convenience, just like `null'. */
-        if (VRtoV(v).type() == nBool && VRtoV(v).boolean())
+        if (v.type(values) == nBool && VRtoV(v).boolean())
             return "1";
-        if (VRtoV(v).type() == nBool && !VRtoV(v).boolean())
+        if (v.type(values) == nBool && !VRtoV(v).boolean())
             return "";
-        if (VRtoV(v).type() == nInt)
+        if (v.type(values) == nInt)
             return std::to_string(VRtoV(v).integer().value);
-        if (VRtoV(v).type() == nFloat)
+        if (v.type(values) == nFloat)
             return std::to_string(VRtoV(v).fpoint());
-        if (VRtoV(v).type() == nNull)
+        if (v.type(values) == nNull)
             return "";
 
         if (VRtoV(v).isList()) {
@@ -2555,12 +2555,12 @@ SourcePath EvalState::coerceToPath(const PosIdx pos, ValueRef v, NixStringContex
     }
 
     /* Handle path values directly, without coercing to a string. */
-    if (VRtoV(v).type() == nPath)
+    if (v.type(values) == nPath)
         return VRtoV(v).path();
 
     /* Similarly, handle __toString where the result may be a path
        value. */
-    if (VRtoV(v).type() == nAttrs) {
+    if (v.type(values) == nAttrs) {
         auto i = VRtoV(v).attrs()->find(sToString);
         if (i != VRtoV(v).attrs()->end()) {
             Value v1;
@@ -2658,7 +2658,7 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         return;
 
     // Special case type-compatibility between float and int
-    if ((VRtoV(v1).type() == nInt || VRtoV(v1).type() == nFloat) && (VRtoV(v2).type() == nInt || VRtoV(v2).type() == nFloat)) {
+    if ((v1.type(values) == nInt || v1.type(values) == nFloat) && (v2.type(values) == nInt || v2.type(values) == nFloat)) {
         if (eqValues(v1, v2, pos, errorCtx)) {
             return;
         } else {
@@ -2672,7 +2672,7 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         }
     }
 
-    if (VRtoV(v1).type() != VRtoV(v2).type()) {
+    if (v1.type(values) != v2.type(values)) {
         error<AssertionError>(
             "%s of value '%s' is not equal to %s of value '%s'",
             showType(*this, v1),
@@ -2682,7 +2682,7 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
             .debugThrow();
     }
 
-    switch (VRtoV(v1).type()) {
+    switch (v1.type(values)) {
     case nInt:
         if (VRtoV(v1).integer() != VRtoV(v2).integer()) {
             error<AssertionError>("integer '%d' is not equal to integer '%d'", VRtoV(v1).integer(), VRtoV(v2).integer()).debugThrow();
@@ -2867,16 +2867,16 @@ bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string
         return true;
 
     // Special case type-compatibility between float and int
-    if (VRtoV(v1).type() == nInt && VRtoV(v2).type() == nFloat)
+    if (v1.type(values) == nInt && v2.type(values) == nFloat)
         return VRtoV(v1).integer().value == VRtoV(v2).fpoint();
-    if (VRtoV(v1).type() == nFloat && VRtoV(v2).type() == nInt)
+    if (v1.type(values) == nFloat && v2.type(values) == nInt)
         return VRtoV(v1).fpoint() == VRtoV(v2).integer().value;
 
     // All other types are not compatible with each other.
-    if (VRtoV(v1).type() != VRtoV(v2).type())
+    if (v1.type(values) != v2.type(values))
         return false;
 
-    switch (VRtoV(v1).type()) {
+    switch (v1.type(values)) {
     case nInt:
         return VRtoV(v1).integer() == VRtoV(v2).integer();
 

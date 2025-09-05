@@ -39,41 +39,6 @@ extern unsigned long nrPath;
 struct Value;
 class Values;
 
-class ValueRef {
-    public:
-
-    static ValueRef null;
-
-    uint32_t ref;
-
-    constexpr ValueRef() = default;
-
-    constexpr explicit ValueRef(uint32_t ref)
-        : ref(ref)
-    {
-    }
-
-    [[gnu::always_inline]]
-    constexpr explicit operator bool() const noexcept {
-        return ref;
-    }
-
-    constexpr auto operator<=>(const ValueRef & other) const noexcept = default;
-
-
-
-    // Functions needed to distinguish the type
-    // These should be removed eventually, by putting the functionality that's
-    // needed by callers into methods of this type
-
-    inline bool isThunk(Values & values) const;
-    inline bool isApp(Values & values) const;
-    inline bool isBlackhole(Values & values) const;
-    inline bool isLambda(Values & values) const;
-    inline bool isPrimOp(Values & values) const;
-    inline bool isPrimOpApp(Values & values) const;
-};
-
 // XXX [speed]: this might not be needed when we're done
 inline void * allocBytes(size_t n);
 
@@ -134,6 +99,50 @@ class Printer;
 
 using NixInt = checked::Checked<int64_t>;
 using NixFloat = double;
+
+class ValueRef {
+    public:
+
+    static ValueRef null;
+
+    uint32_t ref;
+
+    constexpr ValueRef() = default;
+
+    constexpr explicit ValueRef(uint32_t ref)
+        : ref(ref)
+    {
+    }
+
+    [[gnu::always_inline]]
+    constexpr explicit operator bool() const noexcept {
+        return ref;
+    }
+
+    constexpr auto operator<=>(const ValueRef & other) const noexcept = default;
+
+
+
+    // Functions needed to distinguish the type
+    // These should be removed eventually, by putting the functionality that's
+    // needed by callers into methods of this type
+
+    inline bool isThunk(Values & values) const;
+    inline bool isApp(Values & values) const;
+    inline bool isBlackhole(Values & values) const;
+    inline bool isLambda(Values & values) const;
+    inline bool isPrimOp(Values & values) const;
+    inline bool isPrimOpApp(Values & values) const;
+
+    /**
+     * Returns the normal type of a Value. This only returns nThunk if
+     * the Value hasn't been forceValue'd
+     *
+     * @param invalidIsThunk Instead of aborting an an invalid (probably
+     * 0, so uninitialized) internal type, return `nThunk`.
+     */
+    inline ValueType type(Values & values, bool invalidIsThunk = false) const;
+};
 
 /**
  * External values must descend from ExternalValueBase, so that
@@ -607,6 +616,7 @@ static_assert(std::random_access_iterator<ListView::iterator>);
 struct Value : public ValueStorage<sizeof(void *)>
 {
     friend std::string showType(EvalState & state, const ValueRef v);
+    friend class ValueRef;
 
     template<InternalType... discriminator>
     bool isa() const noexcept
@@ -1059,5 +1069,49 @@ inline bool ValueRef::isPrimOpApp(Values & values) const
 {
     return values.VRtoV(*this).isa<tPrimOpApp>();
 };
+/**
+ * Returns the normal type of a Value. This only returns nThunk if
+ * the Value hasn't been forceValue'd
+ *
+ * @param invalidIsThunk Instead of aborting an an invalid (probably
+ * 0, so uninitialized) internal type, return `nThunk`.
+ */
+inline ValueType ValueRef::type(Values & values, bool invalidIsThunk) const
+{
+    switch (values.VRtoV(*this).getInternalType()) {
+    case tUninitialized:
+        break;
+    case tInt:
+        return nInt;
+    case tBool:
+        return nBool;
+    case tString:
+        return nString;
+    case tPath:
+        return nPath;
+    case tNull:
+        return nNull;
+    case tAttrs:
+        return nAttrs;
+    case tListSmall:
+    case tListN:
+        return nList;
+    case tLambda:
+    case tPrimOp:
+    case tPrimOpApp:
+        return nFunction;
+    case tExternal:
+        return nExternal;
+    case tFloat:
+        return nFloat;
+    case tThunk:
+    case tApp:
+        return nThunk;
+    }
+    if (invalidIsThunk)
+        return nThunk;
+    else
+        unreachable();
+}
 
 } // namespace nix

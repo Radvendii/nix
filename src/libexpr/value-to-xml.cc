@@ -69,7 +69,7 @@ static void printValueAsXML(
     if (strict)
         state.forceValue(v, pos);
 
-    switch (state.VRtoV(v).type()) {
+    switch (v.type(state.values)) {
 
     case nInt:
         doc.writeEmptyElement("int", singletonAttrs("value", fmt("%1%", state.VRtoV(v).integer())));
@@ -101,14 +101,14 @@ static void printValueAsXML(
             if (auto a = state.VRtoV(v).attrs()->get(state.sDrvPath)) {
                 if (strict)
                     state.forceValue(a->value, a->pos);
-                if (state.VRtoVP(a->value)->type() == nString)
+                if (a->value.type(state.values) == nString)
                     xmlAttrs["drvPath"] = drvPath = state.VRtoVP(a->value)->c_str();
             }
 
             if (auto a = state.VRtoV(v).attrs()->get(state.sOutPath)) {
                 if (strict)
                     state.forceValue(a->value, a->pos);
-                if (state.VRtoVP(a->value)->type() == nString)
+                if (a->value.type(state.values) == nString)
                     xmlAttrs["outPath"] = state.VRtoVP(a->value)->c_str();
             }
 

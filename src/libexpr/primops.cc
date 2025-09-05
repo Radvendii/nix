@@ -483,7 +483,7 @@ static void prim_typeOf(EvalState & state, const PosIdx pos, ValueRef * args, Va
 {
     state.forceValue(args[0], pos);
     std::string t;
-    switch (state.VRtoVP(args[0])->type()) {
+    switch (args[0].type(state.values)) {
     case nInt:
         t = "int";
         break;
@@ -535,7 +535,7 @@ static RegisterPrimOp primop_typeOf({
 static void prim_isNull(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    state.VRtoV(v).mkBool(state.VRtoVP(args[0])->type() == nNull);
+    state.VRtoV(v).mkBool(args[0].type(state.values) == nNull);
 }
 
 static RegisterPrimOp primop_isNull({
@@ -553,7 +553,7 @@ static RegisterPrimOp primop_isNull({
 static void prim_isFunction(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    state.VRtoV(v).mkBool(state.VRtoVP(args[0])->type() == nFunction);
+    state.VRtoV(v).mkBool(args[0].type(state.values) == nFunction);
 }
 
 static RegisterPrimOp primop_isFunction({
@@ -569,7 +569,7 @@ static RegisterPrimOp primop_isFunction({
 static void prim_isInt(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    state.VRtoV(v).mkBool(state.VRtoVP(args[0])->type() == nInt);
+    state.VRtoV(v).mkBool(args[0].type(state.values) == nInt);
 }
 
 static RegisterPrimOp primop_isInt({
@@ -585,7 +585,7 @@ static RegisterPrimOp primop_isInt({
 static void prim_isFloat(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    state.VRtoV(v).mkBool(state.VRtoVP(args[0])->type() == nFloat);
+    state.VRtoV(v).mkBool(args[0].type(state.values) == nFloat);
 }
 
 static RegisterPrimOp primop_isFloat({
@@ -602,7 +602,7 @@ static void prim_isString(EvalState & state, const PosIdx pos, ValueRef * args, 
 {
 
     state.forceValue(args[0], pos);
-    state.VRtoV(v).mkBool(state.VRtoVP(args[0])->type() == nString);
+    state.VRtoV(v).mkBool(args[0].type(state.values) == nString);
 }
 
 static RegisterPrimOp primop_isString({
@@ -618,7 +618,7 @@ static RegisterPrimOp primop_isString({
 static void prim_isBool(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    state.VRtoV(v).mkBool(state.VRtoVP(args[0])->type() == nBool);
+    state.VRtoV(v).mkBool(args[0].type(state.values) == nBool);
 }
 
 static RegisterPrimOp primop_isBool({
@@ -634,7 +634,7 @@ static RegisterPrimOp primop_isBool({
 static void prim_isPath(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    state.VRtoV(v).mkBool(state.VRtoVP(args[0])->type() == nPath);
+    state.VRtoV(v).mkBool(args[0].type(state.values) == nPath);
 }
 
 static RegisterPrimOp primop_isPath({
@@ -676,16 +676,16 @@ struct CompareValues
     bool operator()(ValueRef v1, ValueRef v2, std::string_view errorCtx) const
     {
         try {
-            if (state.VRtoVP(v1)->type() == nFloat && state.VRtoVP(v2)->type() == nInt)
+            if (v1.type(state.values) == nFloat && v2.type(state.values) == nInt)
                 return state.VRtoVP(v1)->fpoint() < state.VRtoVP(v2)->integer().value;
-            if (state.VRtoVP(v1)->type() == nInt && state.VRtoVP(v2)->type() == nFloat)
+            if (v1.type(state.values) == nInt && v2.type(state.values) == nFloat)
                 return state.VRtoVP(v1)->integer().value < state.VRtoVP(v2)->fpoint();
-            if (state.VRtoVP(v1)->type() != state.VRtoVP(v2)->type())
+            if (v1.type(state.values) != v2.type(state.values))
                 state.error<EvalError>("cannot compare %s with %s", showType(state, v1), showType(state, v2)).debugThrow();
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch-enum"
-            switch (state.VRtoVP(v1)->type()) {
+            switch (v1.type(state.values)) {
             case nInt:
                 return state.VRtoVP(v1)->integer() < state.VRtoVP(v2)->integer();
             case nFloat:
@@ -953,7 +953,7 @@ static void prim_ceil(EvalState & state, const PosIdx pos, ValueRef * args, Valu
     auto value = state.forceFloat(
         args[0], state.VRtoVP(args[0])->determinePos(state, pos), "while evaluating the first argument passed to builtins.ceil");
     auto ceilValue = ceil(value);
-    bool isInt = state.VRtoVP(args[0])->type() == nInt;
+    bool isInt = args[0].type(state.values) == nInt;
     constexpr NixFloat int_min = std::numeric_limits<NixInt::Inner>::min(); // power of 2, so that no rounding occurs
     if (ceilValue >= int_min && ceilValue < -int_min) {
         state.VRtoV(v).mkInt(ceilValue);
@@ -1008,7 +1008,7 @@ static void prim_floor(EvalState & state, const PosIdx pos, ValueRef * args, Val
     auto value = state.forceFloat(
         args[0], state.VRtoVP(args[0])->determinePos(state, pos), "while evaluating the first argument passed to builtins.floor");
     auto floorValue = floor(value);
-    bool isInt = state.VRtoVP(args[0])->type() == nInt;
+    bool isInt = args[0].type(state.values) == nInt;
     constexpr NixFloat int_min = std::numeric_limits<NixInt::Inner>::min(); // power of 2, so that no rounding occurs
     if (floorValue >= int_min && floorValue < -int_min) {
         state.VRtoV(v).mkInt(floorValue);
@@ -1183,7 +1183,7 @@ static RegisterPrimOp primop_deepSeq({
 static void prim_trace(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    if (state.VRtoVP(args[0])->type() == nString)
+    if (args[0].type(state.values) == nString)
         printError("trace: %1%", state.VRtoVP(args[0])->string_view());
     else
         printError("trace: %1%", ValuePrinter(state, args[0]));
@@ -1449,7 +1449,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
 
             if (ignoreNulls) {
                 state.forceValue(i->value, pos);
-                if (state.VRtoVP(i->value)->type() == nNull)
+                if (i->value.type(state.values) == nNull)
                     continue;
             }
 
@@ -1854,7 +1854,7 @@ static void prim_pathExists(EvalState & state, const PosIdx pos, ValueRef * args
         /* SourcePath doesn't know about trailing slash. */
         state.forceValue(arg, pos);
         auto mustBeDir =
-            state.VRtoV(arg).type() == nString && (state.VRtoV(arg).string_view().ends_with("/") || state.VRtoV(arg).string_view().ends_with("/."));
+            arg.type(state.values) == nString && (state.VRtoV(arg).string_view().ends_with("/") || state.VRtoV(arg).string_view().ends_with("/."));
 
         auto symlinkResolution = mustBeDir ? SymlinkResolution::Full : SymlinkResolution::Ancestors;
         auto path = realisePath(state, pos, arg, symlinkResolution);
@@ -1932,7 +1932,7 @@ static RegisterPrimOp primop_baseNameOf({
 static void prim_dirOf(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    if (state.VRtoVP(args[0])->type() == nPath) {
+    if (args[0].type(state.values) == nPath) {
         auto path = state.VRtoVP(args[0])->path();
         state.VRtoV(v).mkPath(path.path.isRoot() ? path : path.parent());
     } else {
@@ -3023,7 +3023,7 @@ static RegisterPrimOp primop_hasAttr({
 static void prim_isAttrs(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    state.VRtoV(v).mkBool(state.VRtoVP(args[0])->type() == nAttrs);
+    state.VRtoV(v).mkBool(args[0].type(state.values) == nAttrs);
 }
 
 static RegisterPrimOp primop_isAttrs({
@@ -3452,7 +3452,7 @@ static RegisterPrimOp primop_zipAttrsWith({
 static void prim_isList(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    state.VRtoV(v).mkBool(state.VRtoVP(args[0])->type() == nList);
+    state.VRtoV(v).mkBool(args[0].type(state.values) == nList);
 }
 
 static RegisterPrimOp primop_isList({
@@ -4080,7 +4080,7 @@ static void prim_add(EvalState & state, const PosIdx pos, ValueRef * args, Value
 {
     state.forceValue(args[0], pos);
     state.forceValue(args[1], pos);
-    if (state.VRtoVP(args[0])->type() == nFloat || state.VRtoVP(args[1])->type() == nFloat)
+    if (args[0].type(state.values) == nFloat || args[1].type(state.values) == nFloat)
         state.VRtoV(v).mkFloat(
             state.forceFloat(args[0], pos, "while evaluating the first argument of the addition")
             + state.forceFloat(args[1], pos, "while evaluating the second argument of the addition"));
@@ -4110,7 +4110,7 @@ static void prim_sub(EvalState & state, const PosIdx pos, ValueRef * args, Value
 {
     state.forceValue(args[0], pos);
     state.forceValue(args[1], pos);
-    if (state.VRtoVP(args[0])->type() == nFloat || state.VRtoVP(args[1])->type() == nFloat)
+    if (args[0].type(state.values) == nFloat || args[1].type(state.values) == nFloat)
         state.VRtoV(v).mkFloat(
             state.forceFloat(args[0], pos, "while evaluating the first argument of the subtraction")
             - state.forceFloat(args[1], pos, "while evaluating the second argument of the subtraction"));
@@ -4141,7 +4141,7 @@ static void prim_mul(EvalState & state, const PosIdx pos, ValueRef * args, Value
 {
     state.forceValue(args[0], pos);
     state.forceValue(args[1], pos);
-    if (state.VRtoVP(args[0])->type() == nFloat || state.VRtoVP(args[1])->type() == nFloat)
+    if (args[0].type(state.values) == nFloat || args[1].type(state.values) == nFloat)
         state.VRtoV(v).mkFloat(
             state.forceFloat(args[0], pos, "while evaluating the first of the multiplication")
             * state.forceFloat(args[1], pos, "while evaluating the second argument of the multiplication"));
@@ -4177,7 +4177,7 @@ static void prim_div(EvalState & state, const PosIdx pos, ValueRef * args, Value
     if (f2 == 0)
         state.error<EvalError>("division by zero").atPos(pos).debugThrow();
 
-    if (state.VRtoVP(args[0])->type() == nFloat || state.VRtoVP(args[1])->type() == nFloat) {
+    if (args[0].type(state.values) == nFloat || args[1].type(state.values) == nFloat) {
         state.VRtoV(v).mkFloat(state.forceFloat(args[0], pos, "while evaluating the first operand of the division") / f2);
     } else {
         NixInt i1 = state.forceInt(args[0], pos, "while evaluating the first operand of the division");
@@ -4342,7 +4342,7 @@ static void prim_substring(EvalState & state, const PosIdx pos, ValueRef * args,
     // This allows for the use of empty substrings to efficiently capture string context
     if (len == 0) {
         state.forceValue(args[2], pos);
-        if (state.VRtoVP(args[2])->type() == nString) {
+        if (args[2].type(state.values) == nString) {
             state.VRtoV(v).mkString("", state.VRtoVP(args[2])->context());
             return;
         }

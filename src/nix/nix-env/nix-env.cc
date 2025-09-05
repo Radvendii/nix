@@ -1226,37 +1226,37 @@ static void opQuery(Globals & globals, Strings opFlags, Strings opArgs)
                         if (!v)
                             printError("derivation '%s' has invalid meta attribute '%s'", i.queryName(), j);
                         else {
-                            if (globals.state->VRtoVP(v)->type() == nString) {
+                            if (v.type(globals.state->values) == nString) {
                                 attrs2["type"] = "string";
                                 attrs2["value"] = globals.state->VRtoVP(v)->c_str();
                                 xml.writeEmptyElement("meta", attrs2);
-                            } else if (globals.state->VRtoVP(v)->type() == nInt) {
+                            } else if (v.type(globals.state->values) == nInt) {
                                 attrs2["type"] = "int";
                                 attrs2["value"] = fmt("%1%", globals.state->VRtoVP(v)->integer());
                                 xml.writeEmptyElement("meta", attrs2);
-                            } else if (globals.state->VRtoVP(v)->type() == nFloat) {
+                            } else if (v.type(globals.state->values) == nFloat) {
                                 attrs2["type"] = "float";
                                 attrs2["value"] = fmt("%1%", globals.state->VRtoVP(v)->fpoint());
                                 xml.writeEmptyElement("meta", attrs2);
-                            } else if (globals.state->VRtoVP(v)->type() == nBool) {
+                            } else if (v.type(globals.state->values) == nBool) {
                                 attrs2["type"] = "bool";
                                 attrs2["value"] = globals.state->VRtoVP(v)->boolean() ? "true" : "false";
                                 xml.writeEmptyElement("meta", attrs2);
-                            } else if (globals.state->VRtoVP(v)->type() == nList) {
+                            } else if (v.type(globals.state->values) == nList) {
                                 attrs2["type"] = "strings";
                                 XMLOpenElement m(xml, "meta", attrs2);
                                 for (auto elem : globals.state->VRtoVP(v)->listView()) {
-                                    if (globals.state->VRtoVP(elem)->type() != nString)
+                                    if (elem.type(globals.state->values) != nString)
                                         continue;
                                     XMLAttrs attrs3;
                                     attrs3["value"] = globals.state->VRtoVP(elem)->c_str();
                                     xml.writeEmptyElement("string", attrs3);
                                 }
-                            } else if (globals.state->VRtoVP(v)->type() == nAttrs) {
+                            } else if (v.type(globals.state->values) == nAttrs) {
                                 attrs2["type"] = "strings";
                                 XMLOpenElement m(xml, "meta", attrs2);
                                 for (auto & i : *globals.state->VRtoVP(v)->attrs()) {
-                                    if (globals.state->VRtoVP(i.value)->type() != nString)
+                                    if (i.value.type(globals.state->values) != nString)
                                         continue;
                                     XMLAttrs attrs3;
                                     attrs3["type"] = globals.state->symbols[i.name];

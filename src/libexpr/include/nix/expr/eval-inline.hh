@@ -120,7 +120,7 @@ inline void EvalState::forceAttrs(ValueRef v, Callable getPos, std::string_view 
 {
     PosIdx pos = getPos();
     forceValue(v, pos);
-    if (VRtoV(v).type() != nAttrs) {
+    if (v.type(values) != nAttrs) {
         error<TypeError>("expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
             .withTrace(pos, errorCtx)
             .debugThrow();

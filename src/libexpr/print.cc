@@ -325,7 +325,7 @@ private:
 
         // Pretty-print single-item attrsets only if they contain nested
         // structures.
-        auto itemType = state.VRtoVP(item)->type();
+        auto itemType = item.type(state.values);
         return itemType == nList || itemType == nAttrs || itemType == nThunk;
     }
 
@@ -543,7 +543,7 @@ private:
                 state.forceValue(v, state.VRtoV(v).determinePos(state, noPos));
             }
 
-            switch (state.VRtoV(v).type()) {
+            switch (v.type(state.values)) {
 
             case nInt:
                 printInt(v);
