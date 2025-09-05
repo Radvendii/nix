@@ -135,7 +135,7 @@ static void printValueAsXML(
     }
 
     case nFunction: {
-        if (!state.VRtoV(v).isLambda()) {
+        if (!v.isLambda(state.values)) {
             // FIXME: Serialize primops and primopapps
             doc.writeEmptyElement("unevaluated");
             break;

@@ -37,6 +37,7 @@ extern unsigned long nrString;
 extern unsigned long nrPath;
 
 struct Value;
+class Values;
 
 class ValueRef {
     public:
@@ -58,6 +59,19 @@ class ValueRef {
     }
 
     constexpr auto operator<=>(const ValueRef & other) const noexcept = default;
+
+
+
+    // Functions needed to distinguish the type
+    // These should be removed eventually, by putting the functionality that's
+    // needed by callers into methods of this type
+
+    inline bool isThunk(Values & values) const;
+    inline bool isApp(Values & values) const;
+    inline bool isBlackhole(Values & values) const;
+    inline bool isLambda(Values & values) const;
+    inline bool isPrimOp(Values & values) const;
+    inline bool isPrimOpApp(Values & values) const;
 };
 
 // XXX [speed]: this might not be needed when we're done
@@ -1017,6 +1031,38 @@ class Values {
         // Offset by 1 so we don't overlap with ValueRef::null
         return ValueRef{(uint32_t)((v - &values.front() + 1) << 1)};
     }
+};
+
+// type() == nThunk
+inline bool ValueRef::isThunk(Values & values) const
+{
+    return values.VRtoV(*this).isa<tThunk>();
+};
+
+inline bool ValueRef::isApp(Values & values) const
+{
+    return values.VRtoV(*this).isa<tApp>();
+};
+
+bool ValueRef::isBlackhole(Values & values) const
+{
+    return isThunk(values) && values.VRtoV(*this).thunk().expr == (Expr *) &eBlackHole;
+}
+
+// type() == nFunction
+inline bool ValueRef::isLambda(Values & values) const
+{
+    return values.VRtoV(*this).isa<tLambda>();
+};
+
+inline bool ValueRef::isPrimOp(Values & values) const
+{
+    return values.VRtoV(*this).isa<tPrimOp>();
+};
+
+inline bool ValueRef::isPrimOpApp(Values & values) const
+{
+    return values.VRtoV(*this).isa<tPrimOpApp>();
 };
 
 } // namespace nix

@@ -434,7 +434,7 @@ void mainWrapped(int argc, char ** argv)
         for (auto & builtinPtr : state.VRtoV(state.getBuiltins()).attrs()->lexicographicOrder(state.symbols)) {
             auto & builtin = *builtinPtr;
             auto b = nlohmann::json::object();
-            if (!state.VRtoVP(builtin.value)->isPrimOp())
+            if (!builtin.value.isPrimOp(state.values))
                 continue;
             auto primOp = state.VRtoVP(builtin.value)->primOp();
             if (!primOp->doc)

@@ -203,11 +203,11 @@ FrameInfo SampleStack::getFrameInfoFromValueAndPos(const ValueRef v, std::span<V
 {
     /* NOTE: No actual references to garbage collected values are not held in
        the profiler. */
-    if (state.VRtoV(v).isLambda())
+    if (v.isLambda(state.values))
         return LambdaFrameInfo{.expr = state.VRtoV(v).lambda().fun, .callPos = pos};
-    else if (state.VRtoV(v).isPrimOp()) {
+    else if (v.isPrimOp(state.values)) {
         return getPrimOpFrameInfo(*state.VRtoV(v).primOp(), args, pos);
-    } else if (state.VRtoV(v).isPrimOpApp())
+    } else if (v.isPrimOpApp(state.values))
         /* Resolve primOp eagerly. Must not hold on to a reference to a Value. */
         return PrimOpFrameInfo{.expr = state.VRtoV(v).primOpAppPrimOp(state), .callPos = pos};
     else if (state.isFunctor(v)) {

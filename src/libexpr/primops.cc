@@ -3283,11 +3283,11 @@ static RegisterPrimOp primop_catAttrs({
 static void prim_functionArgs(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[0], pos);
-    if (state.VRtoVP(args[0])->isPrimOpApp() || state.VRtoVP(args[0])->isPrimOp()) {
+    if (args[0].isPrimOpApp(state.values) || args[0].isPrimOp(state.values)) {
         state.VRtoV(v).mkAttrs(&state.emptyBindings);
         return;
     }
-    if (!state.VRtoVP(args[0])->isLambda())
+    if (!args[0].isLambda(state.values))
         state.error<TypeError>("'functionArgs' requires a function").atPos(pos).debugThrow();
 
     if (!state.VRtoVP(args[0])->lambda().fun->hasFormals()) {
@@ -3839,7 +3839,7 @@ static void prim_sort(EvalState & state, const PosIdx pos, ValueRef * args, Valu
     auto comparator = [&](ValueRef a, ValueRef b) {
         /* Optimization: if the comparator is lessThan, bypass
            callFunction. */
-        if (state.VRtoVP(args[0])->isPrimOp()) {
+        if (args[0].isPrimOp(state.values)) {
             auto ptr = state.VRtoVP(args[0])->primOp()->fun.target<decltype(&prim_lessThan)>();
             if (ptr && *ptr == prim_lessThan)
                 return CompareValues(state, noPos, "while evaluating the ordering function passed to builtins.sort")(

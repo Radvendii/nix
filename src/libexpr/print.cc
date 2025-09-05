@@ -453,7 +453,7 @@ private:
             output << ANSI_BLUE;
         output << "«";
 
-        if (state.VRtoV(v).isLambda()) {
+        if (v.isLambda(state.values)) {
             output << "lambda";
             if (state.VRtoV(v).lambda().fun) {
                 if (state.VRtoV(v).lambda().fun->name) {
@@ -464,12 +464,12 @@ private:
                 s << state.positions[state.VRtoV(v).lambda().fun->pos];
                 output << " @ " << filterANSIEscapes(toView(s));
             }
-        } else if (state.VRtoV(v).isPrimOp()) {
+        } else if (v.isPrimOp(state.values)) {
             if (state.VRtoV(v).primOp())
                 output << *state.VRtoV(v).primOp();
             else
                 output << "primop";
-        } else if (state.VRtoV(v).isPrimOpApp()) {
+        } else if (v.isPrimOpApp(state.values)) {
             output << "partially applied ";
             auto primOp = state.VRtoV(v).primOpAppPrimOp(state);
             if (primOp)
@@ -487,7 +487,7 @@ private:
 
     void printThunk(ValueRef v)
     {
-        if (state.VRtoV(v).isBlackhole()) {
+        if (v.isBlackhole(state.values)) {
             // Although we know for sure that it's going to be an infinite recursion
             // when this value is accessed _in the current context_, it's likely
             // that the user will misinterpret a simpler «infinite recursion» output
@@ -499,7 +499,7 @@ private:
             output << "«potential infinite recursion»";
             if (options.ansiColors)
                 output << ANSI_NORMAL;
-        } else if (state.VRtoV(v).isThunk() || state.VRtoV(v).isApp()) {
+        } else if (v.isThunk(state.values) || v.isApp(state.values)) {
             if (options.ansiColors)
                 output << ANSI_MAGENTA;
             output << "«thunk»";

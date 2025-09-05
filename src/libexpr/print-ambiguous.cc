@@ -63,7 +63,7 @@ void printAmbiguous(
         }
         break;
     case nThunk:
-        if (!state.VRtoV(v).isBlackhole()) {
+        if (!v.isBlackhole(state.values)) {
             str << "<CODE>";
         } else {
             // Although we know for sure that it's going to be an infinite recursion
@@ -76,11 +76,11 @@ void printAmbiguous(
         }
         break;
     case nFunction:
-        if (state.VRtoV(v).isLambda()) {
+        if (v.isLambda(state.values)) {
             str << "<LAMBDA>";
-        } else if (state.VRtoV(v).isPrimOp()) {
+        } else if (v.isPrimOp(state.values)) {
             str << "<PRIMOP>";
-        } else if (state.VRtoV(v).isPrimOpApp()) {
+        } else if (v.isPrimOpApp(state.values)) {
             str << "<PRIMOP-APP>";
         }
         break;

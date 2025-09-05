@@ -467,7 +467,7 @@ struct CmdFlakeCheck : FlakeCommand
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking overlay '%s'", attrPath));
                 state->forceValue(v, pos);
-                if (!state->VRtoV(v).isLambda()) {
+                if (!v.isLambda(state->values)) {
                     throw Error("overlay is not a function, but %s instead", showType(*state, v));
                 }
                 if (state->VRtoV(v).lambda().fun->hasFormals() || !argHasName(state->VRtoV(v).lambda().fun->arg, "final"))
@@ -567,7 +567,7 @@ struct CmdFlakeCheck : FlakeCommand
             try {
                 Activity act(*logger, lvlInfo, actUnknown, fmt("checking bundler '%s'", attrPath));
                 state->forceValue(v, pos);
-                if (!state->VRtoV(v).isLambda())
+                if (!v.isLambda(state->values))
                     throw Error("bundler must be a function");
                 // TODO: check types of inputs/outputs?
             } catch (Error & e) {

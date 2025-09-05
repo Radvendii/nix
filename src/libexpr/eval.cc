@@ -199,7 +199,7 @@ std::string showType(EvalState & state, const ValueRef v)
     case tExternal:
         return state.VRtoV(v).external()->showType();
     case tThunk:
-        return state.VRtoV(v).isBlackhole() ? "a black hole" : "a thunk";
+        return v.isBlackhole(state.values) ? "a black hole" : "a thunk";
     case tApp:
         return "a function application";
     default:
@@ -591,14 +591,14 @@ std::ostream & operator<<(std::ostream & output, const PrimOp & primOp)
 const PrimOp * Value::primOpAppPrimOp(EvalState & es) const
 {
     ValueRef left = primOpApp().left;
-    while (left && !es.VRtoVP(left)->isPrimOp()) {
+    while (left && !left.isPrimOp(es.values)) {
         left = es.VRtoVP(left)->primOpApp().left;
     }
 
     if (!left)
         return nullptr;
 
-    assert(es.VRtoVP(left)->isPrimOp());
+    assert(left.isPrimOp(es.values));
     return es.VRtoVP(left)->primOp();
 }
 
@@ -660,7 +660,7 @@ ValueRef EvalState::getBuiltin(const std::string & name)
 
 std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
 {
-    if (VRtoV(v).isPrimOp()) {
+    if (v.isPrimOp(values)) {
         // XXX [speed]: what's going on here? why do we need v2 at all?
         auto v2 = &VRtoV(v);
         if (auto * doc = v2->primOp()->doc)
@@ -672,7 +672,7 @@ std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
                 .doc = doc,
             };
     }
-    if (VRtoV(v).isLambda()) {
+    if (v.isLambda(values)) {
         auto exprLambda = VRtoV(v).lambda().fun;
 
         std::ostringstream s;
@@ -748,7 +748,7 @@ void printStaticEnvBindings(const SymbolTable & st, const StaticEnv & se)
 // just for the current level of Env, not the whole chain.
 void printWithBindings(EvalState & state, const SymbolTable & st, const Env & env)
 {
-    if (!state.VRtoVP(env.values[0])->isThunk()) {
+    if (!env.values[0].isThunk(state.values)) {
         std::cout << "with: ";
         std::cout << ANSI_MAGENTA;
         auto j = state.VRtoVP(env.values[0])->attrs()->begin();
@@ -803,7 +803,7 @@ void mapStaticEnvBindings(EvalState & es, const SymbolTable & st, const StaticEn
     if (env.up && se.up) {
         mapStaticEnvBindings(es, st, *se.up, *env.up, vm);
 
-        if (se.isWith && !es.VRtoVP(env.values[0])->isThunk()) {
+        if (se.isWith && !env.values[0].isThunk(es.values)) {
             // add 'with' bindings.
             for (auto & j : *es.VRtoVP(env.values[0])->attrs())
                 vm.insert_or_assign(std::string(st[j.name]), j.value);
@@ -1768,11 +1768,11 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
             /* Figure out the number of arguments still needed. */
             size_t argsDone = 0;
             ValueRef primOp = VPtoVR(&vCur);
-            while (VRtoVP(primOp)->isPrimOpApp()) {
+            while (primOp.isPrimOpApp(values)) {
                 argsDone++;
                 primOp = VRtoVP(primOp)->primOpApp().left;
             }
-            assert(VRtoVP(primOp)->isPrimOp());
+            assert(primOp.isPrimOp(values));
             auto arity = VRtoVP(primOp)->primOp()->arity;
             auto argsLeft = arity - argsDone;
 
@@ -1786,7 +1786,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
                 ValueRef vArgs[maxPrimOpArity];
                 auto n = argsDone;
-                for (ValueRef arg = VPtoVR(&vCur); VRtoVP(arg)->isPrimOpApp(); arg = VRtoVP(arg)->primOpApp().left)
+                for (ValueRef arg = VPtoVR(&vCur); arg.isPrimOpApp(values); arg = VRtoVP(arg)->primOpApp().left)
                     vArgs[--n] = VRtoVP(arg)->primOpApp().right;
 
                 for (size_t i = 0; i < argsLeft; ++i)
@@ -1885,7 +1885,7 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
         }
     }
 
-    if (!VRtoV(fun).isLambda() || !VRtoV(fun).lambda().fun->hasFormals()) {
+    if (!fun.isLambda(values) || !VRtoV(fun).lambda().fun->hasFormals()) {
         VRtoV(res) = VRtoV(fun);
         return;
     }
@@ -2221,7 +2221,7 @@ void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] Env & env, ValueRef
 [[gnu::noinline]]
 void EvalState::tryFixupBlackHolePos(ValueRef v, PosIdx pos)
 {
-    if (!VRtoV(v).isBlackhole())
+    if (!v.isBlackhole(values))
         return;
     auto e = std::current_exception();
     try {
@@ -2248,7 +2248,7 @@ void EvalState::forceValueDeep(ValueRef v)
             for (auto & i : *VRtoV(v).attrs())
                 try {
                     // If the value is a thunk, we're evaling. Otherwise no trace necessary.
-                    auto dts = debugRepl && VRtoVP(i.value)->isThunk() ? makeDebugTraceStacker(
+                    auto dts = debugRepl && i.value.isThunk(values) ? makeDebugTraceStacker(
                                                                      *this,
                                                                      *VRtoVP(i.value)->thunk().expr,
                                                                      *VRtoVP(i.value)->thunk().env,

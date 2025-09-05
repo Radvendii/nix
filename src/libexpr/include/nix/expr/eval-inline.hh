@@ -88,9 +88,9 @@ Env & EvalState::allocEnv(size_t size)
 [[gnu::always_inline]]
 void EvalState::forceValue(ValueRef v, const PosIdx pos)
 {
-    if (VRtoV(v).isThunk()) {
+    if (v.isThunk(values)) {
         Env * env = VRtoV(v).thunk().env;
-        assert(env || VRtoV(v).isBlackhole());
+        assert(env || v.isBlackhole(values));
         Expr * expr = VRtoV(v).thunk().expr;
         try {
             VRtoV(v).mkBlackhole();
@@ -104,7 +104,7 @@ void EvalState::forceValue(ValueRef v, const PosIdx pos)
             tryFixupBlackHolePos(v, pos);
             throw;
         }
-    } else if (VRtoV(v).isApp())
+    } else if (v.isApp(values))
         callFunction(VRtoV(v).app().left, VRtoV(v).app().right, v, pos);
 }
 

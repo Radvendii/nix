@@ -41,7 +41,7 @@ static StorePath copyInputToStore(
 
 static void forceTrivialValue(EvalState & state, ValueRef value, const PosIdx pos)
 {
-    if (state.VRtoV(value).isThunk() && state.VRtoV(value).isTrivial())
+    if (value.isThunk(state.values) && state.VRtoV(value).isTrivial())
         state.forceValue(value, pos);
 }
 
@@ -251,7 +251,7 @@ static Flake readFlake(
     if (auto outputs = vInfo.attrs()->get(sOutputs)) {
         expectType(state, nFunction, outputs->value, outputs->pos);
 
-        if (state.VRtoVP(outputs->value)->isLambda() && state.VRtoVP(outputs->value)->lambda().fun->hasFormals()) {
+        if (outputs->value.isLambda(state.values) && state.VRtoVP(outputs->value)->lambda().fun->hasFormals()) {
             for (auto & formal : state.VRtoVP(outputs->value)->lambda().fun->formals->formals) {
                 if (formal.name != state.sSelf)
                     flake.inputs.emplace(
