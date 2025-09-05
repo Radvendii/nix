@@ -626,11 +626,6 @@ struct Value : public ValueStorage<sizeof(void *)>
 
 public:
 
-    /**
-     * Never modify the backing `Value` object!
-     */
-    static ValueRef toPtr(Symbol str) noexcept;
-
     void print(EvalState & state, std::ostream & str, PrintOptions options = PrintOptions{});
 
     // Functions needed to distinguish the type

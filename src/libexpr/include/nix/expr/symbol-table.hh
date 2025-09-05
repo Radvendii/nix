@@ -11,26 +11,6 @@
 namespace nix {
 
 /**
- * SymbolData is the deduplicated data associated with a Symbol. The primary
- * thing this stores is the string underlying it, but sometimes (e.g. via
- * builtins.attrNames), we construct Values pointing at those strings. We
- * would like to also deduplicate these Values, and to do so we must store a a
- * reference to the Value for this Symbol here. When we need to create another
- * Value for it, we can find the one that already exists and use that instead.
- */
- // XXX [speed]: do we actually need size? Can't we construct a string_view with just a c string pointer? is it super slow?
-class SymbolData {
-    ValueRef v;
-    uint32_t size;
-    // variable length string allocated after the SymbolData in memory
-    char c_str[0];
-
-public:
-    friend class Symbol;
-    friend class SymbolTable;
-};
-
-/**
  * A SymbolRef points to the canonical Value of a Symbol. The type is literally
  * a subtype of ValueRefs, but only the ones that point at Symbols. We use
  * SymbolRefs so we can refer to SymbolData by a smaller value (4 bytes, rather
@@ -73,6 +53,26 @@ class SymbolRef : public ValueRef {
     constexpr auto operator<=>(const SymbolRef & other) const noexcept = default;
 
     friend class std::hash<SymbolRef>;
+};
+
+/**
+ * SymbolData is the deduplicated data associated with a Symbol. The primary
+ * thing this stores is the string underlying it, but sometimes (e.g. via
+ * builtins.attrNames), we construct Values pointing at those strings. We
+ * would like to also deduplicate these Values, and to do so we must store a a
+ * reference to the Value for this Symbol here. When we need to create another
+ * Value for it, we can find the one that already exists and use that instead.
+ */
+ // XXX [speed]: do we actually need size? Can't we construct a string_view with just a c string pointer? is it super slow?
+class SymbolData {
+    SymbolRef ref;
+    uint32_t size;
+    // variable length string allocated after the SymbolData in memory
+    char c_str[0];
+
+public:
+    friend class Symbol;
+    friend class SymbolTable;
 };
 
 /**
@@ -220,9 +220,17 @@ class Symbol {
 
     /* End of convenience string conversions */
 
-    /* Get the Value associated with the Symbol */
-    /* XXX [speed] [[gnu::always_inline]] */
-    const ValueRef valuePtr() const noexcept;
+    /**
+     * Get the Value associated with the Symbol
+     *
+     * WARNING: Never modify the backing `Value` object!
+     */
+    [[gnu::always_inline]]
+    const SymbolRef ref() const noexcept
+    {
+        return data->ref;
+    }
+
 };
 
 class SymbolTable {
@@ -258,7 +266,7 @@ public:
         // Most symbols are looked up more than once, so we trade off insertion performance
         // for lookup performance.
         // FIXME: make this thread-safe.
-        return SymbolRef(symbols.insert(Symbol::Key{es, s, stringAlloc}).first->data->v);
+        return symbols.insert(Symbol::Key{es, s, stringAlloc}).first->data->ref;
     }
 
     // XXX [speed]: these don't actually need a SymbolTable, just an EvalState

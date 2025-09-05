@@ -107,12 +107,6 @@ std::string printValue(EvalState & state, ValueRef v)
     return out.str();
 }
 
-/* XXX [speed] [[gnu::always_inline]] */
-const ValueRef Symbol::valuePtr() const noexcept
-{
-    return data->v;
-}
-
 Symbol::Symbol(const Key & key)
 {
     auto size = key.str.size();
@@ -127,7 +121,7 @@ Symbol::Symbol(const Key & key)
     // allocate enough bytes at the end of the SymbolData for our string
     auto data = (SymbolData *)key.alloc.allocate(sizeof(SymbolData) + size + 1);
 
-    data->v = v;
+    data->ref = SymbolRef{v};
     data->size = size;
     // XXX [speed]: had to remove a special-case for empty string that didn't require any allocation. I'm not sure if that impacts e.g. string comparison times, but the c_str pointer must point back to the SymbolData.
     memcpy(data->c_str, key.str.data(), size);
@@ -142,11 +136,6 @@ Symbol SymbolTable::operator[](SymbolRef ref) const
     // to get from our Value to the SymbolData we look behind the start of the
     // string by the length of one SymbolData
     return Symbol((SymbolData *) es.VRtoV(ref).c_str() - 1);
-}
-
-ValueRef Value::toPtr(Symbol sym) noexcept
-{
-    return sym.valuePtr();
 }
 
 void Value::print(EvalState & state, std::ostream & str, PrintOptions options)
