@@ -295,7 +295,9 @@ public:
     /** `"unknown"` */
     ValueRef vStringUnknown = ValueRefNull;
 
-    /** XXX [speed] add a good description */
+    /**
+     * SEE: prim_lineOfPos(), prim_columnOfPos()
+     */
     ValueRef vLineOfPosPrimOp = ValueRefNull;
     ValueRef vColumnOfPosPrimOp = ValueRefNull;
 
