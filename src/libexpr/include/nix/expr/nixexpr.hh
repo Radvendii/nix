@@ -68,7 +68,7 @@ struct DocComment
  */
 struct AttrName
 {
-    SymbolRef symbol = ValueRefNull;
+    SymbolRef symbol;
     Expr * expr = nullptr;
     AttrName(SymbolRef s)
         : symbol(s) {};
@@ -171,7 +171,7 @@ typedef uint32_t Displacement;
 struct ExprVar : Expr
 {
     PosIdx pos;
-    SymbolRef name = ValueRefNull;
+    SymbolRef name;
 
     /* Whether the variable comes from an environment (e.g. a rec, let
        or function argument) or from a "with".
@@ -367,7 +367,7 @@ struct ExprList : Expr
 struct Formal
 {
     PosIdx pos;
-    SymbolRef name = ValueRefNull;
+    SymbolRef name;
     Expr * def;
 };
 
@@ -401,8 +401,8 @@ struct Formals
 struct ExprLambda : Expr
 {
     PosIdx pos;
-    SymbolRef name = ValueRefNull;
-    SymbolRef arg = ValueRefNull;
+    SymbolRef name;
+    SymbolRef arg;
     Formals * formals;
     Expr * body;
     DocComment docComment;

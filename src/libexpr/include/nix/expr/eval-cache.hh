@@ -16,7 +16,7 @@ class AttrCursor;
 struct CachedEvalError : EvalError
 {
     const ref<AttrCursor> cursor;
-    const SymbolRef attr = ValueRefNull;
+    const SymbolRef attr;
 
     CachedEvalError(ref<AttrCursor> cursor, SymbolRef attr);
 
@@ -122,7 +122,7 @@ public:
     AttrCursor(
         ref<EvalCache> root,
         Parent parent,
-        ValueRef value = ValueRefNull,
+        ValueRef value = ValueRef::null,
         std::optional<std::pair<AttrId, AttrValue>> && cachedValue = {});
 
     std::vector<SymbolRef> getAttrPath() const;

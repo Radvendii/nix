@@ -409,7 +409,7 @@ private:
 
     void printList(ValueRef v, size_t depth)
     {
-        if (seen && state.VRtoV(v).listSize() && !seen->insert(v).second) {
+        if (seen && state.VRtoV(v).listSize() && !seen->insert((size_t) v.ref).second) {
             printRepeated();
             return;
         }

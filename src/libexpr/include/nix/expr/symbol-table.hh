@@ -20,7 +20,7 @@ namespace nix {
  */
  // XXX [speed]: do we actually need size? Can't we construct a string_view with just a c string pointer? is it super slow?
 class SymbolData {
-    ValueRef v = ValueRefNull;
+    ValueRef v;
     uint32_t size;
     // variable length string allocated after the SymbolData in memory
     char c_str[0];
@@ -44,7 +44,36 @@ public:
  * SymbolRefs can also be compared directly for equality, since the Values they
  * point to have been deduplicated.
  */
-typedef ValueRef SymbolRef;
+class SymbolRef : public ValueRef {
+    public:
+    static SymbolRef null;
+    // ValueRefs we leave unininitalized. SymbolRefs we initialize to null.
+    SymbolRef()
+        : ValueRef(ValueRef::null)
+    {
+    }
+
+    constexpr explicit operator bool() const noexcept
+    {
+        return ref;
+    }
+
+    // Fast equality comparison of pointers, courtesy of deduplicated data.
+    bool operator==(const SymbolRef other) const noexcept
+    {
+        return ref == other.ref;
+    }
+
+    // Explicit because not all ValueRefs are valid SymbolRefs.
+    explicit SymbolRef(ValueRef const &v)
+        : ValueRef(v)
+    {
+    }
+
+    constexpr auto operator<=>(const SymbolRef & other) const noexcept = default;
+
+    friend class std::hash<SymbolRef>;
+};
 
 /**
  * Symbols have the property that they can be compared efficiently (using an
@@ -229,7 +258,7 @@ public:
         // Most symbols are looked up more than once, so we trade off insertion performance
         // for lookup performance.
         // FIXME: make this thread-safe.
-        return symbols.insert(Symbol::Key{es, s, stringAlloc}).first->data->v;
+        return SymbolRef(symbols.insert(Symbol::Key{es, s, stringAlloc}).first->data->v);
     }
 
     // XXX [speed]: these don't actually need a SymbolTable, just an EvalState
@@ -262,3 +291,12 @@ public:
 
 };
 } // namespace nix
+
+template<>
+struct std::hash<nix::SymbolRef>
+{
+    std::size_t operator()(const nix::SymbolRef & s) const noexcept
+    {
+        return std::hash<decltype(s.ref)>{}(s.ref);
+    }
+};

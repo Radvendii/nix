@@ -383,7 +383,7 @@ static RegisterPrimOp primop_import(
       >  The function argument doesn’t have to be called `x` in `foo.nix`; any name would work.
     )",
      .fun = [](EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v) {
-         import(state, pos, args[0], ValueRefNull, v);
+         import(state, pos, args[0], ValueRef::null, v);
      }});
 
 #ifndef _WIN32 // TODO implement via DLL loading on Windows
@@ -2249,7 +2249,7 @@ static void prim_readDir(EvalState & state, const PosIdx pos, ValueRef * args, V
     // using `getFileType` on some systems.
     // In order to reduce system calls we make each lookup lazy by using
     // `builtins.readFileType` application.
-    ValueRef readFileType = ValueRefNull;
+    ValueRef readFileType = ValueRef::null;
 
     for (auto & [name, type] : entries) {
         if (!type) {
@@ -2774,7 +2774,7 @@ static void prim_path(EvalState & state, const PosIdx pos, ValueRef * args, Valu
 {
     std::optional<SourcePath> path;
     std::string_view name;
-    ValueRef filterFun = ValueRefNull;
+    ValueRef filterFun;
     auto method = ContentAddressMethod::Raw::NixArchive;
     std::optional<Hash> expectedHash;
     NixStringContext context;
@@ -2893,16 +2893,16 @@ static void prim_attrValues(EvalState & state, const PosIdx pos, ValueRef * args
 
     // Hijack ValueRef as a storage for the index into the attrs
     for (size_t n = 0; n < state.VRtoVP(args[0])->attrs()->size(); n++)
-        list[n] = (ValueRef) n;
+        list[n] = std::bit_cast<ValueRef>((uint32_t)n);
 
     std::sort(list.begin(), list.end(), [&](ValueRef v1, ValueRef v2) {
-        std::string_view s1 = state.symbols[(*state.VRtoVP(args[0])->attrs())[(size_t) v1].name];
-        std::string_view s2 = state.symbols[(*state.VRtoVP(args[0])->attrs())[(size_t) v2].name];
+        std::string_view s1 = state.symbols[(*state.VRtoVP(args[0])->attrs())[std::bit_cast<uint32_t>(v1)].name];
+        std::string_view s2 = state.symbols[(*state.VRtoVP(args[0])->attrs())[std::bit_cast<uint32_t>(v2)].name];
         return s1 < s2;
     });
 
     for (auto & v : list)
-        v = (*state.VRtoVP(args[0])->attrs())[(size_t) v].value;
+        v = (*state.VRtoVP(args[0])->attrs())[std::bit_cast<uint32_t>(v)].value;
 
     state.VRtoV(v).mkList(list);
 }
@@ -3048,7 +3048,7 @@ static void prim_removeAttrs(EvalState & state, const PosIdx pos, ValueRef * arg
     for (auto elem : state.VRtoVP(args[1])->listView()) {
         state.forceStringNoCtx(
             elem, pos, "while evaluating the values of the second argument passed to builtins.removeAttrs");
-        names.emplace_back(state.symbols.create(state.VRtoVP(elem)->string_view()), ValueRefNull);
+        names.emplace_back(state.symbols.create(state.VRtoVP(elem)->string_view()), ValueRef::null);
     }
     std::sort(names.begin(), names.end());
 
@@ -3104,7 +3104,7 @@ static void prim_listToAttrs(EvalState & state, const PosIdx pos, ValueRef * arg
 
         // XXX [speed]: revisit this when we rework tList to tSlice
         // (ab)use Attr to store the index into the list, so that sorting prioritizes earlier elements
-        bindings[n] = Attr(sym, (ValueRef)n);
+        bindings[n] = Attr(sym, std::bit_cast<ValueRef>((uint32_t) n));
     }
 
     std::sort(&bindings[0], &bindings[listSize], [](const Attr & a, const Attr & b) {
@@ -3113,14 +3113,14 @@ static void prim_listToAttrs(EvalState & state, const PosIdx pos, ValueRef * arg
     });
 
     // Step 2. Unpack the bindings in place and skip name-value pairs with duplicate names
-    SymbolRef prev = ValueRefNull;
+    SymbolRef prev = SymbolRef::null;
     for (size_t n = 0; n < listSize; n++) {
         auto attr = bindings[n];
         if (prev == attr.name) {
             continue;
         }
         // Note that .value is actually an index into the list; see earlier comments
-        ValueRef v2 = listView[attr.value];
+        ValueRef v2 = listView[std::bit_cast<uint32_t>(attr.value)];
 
         auto j = state.getAttr(state.sValue, state.VRtoVP(v2)->attrs(), "in a {name=...; value=...;} pair");
         prev = attr.name;

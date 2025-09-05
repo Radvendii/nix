@@ -8,7 +8,7 @@ namespace nix {
 
 class EvalState;
 struct Value;
-typedef uint32_t ValueRef;
+class ValueRef;
 
 class PosIdx
 {

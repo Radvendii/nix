@@ -37,11 +37,32 @@ extern unsigned long nrString;
 extern unsigned long nrPath;
 
 struct Value;
-// XXX [speed]: these might not be needed when we're done
-typedef uint32_t ValueRef;
+
+class ValueRef {
+    public:
+
+    static ValueRef null;
+
+    uint32_t ref;
+
+    constexpr ValueRef() = default;
+
+    constexpr explicit ValueRef(uint32_t ref)
+        : ref(ref)
+    {
+    }
+
+    [[gnu::always_inline]]
+    constexpr explicit operator bool() const {
+        return ref;
+    }
+
+    constexpr auto operator<=>(const ValueRef & other) const noexcept = default;
+};
+
+// XXX [speed]: this might not be needed when we're done
 inline void * allocBytes(size_t n);
-constexpr ValueRef ValueRefNull = 0;
-// XXX [speed]
+
 class BindingsBuilder;
 
 typedef enum {
@@ -88,7 +109,7 @@ struct Expr;
 struct ExprLambda;
 struct ExprBlackHole;
 struct PrimOp;
-typedef ValueRef SymbolRef;
+class SymbolRef;
 class Symbol;
 class PosIdx;
 struct Pos;
@@ -164,7 +185,7 @@ std::ostream & operator<<(std::ostream & str, const ExternalValueBase & v);
 class ListBuilder
 {
     const size_t size;
-    ValueRef inlineElems[2] = {ValueRefNull, ValueRefNull};
+    ValueRef inlineElems[2] = {ValueRef::null, ValueRef::null};
 public:
     ValueRef * elems;
     ListBuilder(EvalState & state, size_t size);
@@ -424,7 +445,7 @@ public:
     {
         return std::visit(
             overloaded{
-                [](const SmallList & list) -> std::size_t { return list.back() == ValueRefNull ? 1 : 2; },
+                [](const SmallList & list) -> std::size_t { return list.back() == ValueRef::null ? 1 : 2; },
                 [](const List & list) -> std::size_t { return list.size; }},
             raw);
     }
@@ -741,7 +762,7 @@ public:
     void mkList(const ListBuilder & builder) noexcept
     {
         if (builder.size == 1) {
-            setStorage(std::array<ValueRef, 2>{builder.inlineElems[0], ValueRefNull});
+            setStorage(std::array<ValueRef, 2>{builder.inlineElems[0], ValueRef::null});
             nrListSmall++;
         }
         else if (builder.size == 2) {
@@ -813,7 +834,7 @@ public:
 
     size_t listSize() const noexcept
     {
-        return isa<tListSmall>() ? (getStorage<SmallList>()[1] == ValueRefNull ? 1 : 2) : getStorage<List>().size;
+        return isa<tListSmall>() ? (getStorage<SmallList>()[1] == ValueRef::null ? 1 : 2) : getStorage<List>().size;
     }
 
     PosIdx determinePos(EvalState & es, const PosIdx pos) const;

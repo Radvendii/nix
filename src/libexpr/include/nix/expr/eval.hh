@@ -270,36 +270,36 @@ public:
      *
      * This is _not_ a singleton. Pointer equality is _not_ sufficient.
      */
-    ValueRef vNull = ValueRefNull;
+    ValueRef vNull;
 
     /**
      * `true` constant.
      *
      * This is _not_ a singleton. Pointer equality is _not_ sufficient.
      */
-    ValueRef vTrue = ValueRefNull;
+    ValueRef vTrue;
 
     /**
      * `true` constant.
      *
      * This is _not_ a singleton. Pointer equality is _not_ sufficient.
      */
-    ValueRef vFalse = ValueRefNull;
+    ValueRef vFalse;
 
     /** `"regular"` */
-    ValueRef vStringRegular = ValueRefNull;
+    ValueRef vStringRegular;
     /** `"directory"` */
-    ValueRef vStringDirectory = ValueRefNull;
+    ValueRef vStringDirectory;
     /** `"symlink"` */
-    ValueRef vStringSymlink = ValueRefNull;
+    ValueRef vStringSymlink;
     /** `"unknown"` */
-    ValueRef vStringUnknown = ValueRefNull;
+    ValueRef vStringUnknown;
 
     /**
      * SEE: prim_lineOfPos(), prim_columnOfPos()
      */
-    ValueRef vLineOfPosPrimOp = ValueRefNull;
-    ValueRef vColumnOfPosPrimOp = ValueRefNull;
+    ValueRef vLineOfPosPrimOp;
+    ValueRef vColumnOfPosPrimOp;
 
     /**
      * The accessor corresponding to `store`.
@@ -449,16 +449,16 @@ public:
     ~EvalState();
 
     Value * VRtoVP(ValueRef ref) {
-        if (ref == ValueRefNull)
+        if (!ref)
             return nullptr;
         // XXX [speed] make sure this branching statement gets optimzied out
-        if (ref & 0x1) {
+        if (ref.ref & 0x1) {
             // use arithmetic shift to preserve sign bit
-            int32_t offset = (int32_t)ref >> 1;
+            int32_t offset = (int32_t)ref.ref >> 1;
             return (Value *) (stackPtr + offset);
         }
         // XXX [speed]: we could save a pointer to &Values.front() - 1, so we don't have to offset by 1 every time
-        return &values[(ref >> 1) - 1];
+        return &values[(ref.ref >> 1) - 1];
     }
 
     Value & VRtoV(ValueRef ref) {
@@ -467,7 +467,7 @@ public:
 
     ValueRef VPtoVR(Value *v) {
         if (v == nullptr)
-            return ValueRefNull;
+            return ValueRef::null;
         if (v < &values.front() || v > &values.back()) {
             // assume stack pointer
             // XXX [speed]: would really be nice if we could error check this properly (i.e. is it on the stack)
@@ -478,12 +478,12 @@ public:
               std::cout << "value pointer out of range: " << std::hex << v << " (" << stackPtr << ")" << "\n";
             }
             int32_t offset = (size_t) v - stackPtr;
-            ValueRef ret = (uint32_t) offset << 1 | 0x1;
+            ValueRef ret{(uint32_t) offset << 1 | 0x1};
             return ret;
         }
         // XXX [speed]: do we have to convert to size_t first?
-        // Offset by 1 so we don't overlap with ValueRefNull
-        return (ValueRef) ((v - &values.front() + 1) << 1);
+        // Offset by 1 so we don't overlap with ValueRef::null
+        return ValueRef{(uint32_t)((v - &values.front() + 1) << 1)};
     }
 
     LookupPath getLookupPath()

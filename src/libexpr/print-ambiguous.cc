@@ -48,7 +48,7 @@ void printAmbiguous(
     case nList:
         /* Use pointer to the Value instead of pointer to the elements, because
            that would need to explicitly handle the case of SmallList. */
-        if (seen && state.VRtoV(v).listSize() && !seen->insert((size_t) v).second)
+        if (seen && state.VRtoV(v).listSize() && !seen->insert((size_t) v.ref).second)
             str << "«repeated»";
         else {
             str << "[ ";

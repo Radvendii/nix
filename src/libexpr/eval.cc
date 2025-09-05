@@ -558,7 +558,7 @@ void EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 {
     // Can't pass in a reference to value-on-the-stack. Pass in the stack value directly!
     // XXX [speed]: factor this out into a onStack() function
-    if (v & 0x1) [[unlikely]]
+    if (v.ref & 0x1) [[unlikely]]
         unreachable();
 
     auto name2 = name.substr(0, 2) == "__" ? name.substr(2) : name;
@@ -1012,6 +1012,8 @@ ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string 
     v = state.allocValue();
     state.VRtoVP(v)->mkPath(&*accessor, this->s.c_str());
 }
+ValueRef ValueRef::null{0};
+SymbolRef SymbolRef::null{ValueRef::null};
 // XXX [speed]
 
 
@@ -1027,7 +1029,7 @@ inline ValueRef EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval
     // The added complexity of handling this appears to be similarly in cost, or
     // the cases where applicable were insignificant in the first place.
     if (noEval)
-        return ValueRefNull;
+        return ValueRef::null;
 
     auto * fromWith = var.fromWith;
     while (1) {
@@ -2072,7 +2074,7 @@ void EvalState::concatLists(
 {
     nrListConcats++;
 
-    ValueRef nonEmpty = 0;
+    ValueRef nonEmpty = ValueRef::null;
     size_t len = 0;
     for (size_t n = 0; n < nrLists; ++n) {
         forceList(lists[n], pos, errorCtx);

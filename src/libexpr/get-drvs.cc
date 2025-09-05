@@ -234,10 +234,10 @@ bool PackageInfo::checkMeta(ValueRef v)
 ValueRef PackageInfo::queryMeta(const std::string & name)
 {
     if (!getMeta())
-        return 0;
+        return ValueRef::null;
     auto a = meta->get(state->symbols.create(name));
     if (!a || !checkMeta(a->value))
-        return 0;
+        return ValueRef::null;
     return a->value;
 }
 

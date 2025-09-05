@@ -99,7 +99,7 @@ TEST_F(ValuePrintingTests, vThunk)
 TEST_F(ValuePrintingTests, vApp)
 {
     Value vApp;
-    vApp.mkApp(ValueRefNull, ValueRefNull);
+    vApp.mkApp(ValueRef::null, ValueRef::null);
 
     test(vApp, "«thunk»");
 }
@@ -140,7 +140,7 @@ TEST_F(ValuePrintingTests, vPrimOpApp)
     vPrimOp.mkPrimOp(&primOp);
 
     Value vPrimOpApp;
-    vPrimOpApp.mkPrimOpApp(state.VPtoVR(&vPrimOp), ValueRefNull);
+    vPrimOpApp.mkPrimOpApp(state.VPtoVR(&vPrimOp), ValueRef::null);
 
     test(vPrimOpApp, "«partially applied primop puppy»");
 }
@@ -530,7 +530,7 @@ TEST_F(ValuePrintingTests, ansiColorsPrimOpApp)
     vPrimOp.mkPrimOp(&primOp);
 
     Value v;
-    v.mkPrimOpApp(state.VPtoVR(&vPrimOp), ValueRefNull);
+    v.mkPrimOpApp(state.VPtoVR(&vPrimOp), ValueRef::null);
 
     test(v, ANSI_BLUE "«partially applied primop puppy»" ANSI_NORMAL, PrintOptions{.ansiColors = true});
 }

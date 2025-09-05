@@ -21,9 +21,9 @@ struct Attr
        both of them are uint32 wrappers, they are next to each other
        to make sure that Attr has no padding on 64 bit machines. that
        way we keep Attr size at two words with no wasted space. */
-    SymbolRef name = ValueRefNull;
+    SymbolRef name;
     PosIdx pos;
-    ValueRef value = ValueRefNull;
+    ValueRef value;
     Attr(SymbolRef name, ValueRef value, PosIdx pos = noPos)
         : name(name)
         , pos(pos)
@@ -89,7 +89,7 @@ public:
 
     const_iterator find(SymbolRef name) const
     {
-        Attr key(name, 0);
+        Attr key(name, ValueRef::null);
         const_iterator i = std::lower_bound(begin(), end(), key);
         if (i != end() && i->name == name)
             return i;
@@ -98,7 +98,7 @@ public:
 
     const Attr * get(SymbolRef name) const
     {
-        Attr key(name, 0);
+        Attr key(name, ValueRef::null);
         const_iterator i = std::lower_bound(begin(), end(), key);
         if (i != end() && i->name == name)
             return &*i;

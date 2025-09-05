@@ -452,7 +452,7 @@ std::shared_ptr<AttrCursor> AttrCursor::maybeGetAttr(SymbolRef name)
                         throw CachedEvalError(ref(shared_from_this()), name);
                     else
                         return std::make_shared<AttrCursor>(
-                            root, std::make_pair(ref(shared_from_this()), name), ValueRefNull, std::move(attr));
+                            root, std::make_pair(ref(shared_from_this()), name), ValueRef::null, std::move(attr));
                 }
                 // Incomplete attrset, so need to fall thru and
                 // evaluate to see whether 'name' exists
