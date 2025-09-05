@@ -402,7 +402,6 @@ EvalState::EvalState(
     char onStack;
     stackPtr = (size_t) &onStack;
 
-    values.reserve(100000000);
     corepkgsFS->setPathDisplay("<nix", ">");
     internalFS->setPathDisplay("«nix-internal»", "");
 
