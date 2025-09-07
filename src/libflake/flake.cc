@@ -285,7 +285,7 @@ static Flake readFlake(
                     state.symbols[setting.name], Explicit<bool>{state.forceBool(setting.value, setting.pos, "")});
             else if (setting.value.type(state.values) == nList) {
                 std::vector<std::string> ss;
-                for (auto elem : state.VRtoVP(setting.value)->listView()) {
+                for (auto elem : setting.value.listView(state.values)) {
                     if (elem.type(state.values) != nString)
                         state
                             .error<TypeError>(

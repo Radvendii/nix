@@ -1245,7 +1245,7 @@ static void opQuery(Globals & globals, Strings opFlags, Strings opArgs)
                             } else if (v.type(globals.state->values) == nList) {
                                 attrs2["type"] = "strings";
                                 XMLOpenElement m(xml, "meta", attrs2);
-                                for (auto elem : globals.state->VRtoVP(v)->listView()) {
+                                for (auto elem : v.listView(globals.state->values)) {
                                     if (elem.type(globals.state->values) != nString)
                                         continue;
                                     XMLAttrs attrs3;

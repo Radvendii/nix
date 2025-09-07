@@ -131,7 +131,7 @@ inline void EvalState::forceAttrs(ValueRef v, Callable getPos, std::string_view 
 inline void EvalState::forceList(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     forceValue(v, pos);
-    if (!VRtoV(v).isList()) {
+    if (!v.isList(values)) {
         error<TypeError>("expected a list but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
             .withTrace(pos, errorCtx)
             .debugThrow();

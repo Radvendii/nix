@@ -40,6 +40,7 @@ struct Value;
 class Values;
 class ListBuilder;
 class ExternalValueBase;
+class ListView;
 
 // XXX [speed]: this might not be needed when we're done
 inline void * allocBytes(size_t n);
@@ -170,6 +171,10 @@ class ValueRef {
     const PrimOp * primOpAppPrimOp(Values & values) const;
     inline void mkExternal(Values & values, ExternalValueBase * e) noexcept;
     inline void mkFloat(Values & values, NixFloat n) noexcept;
+
+    bool isList(Values values) const noexcept;
+    ListView listView(Values values) const noexcept;
+    size_t listSize(Values values) const noexcept;
 };
 
 /**

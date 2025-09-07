@@ -427,8 +427,8 @@ void prim_importNative(EvalState & state, const PosIdx pos, ValueRef * args, Val
 void prim_exec(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceList(args[0], pos, "while evaluating the first argument passed to builtins.exec");
-    auto elems = state.VRtoVP(args[0])->listView();
-    auto count = state.VRtoVP(args[0])->listSize();
+    auto elems = args[0].listView(state.values);
+    auto count = args[0].listSize(state.values);
     if (count == 0)
         state.error<EvalError>("at least one argument to 'exec' required").atPos(pos).debugThrow();
     NixStringContext context;
@@ -701,12 +701,12 @@ struct CompareValues
             case nList:
                 // Lexicographic comparison
                 for (size_t i = 0;; i++) {
-                    if (i == state.VRtoVP(v2)->listSize()) {
+                    if (i == v2.listSize(state.values)) {
                         return false;
-                    } else if (i == state.VRtoVP(v1)->listSize()) {
+                    } else if (i == v1.listSize(state.values)) {
                         return true;
-                    } else if (!state.eqValues(state.VRtoVP(v1)->listView()[i], state.VRtoVP(v2)->listView()[i], pos, errorCtx)) {
-                        return (*this)(state.VRtoVP(v1)->listView()[i], state.VRtoVP(v2)->listView()[i], "while comparing two list elements");
+                    } else if (!state.eqValues(v1.listView(state.values)[i], v2.listView(state.values)[i], pos, errorCtx)) {
+                        return (*this)(v1.listView(state.values)[i], v2.listView(state.values)[i], "while comparing two list elements");
                     }
                 }
             default:
@@ -740,10 +740,10 @@ static void prim_genericClosure(EvalState & state, const PosIdx pos, ValueRef * 
         "while evaluating the 'startSet' attribute passed as argument to builtins.genericClosure");
 
     ValueList workSet;
-    for (auto elem : state.VRtoVP(startSet->value)->listView())
+    for (auto elem : startSet->value.listView(state.values))
         workSet.push_back(elem);
 
-    if (state.VRtoVP(startSet->value)->listSize() == 0) {
+    if (startSet->value.listSize(state.values) == 0) {
         state.VRtoV(v) = *state.VRtoVP(startSet->value);
         return;
     }
@@ -1468,7 +1468,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
                command-line arguments to the builder. */
             else if (i->name == state.sArgs) {
                 state.forceList(i->value, pos, context_below);
-                for (auto elem : state.VRtoVP(i->value)->listView()) {
+                for (auto elem : i->value.listView(state.values)) {
                     auto s = state
                                  .coerceToString(
                                      pos, elem, context, "while evaluating an element of the argument list", true)
@@ -1502,7 +1502,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
                         /* Require ‘outputs’ to be a list of strings. */
                         state.forceList(i->value, pos, context_below);
                         Strings ss;
-                        for (auto elem : state.VRtoVP(i->value)->listView())
+                        for (auto elem : i->value.listView(state.values))
                             ss.emplace_back(state.forceStringNoCtx(elem, pos, context_below));
                         handleOutputs(ss);
                     }
@@ -2005,7 +2005,7 @@ static void prim_findFile(EvalState & state, const PosIdx pos, ValueRef * args, 
 
     LookupPath lookupPath;
 
-    for (auto v2 : state.VRtoVP(args[0])->listView()) {
+    for (auto v2 : args[0].listView(state.values)) {
         state.forceAttrs(v2, pos, "while evaluating an element of the list passed to builtins.findFile");
 
         std::string prefix;
@@ -3048,8 +3048,8 @@ static void prim_removeAttrs(EvalState & state, const PosIdx pos, ValueRef * arg
        can be used to remove them from attrs[0]. */
     // 64: large enough to fit the attributes of a derivation
     boost::container::small_vector<Attr, 64> names;
-    names.reserve(state.VRtoVP(args[1])->listSize());
-    for (auto elem : state.VRtoVP(args[1])->listView()) {
+    names.reserve(args[1].listSize(state.values));
+    for (auto elem : args[1].listView(state.values)) {
         state.forceStringNoCtx(
             elem, pos, "while evaluating the values of the second argument passed to builtins.removeAttrs");
         names.emplace_back(state.symbols.create(state.VRtoVP(elem)->string_view()), ValueRef::null);
@@ -3091,7 +3091,7 @@ static void prim_listToAttrs(EvalState & state, const PosIdx pos, ValueRef * arg
     state.forceList(args[0], pos, "while evaluating the argument passed to builtins.listToAttrs");
 
     // Step 1. Sort the name-value attrsets in place using the memory we allocate for the result
-    auto listView = state.VRtoVP(args[0])->listView();
+    auto listView = args[0].listView(state.values);
     size_t listSize = listView.size();
     auto & bindings = *state.allocBindings(listSize);
 
@@ -3251,10 +3251,10 @@ static void prim_catAttrs(EvalState & state, const PosIdx pos, ValueRef * args, 
         state.forceStringNoCtx(args[0], pos, "while evaluating the first argument passed to builtins.catAttrs"));
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.catAttrs");
 
-    SmallValueVector<nonRecursiveStackReservation> res(state.VRtoVP(args[1])->listSize());
+    SmallValueVector<nonRecursiveStackReservation> res(args[1].listSize(state.values));
     size_t found = 0;
 
-    for (auto v2 : state.VRtoVP(args[1])->listView()) {
+    for (auto v2 : args[1].listView(state.values)) {
         state.forceAttrs(
             v2, pos, "while evaluating an element in the list passed as second argument to builtins.catAttrs");
         if (auto i = state.VRtoVP(v2)->attrs()->get(attrName))
@@ -3380,7 +3380,7 @@ static void prim_zipAttrsWith(EvalState & state, const PosIdx pos, ValueRef * ar
 
     state.forceFunction(args[0], pos, "while evaluating the first argument passed to builtins.zipAttrsWith");
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.zipAttrsWith");
-    const auto listItems = state.VRtoVP(args[1])->listView();
+    const auto listItems = args[1].listView(state.values);
 
     for (auto & vElem : listItems) {
         state.forceAttrs(
@@ -3473,12 +3473,12 @@ static void prim_elemAt(EvalState & state, const PosIdx pos, ValueRef * args, Va
     NixInt::Inner n =
         state.forceInt(args[1], pos, "while evaluating the second argument passed to 'builtins.elemAt'").value;
     state.forceList(args[0], pos, "while evaluating the first argument passed to 'builtins.elemAt'");
-    if (n < 0 || std::make_unsigned_t<NixInt::Inner>(n) >= state.VRtoVP(args[0])->listSize())
-        state.error<EvalError>("'builtins.elemAt' called with index %d on a list of size %d", n, state.VRtoVP(args[0])->listSize())
+    if (n < 0 || std::make_unsigned_t<NixInt::Inner>(n) >= args[0].listSize(state.values))
+        state.error<EvalError>("'builtins.elemAt' called with index %d on a list of size %d", n, args[0].listSize(state.values))
             .atPos(pos)
             .debugThrow();
-    state.forceValue(state.VRtoVP(args[0])->listView()[n], pos);
-    state.VRtoV(v) = *state.VRtoVP(state.VRtoVP(args[0])->listView()[n]);
+    state.forceValue(args[0].listView(state.values)[n], pos);
+    state.VRtoV(v) = *state.VRtoVP(args[0].listView(state.values)[n]);
 }
 
 static RegisterPrimOp primop_elemAt({
@@ -3495,10 +3495,10 @@ static RegisterPrimOp primop_elemAt({
 static void prim_head(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceList(args[0], pos, "while evaluating the first argument passed to 'builtins.head'");
-    if (state.VRtoVP(args[0])->listSize() == 0)
+    if (args[0].listSize(state.values) == 0)
         state.error<EvalError>("'builtins.head' called on an empty list").atPos(pos).debugThrow();
-    state.forceValue(state.VRtoVP(args[0])->listView()[0], pos);
-    state.VRtoV(v) = *state.VRtoVP(state.VRtoVP(args[0])->listView()[0]);
+    state.forceValue(args[0].listView(state.values)[0], pos);
+    state.VRtoV(v) = *state.VRtoVP(args[0].listView(state.values)[0]);
 }
 
 static RegisterPrimOp primop_head({
@@ -3518,12 +3518,12 @@ static RegisterPrimOp primop_head({
 static void prim_tail(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceList(args[0], pos, "while evaluating the first argument passed to 'builtins.tail'");
-    if (state.VRtoVP(args[0])->listSize() == 0)
+    if (args[0].listSize(state.values) == 0)
         state.error<EvalError>("'builtins.tail' called on an empty list").atPos(pos).debugThrow();
 
-    auto list = state.buildList(state.VRtoVP(args[0])->listSize() - 1);
+    auto list = state.buildList(args[0].listSize(state.values) - 1);
     for (const auto & [n, v] : enumerate(list))
-        v = state.VRtoVP(args[0])->listView()[n + 1];
+        v = args[0].listView(state.values)[n + 1];
     v.mkList(state.values, list);
 }
 
@@ -3548,16 +3548,16 @@ static void prim_map(EvalState & state, const PosIdx pos, ValueRef * args, Value
 {
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.map");
 
-    if (state.VRtoVP(args[1])->listSize() == 0) {
+    if (args[1].listSize(state.values) == 0) {
         state.VRtoV(v) = *state.VRtoVP(args[1]);
         return;
     }
 
     state.forceFunction(args[0], pos, "while evaluating the first argument passed to builtins.map");
 
-    auto list = state.buildList(state.VRtoVP(args[1])->listSize());
+    auto list = state.buildList(args[1].listSize(state.values));
     for (const auto & [n, v] : enumerate(list))
-        (v = state.allocValue()).mkApp(state.values, args[0], state.VRtoVP(args[1])->listView()[n]);
+        (v = state.allocValue()).mkApp(state.values, args[0], args[1].listView(state.values)[n]);
     v.mkList(state.values, list);
 }
 
@@ -3584,24 +3584,24 @@ static void prim_filter(EvalState & state, const PosIdx pos, ValueRef * args, Va
 {
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.filter");
 
-    if (state.VRtoVP(args[1])->listSize() == 0) {
+    if (args[1].listSize(state.values) == 0) {
         state.VRtoV(v) = *state.VRtoVP(args[1]);
         return;
     }
 
     state.forceFunction(args[0], pos, "while evaluating the first argument passed to builtins.filter");
 
-    auto len = state.VRtoVP(args[1])->listSize();
+    auto len = args[1].listSize(state.values);
     SmallValueVector<nonRecursiveStackReservation> vs(len);
     size_t k = 0;
 
     bool same = true;
     for (size_t n = 0; n < len; ++n) {
         Value res;
-        state.callFunction(args[0], state.VRtoVP(args[1])->listView()[n], state.VPtoVR(&res), noPos);
+        state.callFunction(args[0], args[1].listView(state.values)[n], state.VPtoVR(&res), noPos);
         if (state.forceBool(
                 state.VPtoVR(&res), pos, "while evaluating the return value of the filtering function passed to builtins.filter"))
-            vs[k++] = state.VRtoVP(args[1])->listView()[n];
+            vs[k++] = args[1].listView(state.values)[n];
         else
             same = false;
     }
@@ -3631,7 +3631,7 @@ static void prim_elem(EvalState & state, const PosIdx pos, ValueRef * args, Valu
 {
     bool res = false;
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.elem");
-    for (auto elem : state.VRtoVP(args[1])->listView())
+    for (auto elem : args[1].listView(state.values))
         if (state.eqValues(args[0], elem, pos, "while searching for the presence of the given element in the list")) {
             res = true;
             break;
@@ -3653,10 +3653,10 @@ static RegisterPrimOp primop_elem({
 static void prim_concatLists(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceList(args[0], pos, "while evaluating the first argument passed to builtins.concatLists");
-    auto listView = state.VRtoVP(args[0])->listView();
+    auto listView = args[0].listView(state.values);
     state.concatLists(
         v,
-        state.VRtoVP(args[0])->listSize(),
+        args[0].listSize(state.values),
         listView.data(),
         pos,
         "while evaluating a value of the list passed to builtins.concatLists");
@@ -3675,7 +3675,7 @@ static RegisterPrimOp primop_concatLists({
 static void prim_length(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceList(args[0], pos, "while evaluating the first argument passed to builtins.length");
-    v.mkInt(state.values, state.VRtoVP(args[0])->listSize());
+    v.mkInt(state.values, args[0].listSize(state.values));
 }
 
 static RegisterPrimOp primop_length({
@@ -3694,13 +3694,13 @@ static void prim_foldlStrict(EvalState & state, const PosIdx pos, ValueRef * arg
     state.forceFunction(args[0], pos, "while evaluating the first argument passed to builtins.foldlStrict");
     state.forceList(args[2], pos, "while evaluating the third argument passed to builtins.foldlStrict");
 
-    if (state.VRtoVP(args[2])->listSize()) {
+    if (args[2].listSize(state.values)) {
         ValueRef vCur = args[1];
 
-        auto listView = state.VRtoVP(args[2])->listView();
+        auto listView = args[2].listView(state.values);
         for (auto [n, elem] : enumerate(listView)) {
             ValueRef vs[]{vCur, elem};
-            vCur = n == state.VRtoVP(args[2])->listSize() - 1 ? v : state.allocValue();
+            vCur = n == args[2].listSize(state.values) - 1 ? v : state.allocValue();
             // XXX [speed]: this is an example of the optimization where we overwrite an existing value instead of creating a new one (sometimes)
             state.callFunction(args[0], vs, vCur, pos);
         }
@@ -3742,7 +3742,7 @@ static void anyOrAll(bool any, EvalState & state, const PosIdx pos, ValueRef * a
                                     : "while evaluating the return value of the function passed to builtins.all";
 
     Value vTmp;
-    for (auto elem : state.VRtoVP(args[1])->listView()) {
+    for (auto elem : args[1].listView(state.values)) {
         state.callFunction(args[0], elem, state.VPtoVR(&vTmp), pos);
         bool res = state.forceBool(state.VPtoVR(&vTmp), pos, errorCtx);
         if (res == any) {
@@ -3828,7 +3828,7 @@ static void prim_sort(EvalState & state, const PosIdx pos, ValueRef * args, Valu
 {
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.sort");
 
-    auto len = state.VRtoVP(args[1])->listSize();
+    auto len = args[1].listSize(state.values);
     if (len == 0) {
         state.VRtoV(v) = *state.VRtoVP(args[1]);
         return;
@@ -3838,7 +3838,7 @@ static void prim_sort(EvalState & state, const PosIdx pos, ValueRef * args, Valu
 
     auto list = state.buildList(len);
     for (const auto & [n, v] : enumerate(list))
-        state.forceValue(v = state.VRtoVP(args[1])->listView()[n], pos);
+        state.forceValue(v = args[1].listView(state.values)[n], pos);
 
     auto comparator = [&](ValueRef a, ValueRef b) {
         /* Optimization: if the comparator is lessThan, bypass
@@ -3921,12 +3921,12 @@ static void prim_partition(EvalState & state, const PosIdx pos, ValueRef * args,
     state.forceFunction(args[0], pos, "while evaluating the first argument passed to builtins.partition");
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.partition");
 
-    auto len = state.VRtoVP(args[1])->listSize();
+    auto len = args[1].listSize(state.values);
 
     ValueVector right, wrong;
 
     for (size_t n = 0; n < len; ++n) {
-        auto vElem = state.VRtoVP(args[1])->listView()[n];
+        auto vElem = args[1].listView(state.values)[n];
         state.forceValue(vElem, pos);
         Value res;
         state.callFunction(args[0], vElem, state.VPtoVR(&res), pos);
@@ -3984,7 +3984,7 @@ static void prim_groupBy(EvalState & state, const PosIdx pos, ValueRef * args, V
 
     ValueVectorMap attrs;
 
-    for (auto vElem : state.VRtoVP(args[1])->listView()) {
+    for (auto vElem : args[1].listView(state.values)) {
         Value res;
         state.callFunction(args[0], vElem, state.VPtoVR(&res), pos);
         auto name = state.forceStringNoCtx(
@@ -4034,7 +4034,7 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, ValueRef * args,
 {
     state.forceFunction(args[0], pos, "while evaluating the first argument passed to builtins.concatMap");
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.concatMap");
-    auto nrLists = state.VRtoVP(args[1])->listSize();
+    auto nrLists = args[1].listSize(state.values);
 
     // List of returned lists before concatenation. It is illegal to create a ValueRef to these Values.
     // XXX [speed]: this is a misuse of conservativeStackReservation. it's meant to be multiplied by sizeof(Value) not sizeof(ListView)
@@ -4044,7 +4044,7 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, ValueRef * args,
 
     for (size_t n = 0; n < nrLists; ++n) {
         Value listValue;
-        ValueRef vElem = state.VRtoVP(args[1])->listView()[n];
+        ValueRef vElem = args[1].listView(state.values)[n];
         state.callFunction(args[0], vElem, state.VPtoVR(&listValue), pos);
         state.forceList(
             state.VPtoVR(&listValue),
@@ -4751,10 +4751,10 @@ static void prim_concatStringsSep(EvalState & state, const PosIdx pos, ValueRef 
         "while evaluating the second argument (the list of strings to concat) passed to builtins.concatStringsSep");
 
     std::string res;
-    res.reserve((state.VRtoVP(args[1])->listSize() + 32) * sep.size());
+    res.reserve((args[1].listSize(state.values) + 32) * sep.size());
     bool first = true;
 
-    for (auto elem : state.VRtoVP(args[1])->listView()) {
+    for (auto elem : args[1].listView(state.values)) {
         if (first)
             first = false;
         else
@@ -4784,19 +4784,19 @@ static void prim_replaceStrings(EvalState & state, const PosIdx pos, ValueRef * 
 {
     state.forceList(args[0], pos, "while evaluating the first argument passed to builtins.replaceStrings");
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.replaceStrings");
-    if (state.VRtoVP(args[0])->listSize() != state.VRtoVP(args[1])->listSize())
+    if (args[0].listSize(state.values) != args[1].listSize(state.values))
         state.error<EvalError>("'from' and 'to' arguments passed to builtins.replaceStrings have different lengths")
             .atPos(pos)
             .debugThrow();
 
     std::vector<std::string_view> from;
-    from.reserve(state.VRtoVP(args[0])->listSize());
-    for (auto elem : state.VRtoVP(args[0])->listView())
+    from.reserve(args[0].listSize(state.values));
+    for (auto elem : args[0].listView(state.values))
         from.emplace_back(state.forceString(
             elem, pos, "while evaluating one of the strings to replace passed to builtins.replaceStrings"));
 
     std::unordered_map<size_t, std::string_view> cache;
-    auto to = state.VRtoVP(args[1])->listView();
+    auto to = args[1].listView(state.values);
 
     NixStringContext context;
     auto s = state.forceString(

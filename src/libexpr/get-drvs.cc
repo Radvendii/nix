@@ -115,7 +115,7 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
             state->forceList(i->value, i->pos, "while evaluating the 'outputs' attribute of a derivation");
 
             /* For each output... */
-            for (auto elem : state->VRtoVP(i->value)->listView()) {
+            for (auto elem : i->value.listView(state->values)) {
                 std::string output(
                     state->forceStringNoCtx(elem, i->pos, "while evaluating the name of an output of a derivation"));
 
@@ -163,10 +163,10 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
             return outputs;
         auto errMsg = Error("this derivation has bad 'meta.outputsToInstall'");
         /* ^ this shows during `nix-env -i` right under the bad derivation */
-        if (!state->VRtoVP(outTI)->isList())
+        if (!outTI.isList(state->values))
             throw errMsg;
         Outputs result;
-        for (auto elem : state->VRtoVP(outTI)->listView()) {
+        for (auto elem : outTI.listView(state->values)) {
             if (elem.type(state->values) != nString)
                 throw errMsg;
             auto out = outputs.find(state->VRtoVP(elem)->c_str());
@@ -216,7 +216,7 @@ bool PackageInfo::checkMeta(ValueRef v)
 {
     state->forceValue(v, state->VRtoV(v).determinePos(*state, noPos));
     if (v.type(state->values) == nList) {
-        for (auto elem : state->VRtoV(v).listView())
+        for (auto elem : v.listView(state->values))
             if (!checkMeta(elem))
                 return false;
         return true;

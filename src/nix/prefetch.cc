@@ -45,11 +45,11 @@ std::string resolveMirrorUrl(EvalState & state, const std::string & url)
         throw Error("unknown mirror name '%s'", mirrorName);
     state.forceList(mirrorList->value, noPos, "while evaluating one mirror configuration");
 
-    if (state.VRtoVP(mirrorList->value)->listSize() < 1)
+    if (mirrorList->value.listSize(state.values) < 1)
         throw Error("mirror URL '%s' did not expand to anything", url);
 
     std::string mirror(
-        state.forceString(state.VRtoVP(mirrorList->value)->listView()[0], noPos, "while evaluating the first available mirror"));
+        state.forceString(mirrorList->value.listView(state.values)[0], noPos, "while evaluating the first available mirror"));
     return mirror + (hasSuffix(mirror, "/") ? "" : "/") + s.substr(p + 1);
 }
 
@@ -212,10 +212,10 @@ static int main_nix_prefetch_url(int argc, char ** argv)
             if (!attr)
                 throw Error("attribute 'urls' missing");
             state->forceList(attr->value, noPos, "while evaluating the urls to prefetch");
-            if (state->VRtoVP(attr->value)->listSize() < 1)
+            if (attr->value.listSize(state->values) < 1)
                 throw Error("'urls' list is empty");
             url = state->forceString(
-                state->VRtoVP(attr->value)->listView()[0], noPos, "while evaluating the first url from the urls list");
+                attr->value.listView(state->values)[0], noPos, "while evaluating the first url from the urls list");
 
             /* Extract the hash mode. */
             auto attr2 = state->VRtoV(v).attrs()->get(state->symbols.create("outputHashMode"));

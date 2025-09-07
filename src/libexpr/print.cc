@@ -409,7 +409,7 @@ private:
 
     void printList(ValueRef v, size_t depth)
     {
-        if (seen && state.VRtoV(v).listSize() && !seen->insert((size_t) v.ref).second) {
+        if (seen && v.listSize(state.values) && !seen->insert((size_t) v.ref).second) {
             printRepeated();
             return;
         }
@@ -417,7 +417,7 @@ private:
         if (depth < options.maxDepth) {
             increaseIndent();
             output << "[";
-            auto listItems = state.VRtoV(v).listView();
+            auto listItems = v.listView(state.values);
             auto prettyPrint = shouldPrettyPrintList(listItems.span());
 
             size_t currentListItemsPrinted = 0;

@@ -301,14 +301,14 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
 
         if (auto attr = state.VRtoVP(i.value)->attrs()->get(state.sOutputs)) {
             state.forceList(attr->value, attr->pos, "while evaluating the `outputs` attribute of a string context");
-            if (state.VRtoVP(attr->value)->listSize() && !isDerivation(name)) {
+            if (attr->value.listSize(state.values) && !isDerivation(name)) {
                 state
                     .error<EvalError>(
                         "tried to add derivation output context of %s, which is not a derivation, to a string", name)
                     .atPos(i.pos)
                     .debugThrow();
             }
-            for (auto elem : state.VRtoVP(attr->value)->listView()) {
+            for (auto elem : attr->value.listView(state.values)) {
                 auto outputName =
                     state.forceStringNoCtx(elem, attr->pos, "while evaluating an output name within a string context");
                 context.emplace(

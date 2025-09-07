@@ -75,7 +75,7 @@ json printValueAsJSON(
     case nList: {
         out = json::array();
         int i = 0;
-        for (auto elem : state.VRtoV(v).listView()) {
+        for (auto elem : v.listView(state.values)) {
             try {
                 out.push_back(printValueAsJSON(state, strict, elem, pos, context, copyToStore));
             } catch (Error & e) {

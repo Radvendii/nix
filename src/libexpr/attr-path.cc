@@ -88,14 +88,14 @@ findAlongAttrPath(EvalState & state, const std::string & attrPath, Bindings & au
 
         else {
 
-            if (!state.VRtoVP(v)->isList())
+            if (!v.isList(state.values))
                 state
                     .error<TypeError>(
                         "the expression selected by the selection path '%1%' should be a list but is %2%",
                         attrPath,
                         showType(state, v))
                     .debugThrow();
-            if (*attrIndex >= state.VRtoVP(v)->listSize())
+            if (*attrIndex >= v.listSize(state.values))
                 throw AttrPathNotFound("list index %1% in selection path '%2%' is out of range", *attrIndex, attrPath);
 
             v = state.VRtoVP(v)->listView()[*attrIndex];

@@ -492,17 +492,17 @@ TEST_F(PrimOpTest, partition)
     auto right = v.attrs()->get(createSymbol("right"));
     ASSERT_NE(right, nullptr);
     ASSERT_THAT(*state.VRtoVP(right->value), IsListOfSize(2));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(right->value)->listView()[0]), IsIntEq(23));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(right->value)->listView()[1]), IsIntEq(42));
+    ASSERT_THAT(*state.VRtoVP(right->value.listView(state.values)[0]), IsIntEq(23));
+    ASSERT_THAT(*state.VRtoVP(right->value.listView(state.values)[1]), IsIntEq(42));
 
     auto wrong = v.attrs()->get(createSymbol("wrong"));
     ASSERT_NE(wrong, nullptr);
     ASSERT_EQ(wrong->value.type(state.values), nList);
-    ASSERT_EQ(state.VRtoVP(wrong->value)->listSize(), 3u);
+    ASSERT_EQ(wrong->value.listSize(state.values), 3u);
     ASSERT_THAT(*state.VRtoVP(wrong->value), IsListOfSize(3));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(wrong->value)->listView()[0]), IsIntEq(1));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(wrong->value)->listView()[1]), IsIntEq(9));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(wrong->value)->listView()[2]), IsIntEq(3));
+    ASSERT_THAT(*state.VRtoVP(wrong->value.listView(state.values)[0]), IsIntEq(1));
+    ASSERT_THAT(*state.VRtoVP(wrong->value.listView(state.values)[1]), IsIntEq(9));
+    ASSERT_THAT(*state.VRtoVP(wrong->value.listView(state.values)[2]), IsIntEq(3));
 }
 
 TEST_F(PrimOpTest, concatMap)
@@ -895,7 +895,7 @@ TEST_F(PrimOpTest, split1)
     ASSERT_THAT(*state.VRtoVP(v.listView()[0]), IsStringEq(""));
 
     ASSERT_THAT(*state.VRtoVP(v.listView()[1]), IsListOfSize(1));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[1])->listView()[0]), IsStringEq("a"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1].listView(state.values)[0]), IsStringEq("a"));
 
     ASSERT_THAT(*state.VRtoVP(v.listView()[2]), IsStringEq("c"));
 }
@@ -909,12 +909,12 @@ TEST_F(PrimOpTest, split2)
     ASSERT_THAT(*state.VRtoVP(v.listView()[0]), IsStringEq(""));
 
     ASSERT_THAT(*state.VRtoVP(v.listView()[1]), IsListOfSize(1));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[1])->listView()[0]), IsStringEq("a"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1].listView(state.values)[0]), IsStringEq("a"));
 
     ASSERT_THAT(*state.VRtoVP(v.listView()[2]), IsStringEq("b"));
 
     ASSERT_THAT(*state.VRtoVP(v.listView()[3]), IsListOfSize(1));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[3])->listView()[0]), IsStringEq("c"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[3].listView(state.values)[0]), IsStringEq("c"));
 
     ASSERT_THAT(*state.VRtoVP(v.listView()[4]), IsStringEq(""));
 }
@@ -929,16 +929,16 @@ TEST_F(PrimOpTest, split3)
 
     // 2nd list element is a list [ "" null ]
     ASSERT_THAT(*state.VRtoVP(v.listView()[1]), IsListOfSize(2));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[1])->listView()[0]), IsStringEq("a"));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[1])->listView()[1]), IsNull());
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1].listView(state.values)[0]), IsStringEq("a"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[1].listView(state.values)[1]), IsNull());
 
     // 3rd element
     ASSERT_THAT(*state.VRtoVP(v.listView()[2]), IsStringEq("b"));
 
     // 4th element is a list: [ null "c" ]
     ASSERT_THAT(*state.VRtoVP(v.listView()[3]), IsListOfSize(2));
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[3])->listView()[0]), IsNull());
-    ASSERT_THAT(*state.VRtoVP(state.VRtoVP(v.listView()[3])->listView()[1]), IsStringEq("c"));
+    ASSERT_THAT(*state.VRtoVP(v.listView()[3].listView(state.values)[0]), IsNull());
+    ASSERT_THAT(*state.VRtoVP(v.listView()[3].listView(state.values)[1]), IsStringEq("c"));
 
     // 5th element is the empty string
     ASSERT_THAT(*state.VRtoVP(v.listView()[4]), IsStringEq(""));

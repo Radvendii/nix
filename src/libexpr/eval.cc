@@ -1049,6 +1049,21 @@ void ValueRef::mkList(Values & values, const ListBuilder & builder) noexcept
         nrListN++;
     }
 }
+
+bool ValueRef::isList(Values values) const noexcept
+{
+    return values.VRtoV(*this).isa<tListSmall, tListN>();
+}
+
+ListView ValueRef::listView(Values values) const noexcept
+{
+    return values.VRtoV(*this).isa<tListSmall>() ? ListView(values.VRtoV(*this).getStorage<detail::ValueBase::SmallList>()) : ListView(values.VRtoV(*this).getStorage<detail::ValueBase::List>());
+}
+
+size_t ValueRef::listSize(Values values) const noexcept
+{
+    return values.VRtoV(*this).isa<tListSmall>() ? (values.VRtoV(*this).getStorage<detail::ValueBase::SmallList>()[1] == ValueRef::null ? 1 : 2) : values.VRtoV(*this).getStorage<detail::ValueBase::List>().size;
+}
 // XXX [speed]
 
 
@@ -2115,13 +2130,13 @@ void EvalState::concatLists(
     size_t len = 0;
     for (size_t n = 0; n < nrLists; ++n) {
         forceList(lists[n], pos, errorCtx);
-        auto l = VRtoVP(lists[n])->listSize();
+        auto l = lists[n].listSize(values);
         len += l;
         if (l)
             nonEmpty = lists[n];
     }
 
-    if (nonEmpty && len == VRtoVP(nonEmpty)->listSize()) {
+    if (nonEmpty && len == nonEmpty.listSize(values)) {
         VRtoV(v) = VRtoV(nonEmpty);
         return;
     }
@@ -2129,7 +2144,7 @@ void EvalState::concatLists(
     auto list = buildList(len);
     auto out = list.elems;
     for (size_t n = 0, pos = 0; n < nrLists; ++n) {
-        auto listView = VRtoVP(lists[n])->listView();
+        auto listView = lists[n].listView(values);
         auto l = listView.size();
         if (l)
             memcpy(out + pos, listView.data(), l * sizeof(ValueRef));
@@ -2306,8 +2321,8 @@ void EvalState::forceValueDeep(ValueRef v)
                 }
         }
 
-        else if (VRtoV(v).isList()) {
-            for (auto v2 : VRtoV(v).listView())
+        else if (v.isList(values)) {
+            for (auto v2 : v.listView(values))
                 recurse(v2);
         }
     };
@@ -2540,9 +2555,9 @@ BackedStringView EvalState::coerceToString(
         if (v.type(values) == nNull)
             return "";
 
-        if (VRtoV(v).isList()) {
+        if (v.isList(values)) {
             std::string result;
-            auto listView = VRtoV(v).listView();
+            auto listView = v.listView(values);
             for (auto [n, v2] : enumerate(listView)) {
                 try {
                     result += *coerceToString(
@@ -2557,9 +2572,9 @@ BackedStringView EvalState::coerceToString(
                     e.addTrace(positions[pos], errorCtx);
                     throw;
                 }
-                if (n < VRtoV(v).listSize() - 1
+                if (n < v.listSize(values) - 1
                     /* !!! not quite correct */
-                    && (!VRtoVP(v2)->isList() || VRtoVP(v2)->listSize() != 0))
+                    && (!v2.isList(values) || v2.listSize(values) != 0))
                     result += " ";
             }
             return result;
@@ -2783,18 +2798,18 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         return;
 
     case nList:
-        if (VRtoV(v1).listSize() != VRtoV(v2).listSize()) {
+        if (v1.listSize(values) != v2.listSize(values)) {
             error<AssertionError>(
                 "list of size '%d' is not equal to list of size '%d', left hand side is '%s', right hand side is '%s'",
-                VRtoV(v1).listSize(),
-                VRtoV(v2).listSize(),
+                v1.listSize(values),
+                v2.listSize(values),
                 ValuePrinter(*this, v1, errorPrintOptions),
                 ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
-        for (size_t n = 0; n < VRtoV(v1).listSize(); ++n) {
+        for (size_t n = 0; n < v1.listSize(values); ++n) {
             try {
-                assertEqValues(VRtoV(v1).listView()[n], VRtoV(v2).listView()[n], pos, errorCtx);
+                assertEqValues(v1.listView(values)[n], v2.listView(values)[n], pos, errorCtx);
             } catch (Error & e) {
                 e.addTrace(positions[pos], "while comparing list element %d", n);
                 throw;
@@ -2948,10 +2963,10 @@ bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string
         return true;
 
     case nList:
-        if (VRtoV(v1).listSize() != VRtoV(v2).listSize())
+        if (v1.listSize(values) != v2.listSize(values))
             return false;
-        for (size_t n = 0; n < VRtoV(v1).listSize(); ++n)
-            if (!eqValues(VRtoV(v1).listView()[n], VRtoV(v2).listView()[n], pos, errorCtx))
+        for (size_t n = 0; n < v1.listSize(values); ++n)
+            if (!eqValues(v1.listView(values)[n], v2.listView(values)[n], pos, errorCtx))
                 return false;
         return true;
 
