@@ -173,9 +173,9 @@ class ValueRef {
     inline void mkExternal(Values & values, ExternalValueBase * e) noexcept;
     inline void mkFloat(Values & values, NixFloat n) noexcept;
 
-    bool isList(Values values) const noexcept;
-    ListView listView(Values values) const noexcept;
-    size_t listSize(Values values) const noexcept;
+    bool isList(Values & values) const noexcept;
+    ListView listView(Values & values) const noexcept;
+    size_t listSize(Values & values) const noexcept;
 
     PosIdx determinePos(Values & values, const PosIdx pos) const;
 };

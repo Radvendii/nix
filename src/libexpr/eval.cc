@@ -1074,17 +1074,17 @@ void ValueRef::mkList(Values & values, const ListBuilder & builder) noexcept
     }
 }
 
-bool ValueRef::isList(Values values) const noexcept
+bool ValueRef::isList(Values & values) const noexcept
 {
     return values.VRtoV(*this).isa<tListSmall, tListN>();
 }
 
-ListView ValueRef::listView(Values values) const noexcept
+ListView ValueRef::listView(Values & values) const noexcept
 {
     return values.VRtoV(*this).isa<tListSmall>() ? ListView(values.VRtoV(*this).getStorage<detail::SmallList>()) : ListView(values.VRtoV(*this).getStorage<detail::List>());
 }
 
-size_t ValueRef::listSize(Values values) const noexcept
+size_t ValueRef::listSize(Values & values) const noexcept
 {
     return values.VRtoV(*this).isa<tListSmall>() ? (values.VRtoV(*this).getStorage<detail::SmallList>()[1] == ValueRef::null ? 1 : 2) : values.VRtoV(*this).getStorage<detail::List>().size;
 }
