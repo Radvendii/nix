@@ -171,7 +171,7 @@ static void enumerateOutputs(
     ValueRef vFlake,
     std::function<void(std::string_view name, ValueRef vProvide, const PosIdx pos)> callback)
 {
-    auto pos = state.VRtoV(vFlake).determinePos(state, noPos);
+    auto pos = vFlake.determinePos(state.values, noPos);
     state.forceAttrs(vFlake, pos, "while evaluating a flake to get its outputs");
 
     auto aOutputs = state.VRtoV(vFlake).attrs()->get(state.symbols.create("outputs"));

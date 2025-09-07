@@ -822,7 +822,7 @@ void NixRepl::addAttrsToScope(ValueRef attrs)
 {
     state->forceAttrs(
         attrs,
-        [&]() { return state->VRtoV(attrs).determinePos(*state, noPos); },
+        [&]() { return attrs.determinePos(state->values, noPos); },
         "while evaluating an attribute set to be merged in the global scope");
     if (displ + state->VRtoV(attrs).attrs()->size() >= envSize)
         throw Error("environment full; cannot add more variables");
@@ -889,7 +889,7 @@ void NixRepl::evalString(std::string s, ValueRef v)
             throw;
     }
     e->eval(*state, *env, v);
-    state->forceValue(v, state->VRtoV(v).determinePos(*state, noPos));
+    state->forceValue(v, v.determinePos(state->values, noPos));
 }
 
 void NixRepl::runNix(Path program, const Strings & args, const std::optional<std::string> & input)

@@ -175,6 +175,8 @@ class ValueRef {
     bool isList(Values values) const noexcept;
     ListView listView(Values values) const noexcept;
     size_t listSize(Values values) const noexcept;
+
+    PosIdx determinePos(Values & values, const PosIdx pos) const;
 };
 
 /**
@@ -891,7 +893,7 @@ public:
         return isa<tListSmall>() ? (getStorage<SmallList>()[1] == ValueRef::null ? 1 : 2) : getStorage<List>().size;
     }
 
-    PosIdx determinePos(EvalState & es, const PosIdx pos) const;
+    PosIdx determinePos(Values & values, const PosIdx pos) const;
 
     /**
      * Check whether forcing this value requires a trivial amount of

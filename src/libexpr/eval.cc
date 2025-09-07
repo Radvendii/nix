@@ -197,7 +197,7 @@ std::string showType(EvalState & state, const ValueRef v)
 #pragma GCC diagnostic pop
 }
 
-PosIdx Value::determinePos(EvalState & es, const PosIdx pos) const
+PosIdx Value::determinePos(Values & values, const PosIdx pos) const
 {
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
@@ -208,7 +208,24 @@ PosIdx Value::determinePos(EvalState & es, const PosIdx pos) const
     case tLambda:
         return lambda().fun->pos;
     case tApp:
-        return es.VRtoVP(app().left)->determinePos(es, pos);
+        return app().left.determinePos(values, pos);
+    default:
+        return pos;
+    }
+#pragma GCC diagnostic pop
+}
+PosIdx ValueRef::determinePos(Values & values, const PosIdx pos) const
+{
+// Allow selecting a subset of enum values
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch-enum"
+    switch (values.VRtoV(*this).getInternalType()) {
+    case tAttrs:
+        return values.VRtoV(*this).attrs()->pos;
+    case tLambda:
+        return values.VRtoV(*this).lambda().fun->pos;
+    case tApp:
+        return values.VRtoV(*this).app().left.determinePos(values, pos);
     default:
         return pos;
     }
@@ -1429,7 +1446,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
             ValueRef vOverrides = (*bindings.bindings)[overrides->second.displ].value;
             state.forceAttrs(
                 vOverrides,
-                [&]() { return state.VRtoVP(vOverrides)->determinePos(state, noPos); },
+                [&]() { return vOverrides.determinePos(state.values, noPos); },
                 "while evaluating the `__overrides` attribute");
             bindings.grow(state.allocBindings(bindings.capacity() + state.VRtoVP(vOverrides)->attrs()->size()));
             for (auto & i : *state.VRtoVP(vOverrides)->attrs()) {
@@ -1810,7 +1827,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                     primOpCalls[fn->name]++;
 
                 try {
-                    fn->fun(*this, vCur.determinePos(*this, noPos), args.data(), VPtoVR(&vCur));
+                    fn->fun(*this, vCur.determinePos(values, noPos), args.data(), VPtoVR(&vCur));
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
@@ -1860,7 +1877,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                     // 2. Create a fake env (arg1, arg2, etc.) and a fake expr (arg1: arg2: etc: builtins.name arg1 arg2
                     // etc)
                     //    so the debugger allows to inspect the wrong parameters passed to the builtin.
-                    fn->fun(*this, vCur.determinePos(*this, noPos), vArgs, VPtoVR(&vCur));
+                    fn->fun(*this, vCur.determinePos(values, noPos), vArgs, VPtoVR(&vCur));
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
@@ -1928,7 +1945,7 @@ void EvalState::incrFunctionCall(ExprLambda * fun)
 
 void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef res)
 {
-    auto pos = VRtoV(fun).determinePos(*this, noPos);
+    auto pos = VRtoV(fun).determinePos(values, noPos);
 
     forceValue(fun, pos);
 
@@ -2270,7 +2287,7 @@ void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] Env & env, ValueRef
 
 [[gnu::noinline]] [[noreturn]] void ExprBlackHole::throwInfiniteRecursionError(EvalState & state, ValueRef v)
 {
-    state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(state.VRtoV(v).determinePos(state, noPos)).debugThrow();
+    state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(v.determinePos(state.values, noPos)).debugThrow();
 }
 
 // always force this to be separate, otherwise forceValue may inline it and take
@@ -2299,7 +2316,7 @@ void EvalState::forceValueDeep(ValueRef v)
         if (!seen.insert(v).second)
             return;
 
-        forceValue(v, VRtoV(v).determinePos(*this, noPos));
+        forceValue(v, v.determinePos(values, noPos));
 
         if (v.type(values) == nAttrs) {
             for (auto & i : *VRtoV(v).attrs())

@@ -431,7 +431,7 @@ static void main_nix_build(int argc, char ** argv)
             ValueRef v(
                 findAlongAttrPath(*state, i, takesNixShellAttr(state->VPtoVR(&vRoot)) ? *autoArgsWithInNixShell : *autoArgs, state->VPtoVR(&vRoot))
                      .first);
-            state->forceValue(v, state->VRtoV(v).determinePos(*state, noPos));
+            state->forceValue(v, v.determinePos(state->values, noPos));
             getDerivations(*state, v, "", takesNixShellAttr(v) ? *autoArgsWithInNixShell : *autoArgs, drvs, false);
         }
     }
