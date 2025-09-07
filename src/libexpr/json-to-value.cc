@@ -59,7 +59,7 @@ class JSONSax : nlohmann::json_sax<json>
             auto attrs2 = state.buildBindings(attrs.size());
             for (auto & i : attrs)
                 attrs2.insert(i.first, i.second);
-            state.VRtoV(parent->value(state)).mkAttrs(attrs2);
+            parent->value(state).mkAttrs(state.values, attrs2);
             return std::move(parent);
         }
 
@@ -84,7 +84,7 @@ class JSONSax : nlohmann::json_sax<json>
             auto list = state.buildList(values.size());
             for (const auto & [n, v2] : enumerate(list))
                 v2 = values[n];
-            state.VRtoV(parent->value(state)).mkList(list);
+            parent->value(state).mkList(state.values, list);
             return std::move(parent);
         }
 
@@ -111,21 +111,21 @@ public:
 
     bool null() override
     {
-        state.VRtoV(rs->value(state)).mkNull();
+        rs->value(state).mkNull(state.values);
         rs->add(state);
         return true;
     }
 
     bool boolean(bool val) override
     {
-        state.VRtoV(rs->value(state)).mkBool(val);
+        rs->value(state).mkBool(state.values, val);
         rs->add(state);
         return true;
     }
 
     bool number_integer(number_integer_t val) override
     {
-        state.VRtoV(rs->value(state)).mkInt(val);
+        rs->value(state).mkInt(state.values, val);
         rs->add(state);
         return true;
     }
@@ -136,14 +136,14 @@ public:
             throw Error("unsigned json number %1% outside of Nix integer range", val_);
         }
         NixInt::Inner val = val_;
-        state.VRtoV(rs->value(state)).mkInt(val);
+        rs->value(state).mkInt(state.values, val);
         rs->add(state);
         return true;
     }
 
     bool number_float(number_float_t val, const string_t & s) override
     {
-        state.VRtoV(rs->value(state)).mkFloat(val);
+        rs->value(state).mkFloat(state.values, val);
         rs->add(state);
         return true;
     }
@@ -151,7 +151,7 @@ public:
     bool string(string_t & val) override
     {
         forceNoNullByte(val);
-        state.VRtoV(rs->value(state)).mkString(val);
+        rs->value(state).mkString(state.values, val);
         rs->add(state);
         return true;
     }

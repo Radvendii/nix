@@ -34,40 +34,40 @@ void emitTreeAttrs(
     // FIXME: support arbitrary input attributes.
 
     if (auto narHash = input.getNarHash())
-        state.VRtoV(attrs.alloc("narHash")).mkString(narHash->to_string(HashFormat::SRI, true));
+        attrs.alloc("narHash").mkString(state.values, narHash->to_string(HashFormat::SRI, true));
 
     if (input.getType() == "git")
-        state.VRtoV(attrs.alloc("submodules")).mkBool(fetchers::maybeGetBoolAttr(input.attrs, "submodules").value_or(false));
+        attrs.alloc("submodules").mkBool(state.values, fetchers::maybeGetBoolAttr(input.attrs, "submodules").value_or(false));
 
     if (!forceDirty) {
 
         if (auto rev = input.getRev()) {
-            state.VRtoV(attrs.alloc("rev")).mkString(rev->gitRev());
-            state.VRtoV(attrs.alloc("shortRev")).mkString(rev->gitShortRev());
+            attrs.alloc("rev").mkString(state.values, rev->gitRev());
+            attrs.alloc("shortRev").mkString(state.values, rev->gitShortRev());
         } else if (emptyRevFallback) {
             // Backwards compat for `builtins.fetchGit`: dirty repos return an empty sha1 as rev
             auto emptyHash = Hash(HashAlgorithm::SHA1);
-            state.VRtoV(attrs.alloc("rev")).mkString(emptyHash.gitRev());
-            state.VRtoV(attrs.alloc("shortRev")).mkString(emptyHash.gitShortRev());
+            attrs.alloc("rev").mkString(state.values, emptyHash.gitRev());
+            attrs.alloc("shortRev").mkString(state.values, emptyHash.gitShortRev());
         }
 
         if (auto revCount = input.getRevCount())
-            state.VRtoV(attrs.alloc("revCount")).mkInt(*revCount);
+            attrs.alloc("revCount").mkInt(state.values, *revCount);
         else if (emptyRevFallback)
-            state.VRtoV(attrs.alloc("revCount")).mkInt(0);
+            attrs.alloc("revCount").mkInt(state.values, 0);
     }
 
     if (auto dirtyRev = fetchers::maybeGetStrAttr(input.attrs, "dirtyRev")) {
-        state.VRtoV(attrs.alloc("dirtyRev")).mkString(*dirtyRev);
-        state.VRtoV(attrs.alloc("dirtyShortRev")).mkString(*fetchers::maybeGetStrAttr(input.attrs, "dirtyShortRev"));
+        attrs.alloc("dirtyRev").mkString(state.values, *dirtyRev);
+        attrs.alloc("dirtyShortRev").mkString(state.values, *fetchers::maybeGetStrAttr(input.attrs, "dirtyShortRev"));
     }
 
     if (auto lastModified = input.getLastModified()) {
-        state.VRtoV(attrs.alloc("lastModified")).mkInt(*lastModified);
-        state.VRtoV(attrs.alloc("lastModifiedDate")).mkString(fmt("%s", std::put_time(std::gmtime(&*lastModified), "%Y%m%d%H%M%S")));
+        attrs.alloc("lastModified").mkInt(state.values, *lastModified);
+        attrs.alloc("lastModifiedDate").mkString(state.values, fmt("%s", std::put_time(std::gmtime(&*lastModified), "%Y%m%d%H%M%S")));
     }
 
-    state.VRtoV(v).mkAttrs(attrs);
+    v.mkAttrs(state.values, attrs);
 }
 
 struct FetchTreeParams

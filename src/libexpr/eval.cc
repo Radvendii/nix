@@ -127,7 +127,7 @@ Symbol::Symbol(const Key & key)
     memcpy(data->c_str, key.str.data(), size);
     data->c_str[size] = '\0';
     // XXX [speed]: there should either be a tSymbol Value type that fits in 8 bytes, or at least a contextless string type that does
-    key.es.VRtoVP(v)->mkString(data->c_str, nullptr);
+    v.mkString(key.es.values, data->c_str, nullptr);
     this->data = data;
 }
 
@@ -184,7 +184,7 @@ std::string showType(EvalState & state, const ValueRef v)
     case tPrimOp:
         return fmt("the built-in function '%s'", std::string(state.VRtoV(v).primOp()->name));
     case tPrimOpApp:
-        return fmt("the partially applied built-in function '%s'", state.VRtoV(v).primOpAppPrimOp(state)->name);
+        return fmt("the partially applied built-in function '%s'", v.primOpAppPrimOp(state.values)->name);
     case tExternal:
         return state.VRtoV(v).external()->showType();
     case tThunk:
@@ -392,16 +392,16 @@ EvalState::EvalState(
 
     static_assert(sizeof(Env) <= 16, "environment must be <= 16 bytes");
 
-    VRtoV(vEmptyList = allocValue()).mkList(buildList(0));
-    VRtoV(vNull = allocValue()).mkNull();
-    VRtoV(vTrue = allocValue()).mkBool(true);
-    VRtoV(vFalse = allocValue()).mkBool(false);
-    VRtoV(vStringRegular = allocValue()).mkString("regular");
-    VRtoV(vStringDirectory = allocValue()).mkString("directory");
-    VRtoV(vStringSymlink = allocValue()).mkString("symlink");
-    VRtoV(vStringUnknown = allocValue()).mkString("unknown");
-    VRtoV(vLineOfPosPrimOp = allocValue()).mkPrimOp(&primop_lineOfPos);
-    VRtoV(vColumnOfPosPrimOp = allocValue()).mkPrimOp(&primop_columnOfPos);
+    (vEmptyList = allocValue()).mkList(values, buildList(0));
+    (vNull = allocValue()).mkNull(values);
+    (vTrue = allocValue()).mkBool(values, true);
+    (vFalse = allocValue()).mkBool(values, false);
+    (vStringRegular = allocValue()).mkString(values, "regular");
+    (vStringDirectory = allocValue()).mkString(values, "directory");
+    (vStringSymlink = allocValue()).mkString(values, "symlink");
+    (vStringUnknown = allocValue()).mkString(values, "unknown");
+    (vLineOfPosPrimOp = allocValue()).mkPrimOp(values, &primop_lineOfPos);
+    (vColumnOfPosPrimOp = allocValue()).mkPrimOp(values, &primop_columnOfPos);
 
     /* Construct the Nix expression search path. */
     assert(lookupPath.elements.empty());
@@ -577,24 +577,43 @@ std::ostream & operator<<(std::ostream & output, const PrimOp & primOp)
     return output;
 }
 
-const PrimOp * Value::primOpAppPrimOp(EvalState & es) const
+const PrimOp * Value::primOpAppPrimOp(Values & values) const
 {
     ValueRef left = primOpApp().left;
-    while (left && !left.isPrimOp(es.values)) {
-        left = es.VRtoVP(left)->primOpApp().left;
+    while (left && !left.isPrimOp(values)) {
+        left = values.VRtoVP(left)->primOpApp().left;
     }
 
     if (!left)
         return nullptr;
 
-    assert(left.isPrimOp(es.values));
-    return es.VRtoVP(left)->primOp();
+    assert(left.isPrimOp(values));
+    return values.VRtoVP(left)->primOp();
+}
+const PrimOp * ValueRef::primOpAppPrimOp(Values & values) const
+{
+    ValueRef left = values.VRtoV(*this).primOpApp().left;
+    while (left && !left.isPrimOp(values)) {
+        left = values.VRtoVP(left)->primOpApp().left;
+    }
+
+    if (!left)
+        return nullptr;
+
+    assert(left.isPrimOp(values));
+    return values.VRtoVP(left)->primOp();
 }
 
 void Value::mkPrimOp(PrimOp * p)
 {
     p->check();
     setStorage(p);
+    nrPrimOp++;
+}
+void ValueRef::mkPrimOp(Values & values, PrimOp * p)
+{
+    p->check();
+    values.VRtoV(*this).setStorage(p);
     nrPrimOp++;
 }
 
@@ -605,7 +624,7 @@ void EvalState::addPrimOp(PrimOp && primOp)
     if (primOp.arity == 0) {
         primOp.arity = 1;
         auto vPrimOp = allocValue();
-        VRtoVP(vPrimOp)->mkPrimOp(new PrimOp(primOp));
+        vPrimOp.mkPrimOp(values, new PrimOp(primOp));
         Value v;
         v.mkApp(vPrimOp, vPrimOp);
         addConstant(
@@ -622,7 +641,7 @@ void EvalState::addPrimOp(PrimOp && primOp)
         primOp.name = primOp.name.substr(2);
 
     ValueRef v = allocValue();
-    VRtoVP(v)->mkPrimOp(new PrimOp(primOp));
+    v.mkPrimOp(values, new PrimOp(primOp));
 
     if (primOp.internal)
         internalPrimOps.emplace(primOp.name, v);
@@ -936,6 +955,10 @@ void Value::mkString(std::string_view s)
 {
     mkString(makeImmutableString(s));
 }
+void ValueRef::mkString(Values & values, std::string_view s)
+{
+    mkString(values, makeImmutableString(s));
+}
 
 static const char ** encodeContext(const NixStringContext & context)
 {
@@ -955,49 +978,77 @@ void Value::mkString(std::string_view s, const NixStringContext & context)
 {
     mkString(makeImmutableString(s), encodeContext(context));
 }
+void ValueRef::mkString(Values & values, std::string_view s, const NixStringContext & context)
+{
+    mkString(values, makeImmutableString(s), encodeContext(context));
+}
 
 void Value::mkStringMove(const char * s, const NixStringContext & context)
 {
     mkString(s, encodeContext(context));
+}
+void ValueRef::mkStringMove(Values & values, const char * s, const NixStringContext & context)
+{
+    mkString(values, s, encodeContext(context));
 }
 
 void Value::mkPath(const SourcePath & path)
 {
     mkPath(&*path.accessor, makeImmutableString(path.path.abs()));
 }
+void ValueRef::mkPath(Values & values, const SourcePath & path)
+{
+    mkPath(values, &*path.accessor, makeImmutableString(path.path.abs()));
+}
 
 // XXX [speed]: return these to their homes
 ExprInt::ExprInt(EvalState & state, NixInt n)
 {
     v = state.allocValue();
-    state.VRtoVP(v)->mkInt(n);
+    v.mkInt(state.values, n);
 };
 
 ExprInt::ExprInt(EvalState & state, NixInt::Inner n)
 {
     v = state.allocValue();
-    state.VRtoVP(v)->mkInt(n);
+    v.mkInt(state.values, n);
 };
 ExprFloat::ExprFloat(EvalState & state, NixFloat nf)
 {
     v = state.allocValue();
-    state.VRtoVP(v)->mkFloat(nf);
+    v.mkFloat(state.values, nf);
 };
 ExprString::ExprString(EvalState & state, std::string && s)
     : s(std::move(s))
 {
     v = state.allocValue();
-    state.VRtoVP(v)->mkString(this->s.data());
+    v.mkString(state.values, this->s.data());
 };
 ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string s)
     : accessor(accessor)
     , s(std::move(s))
 {
     v = state.allocValue();
-    state.VRtoVP(v)->mkPath(&*accessor, this->s.c_str());
+    v.mkPath(state.values, &*accessor, this->s.c_str());
 }
 ValueRef ValueRef::null{0};
 SymbolRef SymbolRef::null{ValueRef::null};
+
+void ValueRef::mkList(Values & values, const ListBuilder & builder) noexcept
+{
+    if (builder.size == 1) {
+        values.VRtoV(*this).setStorage(std::array<ValueRef, 2>{builder.inlineElems[0], ValueRef::null});
+        nrListSmall++;
+    }
+    else if (builder.size == 2) {
+        values.VRtoV(*this).setStorage(std::array<ValueRef, 2>{builder.inlineElems[0], builder.inlineElems[1]});
+        nrListSmall++;
+    }
+    else {
+        values.VRtoV(*this).setStorage(detail::ValueBase::List{.size = builder.size, .elems = builder.elems});
+        nrListN++;
+    }
+}
 // XXX [speed]
 
 
@@ -1050,7 +1101,7 @@ unsigned long nrThunks = 0;
 
 static inline void mkThunk(EvalState & state, ValueRef v, Env & env, Expr * expr)
 {
-    state.VRtoV(v).mkThunk(&env, expr);
+    v.mkThunk(state.values, &env, expr);
     nrThunks++;
 }
 
@@ -1064,16 +1115,17 @@ void EvalState::mkPos(ValueRef v, PosIdx p)
     auto origin = positions.originOf(p);
     if (auto path = std::get_if<SourcePath>(&origin)) {
         auto attrs = buildBindings(3);
-        VRtoV(attrs.alloc(sFile)).mkString(path->path.abs());
+        attrs.alloc(sFile).mkString(values, path->path.abs());
         makePositionThunks(*this, p, attrs.alloc(sLine), attrs.alloc(sColumn));
-        VRtoV(v).mkAttrs(attrs);
+        v.mkAttrs(values, attrs);
     } else
-        VRtoV(v).mkNull();
+        v.mkNull(values);
 }
 
 void EvalState::mkStorePathString(const StorePath & p, ValueRef v)
 {
-    VRtoV(v).mkString(
+    v.mkString(
+        values,
         store->printStorePath(p),
         NixStringContext{
             NixStringContextElem::Opaque{.path = p},
@@ -1099,7 +1151,7 @@ void EvalState::mkOutputString(
     std::optional<StorePath> optStaticOutputPath,
     const ExperimentalFeatureSettings & xpSettings)
 {
-    VRtoV(value).mkString(mkOutputStringRaw(b, optStaticOutputPath, xpSettings), NixStringContext{b});
+    value.mkString(values, mkOutputStringRaw(b, optStaticOutputPath, xpSettings), NixStringContext{b});
 }
 
 std::string EvalState::mkSingleDerivedPathStringRaw(const SingleDerivedPath & p)
@@ -1130,7 +1182,8 @@ std::string EvalState::mkSingleDerivedPathStringRaw(const SingleDerivedPath & p)
 
 void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef v)
 {
-    VRtoV(v).mkString(
+    v.mkString(
+        values,
         mkSingleDerivedPathStringRaw(p),
         NixStringContext{
             std::visit([](auto && v) -> NixStringContextElem { return v; }, p),
@@ -1411,7 +1464,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
 
     bindings.bindings->pos = pos;
 
-    state.VRtoV(v).mkAttrs(sort ? bindings.finish() : bindings.alreadySorted());
+    v.mkAttrs(state.values, sort ? bindings.finish() : bindings.alreadySorted());
 }
 
 void ExprLet::eval(EvalState & state, Env & env, ValueRef v)
@@ -1443,7 +1496,7 @@ void ExprList::eval(EvalState & state, Env & env, ValueRef v)
     auto list = state.buildList(elems.size());
     for (const auto & [n, v2] : enumerate(list))
         v2 = elems[n]->maybeThunk(state, env);
-    state.VRtoV(v).mkList(list);
+    v.mkList(state.values, list);
 }
 
 ValueRef ExprList::maybeThunk(EvalState & state, Env & env)
@@ -1576,17 +1629,17 @@ void ExprOpHasAttr::eval(EvalState & state, Env & env, ValueRef v)
         if (vAttrs.type(state.values) == nAttrs && (j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
             vAttrs = j->value;
         } else {
-            state.VRtoV((v)).mkBool(false);
+            v.mkBool(state.values, false);
             return;
         }
     }
 
-    state.VRtoV(v).mkBool(true);
+    v.mkBool(state.values, true);
 }
 
 void ExprLambda::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.VRtoV(v).mkLambda(&env, this);
+    v.mkLambda(state.values, &env, this);
 }
 
 void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vRes, const PosIdx pos)
@@ -1611,7 +1664,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
         for (auto arg : args) {
             auto fun2 = allocValue();
             *VRtoVP(fun2) = VRtoV(vRes);
-            VRtoV(vRes).mkPrimOpApp(fun2, arg);
+            vRes.mkPrimOpApp(values, fun2, arg);
         }
     };
 
@@ -1909,7 +1962,7 @@ https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
     }
 
     auto vAttrs = allocValue();
-    VRtoVP(vAttrs)->mkAttrs(attrs);
+    vAttrs.mkAttrs(values, attrs);
     callFunction(fun, vAttrs, res, pos);
 }
 
@@ -1955,7 +2008,7 @@ void ExprAssert::eval(EvalState & state, Env & env, ValueRef v)
 
 void ExprOpNot::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.VRtoV(v).mkBool(!state.evalBool(env, e, getPos(), "in the argument of the not operator")); // XXX: FIXME: !
+    v.mkBool(state.values, !state.evalBool(env, e, getPos(), "in the argument of the not operator")); // XXX: FIXME: !
 }
 
 void ExprOpEq::eval(EvalState & state, Env & env, ValueRef v)
@@ -1964,7 +2017,7 @@ void ExprOpEq::eval(EvalState & state, Env & env, ValueRef v)
     e1->eval(state, env, state.VPtoVR(&v1));
     Value v2;
     e2->eval(state, env, state.VPtoVR(&v2));
-    state.VRtoV(v).mkBool(state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for equality"));
+    v.mkBool(state.values, state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for equality"));
 }
 
 void ExprOpNEq::eval(EvalState & state, Env & env, ValueRef v)
@@ -1973,14 +2026,14 @@ void ExprOpNEq::eval(EvalState & state, Env & env, ValueRef v)
     e1->eval(state, env, state.VPtoVR(&v1));
     Value v2;
     e2->eval(state, env, state.VPtoVR(&v2));
-    state.VRtoV(v).mkBool(!state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for inequality"));
+    v.mkBool(state.values, !state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for inequality"));
 }
 
 void ExprOpAnd::eval(EvalState & state, Env & env, ValueRef v)
 {
     auto b = state.evalBool(env, e1, pos, "in the left operand of the AND (&&) operator")
              && state.evalBool(env, e2, pos, "in the right operand of the AND (&&) operator");
-    state.VRtoV(v).mkBool(b);
+    v.mkBool(state.values, b);
 }
 
 void ExprOpOr::eval(EvalState & state, Env & env, ValueRef v)
@@ -1988,14 +2041,14 @@ void ExprOpOr::eval(EvalState & state, Env & env, ValueRef v)
     // XXX [speed]: cursed. we can't put this expression inside mkBool() or it might allocValue() thus invalidating the return from VRtoV(v). This should get cleaned up when we make mkBool() act directly on ValueRefs.
     auto b = state.evalBool(env, e1, pos, "in the left operand of the OR (||) operator")
              || state.evalBool(env, e2, pos, "in the right operand of the OR (||) operator");
-    state.VRtoV(v).mkBool(b);
+    v.mkBool(state.values, b);
 }
 
 void ExprOpImpl::eval(EvalState & state, Env & env, ValueRef v)
 {
     auto b = !state.evalBool(env, e1, pos, "in the left operand of the IMPL (->) operator")
              || state.evalBool(env, e2, pos, "in the right operand of the IMPL (->) operator");
-    state.VRtoV(v).mkBool(b);
+    v.mkBool(state.values, b);
 }
 
 void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
@@ -2038,7 +2091,7 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
     while (j != v2.attrs()->end())
         attrs.insert(*j++);
 
-    state.VRtoV(v).mkAttrs(attrs.alreadySorted());
+    v.mkAttrs(state.values, attrs.alreadySorted());
 
     state.nrOpUpdateValuesCopied += state.VRtoV(v).attrs()->size();
 }
@@ -2082,7 +2135,7 @@ void EvalState::concatLists(
             memcpy(out + pos, listView.data(), l * sizeof(ValueRef));
         pos += l;
     }
-    VRtoV(v).mkList(list);
+    v.mkList(values, list);
 }
 
 void ExprConcatStrings::eval(EvalState & state, Env & env, ValueRef v)
@@ -2176,18 +2229,18 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, ValueRef v)
     }
 
     if (firstType == nInt)
-        state.VRtoV(v).mkInt(n);
+        v.mkInt(state.values, n);
     else if (firstType == nFloat)
-        state.VRtoV(v).mkFloat(nf);
+        v.mkFloat(state.values, nf);
     else if (firstType == nPath) {
         if (!context.empty())
             state.error<EvalError>("a string that refers to a store path cannot be appended to a path")
                 .atPos(pos)
                 .withFrame(env, *this)
                 .debugThrow();
-        state.VRtoV(v).mkPath(state.rootPath(CanonPath(str())));
+        v.mkPath(state.values, state.rootPath(CanonPath(str())));
     } else
-        state.VRtoV(v).mkStringMove(c_str(), context);
+        v.mkStringMove(state.values, c_str(), context);
 }
 
 void ExprPos::eval(EvalState & state, Env & env, ValueRef v)

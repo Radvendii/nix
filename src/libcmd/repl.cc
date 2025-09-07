@@ -148,7 +148,7 @@ NixRepl::NixRepl(
     , runNixPtr{runNix}
     , interacter(make_unique<ReadlineLikeInteracter>(getDataDir() + "/repl-history"))
 {
-    state->VRtoVP(lastLoaded)->mkAttrs(&state->emptyBindings);
+    lastLoaded.mkAttrs(state->values, &state->emptyBindings);
 }
 
 static std::ostream & showDebugTrace(std::ostream & out, const PosTable & positions, const DebugTrace & dt)

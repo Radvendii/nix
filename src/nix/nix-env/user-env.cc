@@ -56,22 +56,22 @@ bool createUserEnv(
 
         auto attrs = state.buildBindings(7 + outputs.size());
 
-        state.VRtoV(attrs.alloc(state.sType)).mkString("derivation");
-        state.VRtoV(attrs.alloc(state.sName)).mkString(i.queryName());
+        attrs.alloc(state.sType).mkString(state.values, "derivation");
+        attrs.alloc(state.sName).mkString(state.values, i.queryName());
         auto system = i.querySystem();
         if (!system.empty())
-            state.VRtoV(attrs.alloc(state.sSystem)).mkString(system);
-        state.VRtoV(attrs.alloc(state.sOutPath)).mkString(state.store->printStorePath(i.queryOutPath()));
+            attrs.alloc(state.sSystem).mkString(state.values, system);
+        attrs.alloc(state.sOutPath).mkString(state.values, state.store->printStorePath(i.queryOutPath()));
         if (drvPath)
-            state.VRtoV(attrs.alloc(state.sDrvPath)).mkString(state.store->printStorePath(*drvPath));
+            attrs.alloc(state.sDrvPath).mkString(state.values, state.store->printStorePath(*drvPath));
 
         // Copy each output meant for installation.
         auto outputsList = state.buildList(outputs.size());
         for (const auto & [m, j] : enumerate(outputs)) {
-            state.VRtoVP(outputsList[m] = state.allocValue())->mkString(j.first);
+            (outputsList[m] = state.allocValue()).mkString(state.values, j.first);
             auto outputAttrs = state.buildBindings(2);
-            state.VRtoV(outputAttrs.alloc(state.sOutPath)).mkString(state.store->printStorePath(*j.second));
-            state.VRtoV(attrs.alloc(j.first)).mkAttrs(outputAttrs);
+            outputAttrs.alloc(state.sOutPath).mkString(state.values, state.store->printStorePath(*j.second));
+            attrs.alloc(j.first).mkAttrs(state.values, outputAttrs);
 
             /* This is only necessary when installing store paths, e.g.,
                `nix-env -i /nix/store/abcd...-foo'. */
@@ -80,7 +80,7 @@ bool createUserEnv(
 
             references.insert(*j.second);
         }
-        state.VRtoV(attrs.alloc(state.sOutputs)).mkList(outputsList);
+        attrs.alloc(state.sOutputs).mkList(state.values, outputsList);
 
         // Copy the meta attributes.
         auto meta = state.buildBindings(metaNames.size());
@@ -91,9 +91,9 @@ bool createUserEnv(
             meta.insert(state.symbols.create(j), v);
         }
 
-        state.VRtoV(attrs.alloc(state.sMeta)).mkAttrs(meta);
+        attrs.alloc(state.sMeta).mkAttrs(state.values, meta);
 
-        state.VRtoVP(list[n] = state.allocValue())->mkAttrs(attrs);
+        (list[n] = state.allocValue()).mkAttrs(state.values, attrs);
 
         if (drvPath)
             references.insert(*drvPath);

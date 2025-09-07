@@ -10,7 +10,7 @@ static void prim_unsafeDiscardStringContext(EvalState & state, const PosIdx pos,
     NixStringContext context;
     auto s = state.coerceToString(
         pos, args[0], context, "while evaluating the argument passed to builtins.unsafeDiscardStringContext");
-    state.VRtoV(v).mkString(*s);
+    v.mkString(state.values, *s);
 }
 
 static RegisterPrimOp primop_unsafeDiscardStringContext({
@@ -26,7 +26,7 @@ static void prim_hasContext(EvalState & state, const PosIdx pos, ValueRef * args
 {
     NixStringContext context;
     state.forceString(args[0], context, pos, "while evaluating the argument passed to builtins.hasContext");
-    state.VRtoV(v).mkBool(!context.empty());
+    v.mkBool(state.values, !context.empty());
 }
 
 static RegisterPrimOp primop_hasContext(
@@ -68,7 +68,7 @@ static void prim_unsafeDiscardOutputDependency(EvalState & state, const PosIdx p
         }
     }
 
-    state.VRtoV(v).mkString(*s, context2);
+    v.mkString(state.values, *s, context2);
 }
 
 static RegisterPrimOp primop_unsafeDiscardOutputDependency(
@@ -136,7 +136,7 @@ static void prim_addDrvOutputDependencies(EvalState & state, const PosIdx pos, V
             context.begin()->raw)}),
     };
 
-    state.VRtoV(v).mkString(*s, context2);
+    v.mkString(state.values, *s, context2);
 }
 
 static RegisterPrimOp primop_addDrvOutputDependencies(
@@ -211,19 +211,19 @@ static void prim_getContext(EvalState & state, const PosIdx pos, ValueRef * args
     for (const auto & info : contextInfos) {
         auto infoAttrs = state.buildBindings(3);
         if (info.second.path)
-            state.VRtoV(infoAttrs.alloc(sPath)).mkBool(true);
+            infoAttrs.alloc(sPath).mkBool(state.values, true);
         if (info.second.allOutputs)
-            state.VRtoV(infoAttrs.alloc(sAllOutputs)).mkBool(true);
+            infoAttrs.alloc(sAllOutputs).mkBool(state.values, true);
         if (!info.second.outputs.empty()) {
             auto list = state.buildList(info.second.outputs.size());
             for (const auto & [i, output] : enumerate(info.second.outputs))
-                state.VRtoVP(list[i] = state.allocValue())->mkString(output);
-            state.VRtoV(infoAttrs.alloc(state.sOutputs)).mkList(list);
+                (list[i] = state.allocValue()).mkString(state.values, output);
+            infoAttrs.alloc(state.sOutputs).mkList(state.values, list);
         }
-        state.VRtoV(attrs.alloc(state.store->printStorePath(info.first))).mkAttrs(infoAttrs);
+        attrs.alloc(state.store->printStorePath(info.first)).mkAttrs(state.values, infoAttrs);
     }
 
-    state.VRtoV(v).mkAttrs(attrs);
+    v.mkAttrs(state.values, attrs);
 }
 
 static RegisterPrimOp primop_getContext(
@@ -320,7 +320,7 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
         }
     }
 
-    state.VRtoV(v).mkString(orig, context);
+    v.mkString(state.values, orig, context);
 }
 
 static RegisterPrimOp primop_appendContext({.name = "__appendContext", .arity = 2, .fun = prim_appendContext});

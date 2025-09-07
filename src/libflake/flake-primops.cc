@@ -67,12 +67,12 @@ static void prim_parseFlakeRef(EvalState & state, const PosIdx pos, ValueRef * a
         auto vv = binds.alloc(s);
         std::visit(
             overloaded{
-                [&vv, &state](const std::string & value) { state.VRtoV(vv).mkString(value); },
-                [&vv, &state](const uint64_t & value) { state.VRtoV(vv).mkInt(value); },
-                [&vv, &state](const Explicit<bool> & value) { state.VRtoV(vv).mkBool(value.t); }},
+                [&vv, &state](const std::string & value) { vv.mkString(state.values, value); },
+                [&vv, &state](const uint64_t & value) { vv.mkInt(state.values, value); },
+                [&vv, &state](const Explicit<bool> & value) { vv.mkBool(state.values, value.t); }},
             value);
     }
-    state.VRtoV(v).mkAttrs(binds);
+    v.mkAttrs(state.values, binds);
 }
 
 nix::PrimOp parseFlakeRef({
@@ -130,7 +130,7 @@ static void prim_flakeRefToString(EvalState & state, const PosIdx pos, ValueRef 
         }
     }
     auto flakeRef = FlakeRef::fromAttrs(state.fetchSettings, attrs);
-    state.VRtoV(v).mkString(flakeRef.to_string());
+    v.mkString(state.values, flakeRef.to_string());
 }
 
 nix::PrimOp flakeRefToString({

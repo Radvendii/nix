@@ -46,5 +46,9 @@ void Value::mkAttrs(BindingsBuilder & bindings)
 {
     mkAttrs(bindings.finish());
 }
+void ValueRef::mkAttrs(Values & values, BindingsBuilder & bindings)
+{
+    mkAttrs(values, bindings.finish());
+}
 
 } // namespace nix

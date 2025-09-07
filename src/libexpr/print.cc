@@ -471,7 +471,7 @@ private:
                 output << "primop";
         } else if (v.isPrimOpApp(state.values)) {
             output << "partially applied ";
-            auto primOp = state.VRtoV(v).primOpAppPrimOp(state);
+            auto primOp = v.primOpAppPrimOp(state.values);
             if (primOp)
                 output << *primOp;
             else

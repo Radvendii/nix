@@ -38,6 +38,8 @@ extern unsigned long nrPath;
 
 struct Value;
 class Values;
+class ListBuilder;
+class ExternalValueBase;
 
 // XXX [speed]: this might not be needed when we're done
 inline void * allocBytes(size_t n);
@@ -142,6 +144,32 @@ class ValueRef {
      * 0, so uninitialized) internal type, return `nThunk`.
      */
     inline ValueType type(Values & values, bool invalidIsThunk = false) const;
+
+    inline void mkInt(Values & values, NixInt::Inner n) noexcept;
+    inline void mkInt(Values & values, NixInt n) noexcept;
+    inline void mkBool(Values & values, bool b) noexcept;
+    inline void mkString(Values & values, const char * s, const char ** context = 0) noexcept;
+    void mkString(Values & values, std::string_view s);
+    void mkString(Values & values, std::string_view s, const NixStringContext & context);
+    void mkStringMove(Values & values, const char * s, const NixStringContext & context);
+    void mkPath(Values & values, const SourcePath & path);
+    inline void mkPath(Values & values, SourceAccessor * accessor, const char * path) noexcept;
+    inline void mkNull(Values & values) noexcept;
+    inline void mkAttrs(Values & values, Bindings * a) noexcept;
+    void mkAttrs(Values & values, BindingsBuilder & bindings);
+    void mkList(Values & values, const ListBuilder & builder) noexcept;
+    inline void mkThunk(Values & values, Env * e, Expr * ex) noexcept;
+    inline void mkApp(Values & values, ValueRef l, ValueRef r) noexcept;
+    inline void mkLambda(Values & values, Env * e, ExprLambda * f) noexcept;
+    inline void mkBlackhole(Values & values);
+    void mkPrimOp(Values & values, PrimOp * p);
+    inline void mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept;
+    /**
+     * For a `tPrimOpApp` value, get the original `PrimOp` value.
+     */
+    const PrimOp * primOpAppPrimOp(Values & values) const;
+    inline void mkExternal(Values & values, ExternalValueBase * e) noexcept;
+    inline void mkFloat(Values & values, NixFloat n) noexcept;
 };
 
 /**
@@ -240,6 +268,7 @@ public:
     }
 
     friend struct Value;
+    friend class ValueRef;
 };
 
 namespace detail {
@@ -756,6 +785,7 @@ public:
     void mkStringMove(const char * s, const NixStringContext & context);
 
     void mkPath(const SourcePath & path);
+    // YYY [speed]: this is never used or defined
     void mkPath(std::string_view path);
 
     inline void mkPath(SourceAccessor * accessor, const char * path) noexcept
@@ -827,7 +857,7 @@ public:
     /**
      * For a `tPrimOpApp` value, get the original `PrimOp` value.
      */
-    const PrimOp * primOpAppPrimOp(EvalState & es) const;
+    const PrimOp * primOpAppPrimOp(Values & values) const;
 
     inline void mkExternal(ExternalValueBase * e) noexcept
     {
@@ -1114,4 +1144,86 @@ inline ValueType ValueRef::type(Values & values, bool invalidIsThunk) const
         unreachable();
 }
 
+inline void ValueRef::mkInt(Values & values, NixInt::Inner n) noexcept
+{
+    mkInt(values, NixInt{n});
+}
+
+inline void ValueRef::mkInt(Values & values, NixInt n) noexcept
+{
+    values.VRtoV(*this).setStorage(NixInt{n});
+    nrInt++;
+}
+
+inline void ValueRef::mkBool(Values & values, bool b) noexcept
+{
+    values.VRtoV(*this).setStorage(b);
+    nrBool++;
+}
+
+inline void ValueRef::mkString(Values & values, const char * s, const char ** context) noexcept
+{
+    values.VRtoV(*this).setStorage(detail::ValueBase::StringWithContext{.c_str = s, .context = context});
+    nrString++;
+}
+
+inline void ValueRef::mkPath(Values & values, SourceAccessor * accessor, const char * path) noexcept
+{
+    values.VRtoV(*this).setStorage(detail::ValueBase::Path{.accessor = accessor, .path = path});
+    nrPath++;
+}
+
+inline void ValueRef::mkNull(Values & values) noexcept
+{
+    values.VRtoV(*this).setStorage(detail::ValueBase::Null{});
+    nrNull++;
+}
+
+inline void ValueRef::mkAttrs(Values & values, Bindings * a) noexcept
+{
+    values.VRtoV(*this).setStorage(a);
+    nrAttrs++;
+}
+
+inline void ValueRef::mkThunk(Values & values, Env * e, Expr * ex) noexcept
+{
+    values.VRtoV(*this).setStorage(detail::ValueBase::ClosureThunk{.env = e, .expr = ex});
+    nrThunk++;
+}
+
+inline void ValueRef::mkApp(Values & values, ValueRef l, ValueRef r) noexcept
+{
+    values.VRtoV(*this).setStorage(detail::ValueBase::FunctionApplicationThunk{.left = l, .right = r});
+    nrApp++;
+}
+
+
+inline void ValueRef::mkLambda(Values & values, Env * e, ExprLambda * f) noexcept
+{
+    values.VRtoV(*this).setStorage(detail::ValueBase::Lambda{.env = e, .fun = f});
+    nrLambda++;
+}
+
+inline void ValueRef::mkBlackhole(Values & values)
+{
+    mkThunk(values, nullptr, (Expr *) &eBlackHole);
+}
+
+inline void ValueRef::mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept
+{
+    values.VRtoV(*this).setStorage(detail::ValueBase::PrimOpApplicationThunk{.left = l, .right = r});
+    nrPrimOpApp++;
+}
+
+inline void ValueRef::mkExternal(Values & values, ExternalValueBase * e) noexcept
+{
+    values.VRtoV(*this).setStorage(e);
+    nrExternal++;
+}
+
+inline void ValueRef::mkFloat(Values & values, NixFloat n) noexcept
+{
+    values.VRtoV(*this).setStorage(n);
+    nrFloat++;
+}
 } // namespace nix

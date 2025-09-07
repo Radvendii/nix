@@ -33,7 +33,7 @@ static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, 
                 visit(attrs.alloc(elem.first), elem.second);
             }
 
-            state.VRtoV(v).mkAttrs(attrs);
+            v.mkAttrs(state.values, attrs);
         } break;
             ;
         case toml::value_t::array: {
@@ -42,25 +42,25 @@ static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, 
             auto list = state.buildList(array.size());
             for (const auto & [n, v] : enumerate(list))
                 visit(v = state.allocValue(), array[n]);
-            state.VRtoV(v).mkList(list);
+            v.mkList(state.values, list);
         } break;
             ;
         case toml::value_t::boolean:
-            state.VRtoV(v).mkBool(toml::get<bool>(t));
+            v.mkBool(state.values, toml::get<bool>(t));
             break;
             ;
         case toml::value_t::integer:
-            state.VRtoV(v).mkInt(toml::get<int64_t>(t));
+            v.mkInt(state.values, toml::get<int64_t>(t));
             break;
             ;
         case toml::value_t::floating:
-            state.VRtoV(v).mkFloat(toml::get<NixFloat>(t));
+            v.mkFloat(state.values, toml::get<NixFloat>(t));
             break;
             ;
         case toml::value_t::string: {
             auto s = toml::get<std::string_view>(t);
             forceNoNullByte(s);
-            state.VRtoV(v).mkString(s);
+            v.mkString(state.values, s);
         } break;
             ;
         case toml::value_t::local_datetime:
@@ -69,20 +69,20 @@ static void prim_fromTOML(EvalState & state, const PosIdx pos, ValueRef * args, 
         case toml::value_t::local_time: {
             if (experimentalFeatureSettings.isEnabled(Xp::ParseTomlTimestamps)) {
                 auto attrs = state.buildBindings(2);
-                state.VRtoV(attrs.alloc("_type")).mkString("timestamp");
+                attrs.alloc("_type").mkString(state.values, "timestamp");
                 std::ostringstream s;
                 s << t;
                 auto str = toView(s);
                 forceNoNullByte(str);
-                state.VRtoV(attrs.alloc("value")).mkString(str);
-                state.VRtoV(v).mkAttrs(attrs);
+                attrs.alloc("value").mkString(state.values, str);
+                v.mkAttrs(state.values, attrs);
             } else {
                 throw std::runtime_error("Dates and times are not supported");
             }
         } break;
             ;
         case toml::value_t::empty:
-            state.VRtoV(v).mkNull();
+            v.mkNull(state.values);
             break;
             ;
         }

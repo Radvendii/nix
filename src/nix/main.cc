@@ -253,7 +253,7 @@ static void showHelp(std::vector<std::string> subcommand, NixArgs & toplevel)
     );
 
     auto vDump = state.allocValue();
-    state.VRtoVP(vDump)->mkString(toplevel.dumpCli());
+    vDump.mkString(state.values, toplevel.dumpCli());
 
     auto vRes = state.allocValue();
     state.callFunction(vGenerateManpage, state.getBuiltin("false"), vRes, noPos);
