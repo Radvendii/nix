@@ -393,17 +393,17 @@ private:
             return true;
         }
 
-        auto item = state.VRtoVP(list[0]);
+        auto item = list[0];
         if (!item) {
             return true;
         }
 
         // It is ok to force the item(s) here, because they will be printed anyway.
-        state.forceValue(state.VPtoVR(item), item->determinePos(state.values, noPos));
+        state.forceValue(item, item.determinePos(state.values, noPos));
 
         // Pretty-print single-item lists only if they contain nested
         // structures.
-        auto itemType = item->type();
+        auto itemType = item.type(state.values);
         return itemType == nList || itemType == nAttrs || itemType == nThunk;
     }
 

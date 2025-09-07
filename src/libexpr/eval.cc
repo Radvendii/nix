@@ -693,14 +693,12 @@ ValueRef EvalState::getBuiltin(const std::string & name)
 std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
 {
     if (v.isPrimOp(values)) {
-        // XXX [speed]: what's going on here? why do we need v2 at all?
-        auto v2 = &VRtoV(v);
-        if (auto * doc = v2->primOp()->doc)
+        if (auto * doc = v.primOp(values)->doc)
             return Doc{
                 .pos = {},
-                .name = v2->primOp()->name,
-                .arity = v2->primOp()->arity,
-                .args = v2->primOp()->args,
+                .name = v.primOp(values)->name,
+                .arity = v.primOp(values)->arity,
+                .args = v.primOp(values)->args,
                 .doc = doc,
             };
     }
@@ -1540,7 +1538,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
                 AttrDefs::iterator j = attrs.find(i.name);
                 if (j != attrs.end()) {
                     (*bindings.bindings)[j->second.displ] = i;
-                    env2.values[j->second.displ] = state.VPtoVR(state.VRtoVP(i.value));
+                    env2.values[j->second.displ] = i.value;
                 } else
                     bindings.push_back(i);
             }
@@ -2032,7 +2030,7 @@ void EvalState::incrFunctionCall(ExprLambda * fun)
 
 void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef res)
 {
-    auto pos = VRtoV(fun).determinePos(values, noPos);
+    auto pos = fun.determinePos(values, noPos);
 
     forceValue(fun, pos);
 

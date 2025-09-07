@@ -223,7 +223,7 @@ bool PackageInfo::checkMeta(ValueRef v)
     } else if (v.type(state->values) == nAttrs) {
         if (v.attrs(state->values)->get(state->sOutPath))
             return false;
-        for (auto & i : *state->VRtoV(v).attrs())
+        for (auto & i : *v.attrs(state->values))
             if (!checkMeta(i.value))
                 return false;
         return true;

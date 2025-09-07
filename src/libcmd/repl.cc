@@ -700,9 +700,9 @@ ProcessLineResult NixRepl::processLine(std::string line)
         if (p != std::string::npos && p < line.size() && line[p + 1] != '='
             && isVarName(name = removeWhitespace(line.substr(0, p)))) {
             Expr * e = parseString(line.substr(p + 1));
-            Value & v(*state->VRtoVP(state->allocValue()));
-            v.mkThunk(env, e);
-            addVarToScope(state->symbols.create(name), state->VPtoVR(&v));
+            ValueRef v(state->allocValue());
+            v.mkThunk(state->values, env, e);
+            addVarToScope(state->symbols.create(name), v);
         } else {
             Value v;
             evalString(line, state->VPtoVR(&v));

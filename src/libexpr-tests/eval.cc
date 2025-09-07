@@ -152,21 +152,21 @@ class EvalStateTest : public LibExprTest
 
 TEST_F(EvalStateTest, getBuiltins_ok)
 {
-    auto & evaled = state.VRtoV(maybeThunk("builtins"));
-    auto & builtins = state.VRtoV(state.getBuiltins());
-    ASSERT_TRUE(builtins.type() == nAttrs);
-    ASSERT_EQ(&evaled, &builtins);
+    auto evaled = maybeThunk("builtins");
+    auto builtins = state.getBuiltins();
+    ASSERT_TRUE(builtins.type(state.values) == nAttrs);
+    ASSERT_EQ(state.VRtoVP(evaled), state.VRtoVP(builtins));
 }
 
 TEST_F(EvalStateTest, getBuiltin_ok)
 {
-    auto & builtin = state.VRtoV(state.getBuiltin("toString"));
-    ASSERT_TRUE(builtin.type() == nFunction);
+    auto builtin = state.getBuiltin("toString");
+    ASSERT_TRUE(builtin.type(state.values) == nFunction);
     // FIXME
     // auto & evaled = state.VRtoV(maybeThunk("builtins.toString"));
     // ASSERT_EQ(evaled, &builtin);
-    auto & builtin2 = state.VRtoV(state.getBuiltin("true"));
-    ASSERT_EQ(state.forceBool(state.VPtoVR(&builtin2), noPos, "in unit test"), true);
+    auto builtin2 = state.getBuiltin("true");
+    ASSERT_EQ(state.forceBool(builtin2, noPos, "in unit test"), true);
 }
 
 TEST_F(EvalStateTest, getBuiltin_fail)

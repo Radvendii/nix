@@ -15,9 +15,9 @@ static GlobalConfig::Register rs(&mySettings);
 static void prim_anotherNull(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     if (mySettings.settingSet)
-        state.VRtoV(v).mkNull();
+        v.mkNull(state.values);
     else
-        state.VRtoV(v).mkBool(false);
+        v.mkBool(state.values, false);
 }
 
 static RegisterPrimOp rp({
