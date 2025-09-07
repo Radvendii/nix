@@ -103,7 +103,7 @@ std::ostream & operator<<(std::ostream & os, const ValueType t)
 std::string printValue(EvalState & state, ValueRef v)
 {
     std::ostringstream out;
-    state.VRtoV(v).print(state, out);
+    v.print(state, out);
     return out.str();
 }
 
@@ -141,6 +141,10 @@ Symbol SymbolTable::operator[](SymbolRef ref) const
 void Value::print(EvalState & state, std::ostream & str, PrintOptions options)
 {
     printValue(state, str, state.VPtoVR(this), options);
+}
+void ValueRef::print(EvalState & state, std::ostream & str, PrintOptions options)
+{
+    printValue(state, str, *this, options);
 }
 
 std::string_view showType(ValueType type, bool withArticle)

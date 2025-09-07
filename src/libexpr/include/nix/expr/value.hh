@@ -131,6 +131,7 @@ class ValueRef {
     constexpr auto operator<=>(const ValueRef & other) const noexcept = default;
 
 
+    void print(EvalState & state, std::ostream & str, PrintOptions options = PrintOptions{});
 
     // Functions needed to distinguish the type
     // These should be removed eventually, by putting the functionality that's
