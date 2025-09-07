@@ -155,7 +155,7 @@ TEST_F(EvalStateTest, getBuiltins_ok)
     auto evaled = maybeThunk("builtins");
     auto builtins = state.getBuiltins();
     ASSERT_TRUE(builtins.type(state.values) == nAttrs);
-    ASSERT_EQ(state.VRtoVP(evaled), state.VRtoVP(builtins));
+    ASSERT_EQ(evaled, builtins);
 }
 
 TEST_F(EvalStateTest, getBuiltin_ok)
@@ -163,8 +163,8 @@ TEST_F(EvalStateTest, getBuiltin_ok)
     auto builtin = state.getBuiltin("toString");
     ASSERT_TRUE(builtin.type(state.values) == nFunction);
     // FIXME
-    // auto & evaled = state.VRtoV(maybeThunk("builtins.toString"));
-    // ASSERT_EQ(evaled, &builtin);
+    // auto evaled = maybeThunk("builtins.toString");
+    // ASSERT_EQ(evaled, builtin);
     auto builtin2 = state.getBuiltin("true");
     ASSERT_EQ(state.forceBool(builtin2, noPos, "in unit test"), true);
 }

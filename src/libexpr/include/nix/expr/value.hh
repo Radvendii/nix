@@ -205,6 +205,10 @@ class ValueRef {
 
     /** Get internal type currently occupying the storage. */
     InternalType getInternalType(Values & values) const noexcept;
+
+    void set(Values & values, ValueRef other) noexcept;
+    void setFromStack(Values & values, Value const & v) noexcept;
+    Value toStack(Values & values) const;
 };
 
 /**

@@ -836,7 +836,7 @@ void NixRepl::addAttrsToScope(ValueRef attrs)
     staticEnv->deduplicate();
     notice("Added %1% variables.", attrs.attrs(state->values)->size());
 
-    *state->VRtoVP(lastLoaded) = state->VRtoV(attrs);
+    lastLoaded.set(state->values, attrs);
 
     const int max_print = 20;
     int counter = 0;

@@ -52,7 +52,7 @@ void processExpr(
         if (evalOnly) {
             Value vRes;
             if (autoArgs.empty())
-                vRes = state.VRtoV(v);
+                vRes = v.toStack(state.values);
             else
                 state.autoCallFunction(autoArgs, v, state.VPtoVR(&vRes));
             if (output == okRaw)

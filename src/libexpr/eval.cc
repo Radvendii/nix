@@ -562,7 +562,7 @@ void EvalState::checkURI(const std::string & uri)
 void EvalState::addConstant(const std::string & name, Value v, Constant info)
 {
     ValueRef v2 = allocValue();
-    *VRtoVP(v2) = v;
+    v2.setFromStack(values, v);
     addConstant(name, v2, info);
 }
 
@@ -1174,6 +1174,19 @@ InternalType ValueRef::getInternalType(Values & values) const noexcept
 {
     return values.VRtoV(*this).internalType;
 }
+void ValueRef::set(Values & values, ValueRef other) noexcept
+{
+    values.VRtoV(*this) = values.VRtoV(other);
+}
+void ValueRef::setFromStack(Values & values, Value const & v) noexcept
+{
+    values.VRtoV(*this) = v;
+}
+Value ValueRef::toStack(Values & values) const
+{
+    return values.VRtoV(*this);
+}
+
 // XXX [speed]
 
 
@@ -1366,13 +1379,13 @@ void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial
 {
     FileEvalCache::iterator i;
     if ((i = fileEvalCache.find(path)) != fileEvalCache.end()) {
-        VRtoV(v) = i->second;
+        v.setFromStack(values, i->second);
         return;
     }
 
     auto resolvedPath = resolveExprPath(path);
     if ((i = fileEvalCache.find(resolvedPath)) != fileEvalCache.end()) {
-        VRtoV(v) = i->second;
+        v.setFromStack(values, i->second);
         return;
     }
 
@@ -1408,9 +1421,9 @@ void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial
         throw;
     }
 
-    fileEvalCache.emplace(resolvedPath, VRtoV(v));
+    fileEvalCache.emplace(resolvedPath, v.toStack(values));
     if (path != resolvedPath)
-        fileEvalCache.emplace(path, VRtoV(v));
+        fileEvalCache.emplace(path, v.toStack(values));
 }
 
 void EvalState::resetFileCache()
@@ -1465,22 +1478,22 @@ void Expr::eval(EvalState & state, Env & env, ValueRef v)
 
 void ExprInt::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.VRtoV(v) = state.VRtoV(this->v);
+    v.set(state.values, this->v);
 }
 
 void ExprFloat::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.VRtoV(v) = state.VRtoV(this->v);
+    v.set(state.values, this->v);
 }
 
 void ExprString::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.VRtoV(v) = state.VRtoV(this->v);
+    v.set(state.values, this->v);
 }
 
 void ExprPath::eval(EvalState & state, Env & env, ValueRef v)
 {
-    state.VRtoV(v) = state.VRtoV(this->v);
+    v.set(state.values, this->v);
 }
 
 Env * ExprAttrs::buildInheritFromEnv(EvalState & state, Env & up)
@@ -1636,7 +1649,7 @@ void ExprVar::eval(EvalState & state, Env & env, ValueRef v)
 {
     ValueRef v2 = state.lookupVar(&env, *this, false);
     state.forceValue(v2, pos);
-    state.VRtoV(v) = *state.VRtoVP(v2);
+    v.set(state.values, v2);
 }
 
 static std::string showAttrPath(EvalState & state, Env & env, const AttrPath & attrPath)
@@ -1721,7 +1734,7 @@ void ExprSelect::eval(EvalState & state, Env & env, ValueRef v)
         throw;
     }
 
-    state.VRtoV(v) = *state.VRtoVP(vAttrs);
+    v.set(state.values, vAttrs);
 }
 
 SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, ValueRef attrs)
@@ -1736,7 +1749,7 @@ SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, ValueR
         init.attrPath.pop_back();
         init.eval(state, env, state.VPtoVR(&vTmp));
     }
-    state.VRtoV(attrs) = vTmp;
+    attrs.setFromStack(state.values, vTmp);
     return name;
 }
 
@@ -1782,13 +1795,13 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
     forceValue(fun, pos);
 
-    Value vCur(VRtoV(fun));
+    Value vCur(fun.toStack(values));
 
     auto makeAppChain = [&]() {
-        VRtoV(vRes) = vCur;
+        vRes.setFromStack(values, vCur);
         for (auto arg : args) {
             auto fun2 = allocValue();
-            *VRtoVP(fun2) = VRtoV(vRes);
+            fun2.set(values, vRes);
             vRes.mkPrimOpApp(values, fun2, arg);
         }
     };
@@ -1986,7 +1999,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                function, but for functors we may keep a reference, so
                heap-allocate a copy and use that instead. */
             ValueRef args2[] = {allocValue(), args[0]};
-            *VRtoVP(args2[0]) = vCur;
+            args2[0].setFromStack(values, vCur);
             try {
                 callFunction(functor->value, args2, VPtoVR(&vCur), functor->pos);
             } catch (Error & e) {
@@ -2005,7 +2018,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                 .debugThrow();
     }
 
-    VRtoV(vRes) = vCur;
+    vRes.setFromStack(values, vCur);
 }
 
 void ExprCall::eval(EvalState & state, Env & env, ValueRef v)
@@ -2053,7 +2066,7 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
     }
 
     if (!fun.isLambda(values) || !fun.lambda(values).fun->hasFormals()) {
-        VRtoV(res) = VRtoV(fun);
+        res.set(values, fun);
         return;
     }
 
@@ -2185,11 +2198,11 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
     state.nrOpUpdates++;
 
     if (v1.attrs()->size() == 0) {
-        state.VRtoV(v) = v2;
+        v.setFromStack(state.values, v2);
         return;
     }
     if (v2.attrs()->size() == 0) {
-        state.VRtoV(v) = v1;
+        v.setFromStack(state.values, v1);
         return;
     }
 
@@ -2247,7 +2260,7 @@ void EvalState::concatLists(
     }
 
     if (nonEmpty && len == nonEmpty.listSize(values)) {
-        VRtoV(v) = VRtoV(nonEmpty);
+        v.set(values, nonEmpty);
         return;
     }
 
@@ -2832,7 +2845,7 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
     forceValue(v1, pos);
     forceValue(v2, pos);
 
-    if (VRtoVP(v1) == VRtoVP(v2))
+    if (v1 == v2)
         return;
 
     // Special case type-compatibility between float and int
@@ -3041,7 +3054,7 @@ bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string
     /* !!! Hack to support some old broken code that relies on pointer
        equality tests between sets.  (Specifically, builderDefs calls
        uniqList on a list of sets.)  Will remove this eventually. */
-    if (VRtoVP(v1) == VRtoVP(v2))
+    if (v1 == v2)
         return true;
 
     // Special case type-compatibility between float and int

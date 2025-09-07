@@ -439,14 +439,6 @@ public:
         std::shared_ptr<Store> buildStore = nullptr);
     ~EvalState();
 
-    Value * VRtoVP(ValueRef ref) {
-        return values.VRtoVP(ref);
-    }
-
-    Value & VRtoV(ValueRef ref) {
-        return values.VRtoV(ref);
-    }
-
     ValueRef VPtoVR(Value *v) {
         return values.VPtoVR(v);
     }

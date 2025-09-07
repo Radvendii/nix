@@ -744,7 +744,7 @@ static void prim_genericClosure(EvalState & state, const PosIdx pos, ValueRef * 
         workSet.push_back(elem);
 
     if (startSet->value.listSize(state.values) == 0) {
-        state.VRtoV(v) = *state.VRtoVP(startSet->value);
+        v.set(state.values, startSet->value);
         return;
     }
 
@@ -882,7 +882,7 @@ static RegisterPrimOp primop_break(
          }
 
          // Return the value we were passed.
-         state.VRtoV(v) = *state.VRtoVP(args[0]);
+         v.set(state.values, args[0]);
      }});
 
 static RegisterPrimOp primop_abort(
@@ -923,7 +923,7 @@ static void prim_addErrorContext(EvalState & state, const PosIdx pos, ValueRef *
 {
     try {
         state.forceValue(args[1], pos);
-        state.VRtoV(v) = *state.VRtoVP(args[1]);
+        v.set(state.values, args[1]);
     } catch (Error & e) {
         NixStringContext context;
         auto message = state
@@ -1146,7 +1146,7 @@ static void prim_seq(EvalState & state, const PosIdx pos, ValueRef * args, Value
 {
     state.forceValue(args[0], pos);
     state.forceValue(args[1], pos);
-    state.VRtoV(v) = *state.VRtoVP(args[1]);
+    v.set(state.values, args[1]);
 }
 
 static RegisterPrimOp primop_seq({
@@ -1165,7 +1165,7 @@ static void prim_deepSeq(EvalState & state, const PosIdx pos, ValueRef * args, V
 {
     state.forceValueDeep(args[0]);
     state.forceValue(args[1], pos);
-    state.VRtoV(v) = *state.VRtoVP(args[1]);
+    v.set(state.values, args[1]);
 }
 
 static RegisterPrimOp primop_deepSeq({
@@ -1192,7 +1192,7 @@ static void prim_trace(EvalState & state, const PosIdx pos, ValueRef * args, Val
         state.runDebugRepl(nullptr);
     }
     state.forceValue(args[1], pos);
-    state.VRtoV(v) = *state.VRtoVP(args[1]);
+    v.set(state.values, args[1]);
 }
 
 static RegisterPrimOp primop_trace({
@@ -1238,7 +1238,7 @@ static void prim_warn(EvalState & state, const PosIdx pos, ValueRef * args, Valu
         state.runDebugRepl(nullptr);
     }
     state.forceValue(args[1], pos);
-    state.VRtoV(v) = *state.VRtoVP(args[1]);
+    v.set(state.values, args[1]);
 }
 
 static RegisterPrimOp primop_warn({
@@ -1270,7 +1270,7 @@ static RegisterPrimOp primop_warn({
 static void prim_second(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     state.forceValue(args[1], pos);
-    state.VRtoV(v) = *state.VRtoVP(args[1]);
+    v.set(state.values, args[1]);
 }
 
 /*************************************************************
@@ -2224,7 +2224,7 @@ static void prim_readFileType(EvalState & state, const PosIdx pos, ValueRef * ar
 {
     auto path = realisePath(state, pos, args[0], std::nullopt);
     /* Retrieve the directory entry type and stringize it. */
-    state.VRtoV(v) = state.VRtoV(fileTypeToString(state, path.lstat().type));
+    v.set(state.values, fileTypeToString(state, path.lstat().type));
 }
 
 static RegisterPrimOp primop_readFileType({
@@ -2931,7 +2931,7 @@ void prim_getAttr(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef
     if (state.countCalls && i->pos)
         state.attrSelects[i->pos]++;
     state.forceValue(i->value, pos);
-    state.VRtoV(v) = *state.VRtoVP(i->value);
+    v.set(state.values, i->value);
 }
 
 static RegisterPrimOp primop_getAttr({
@@ -3478,7 +3478,7 @@ static void prim_elemAt(EvalState & state, const PosIdx pos, ValueRef * args, Va
             .atPos(pos)
             .debugThrow();
     state.forceValue(args[0].listView(state.values)[n], pos);
-    state.VRtoV(v) = *state.VRtoVP(args[0].listView(state.values)[n]);
+    v.set(state.values, args[0].listView(state.values)[n]);
 }
 
 static RegisterPrimOp primop_elemAt({
@@ -3498,7 +3498,7 @@ static void prim_head(EvalState & state, const PosIdx pos, ValueRef * args, Valu
     if (args[0].listSize(state.values) == 0)
         state.error<EvalError>("'builtins.head' called on an empty list").atPos(pos).debugThrow();
     state.forceValue(args[0].listView(state.values)[0], pos);
-    state.VRtoV(v) = *state.VRtoVP(args[0].listView(state.values)[0]);
+    v.set(state.values, args[0].listView(state.values)[0]);
 }
 
 static RegisterPrimOp primop_head({
@@ -3549,7 +3549,7 @@ static void prim_map(EvalState & state, const PosIdx pos, ValueRef * args, Value
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.map");
 
     if (args[1].listSize(state.values) == 0) {
-        state.VRtoV(v) = *state.VRtoVP(args[1]);
+        v.set(state.values, args[1]);
         return;
     }
 
@@ -3585,7 +3585,7 @@ static void prim_filter(EvalState & state, const PosIdx pos, ValueRef * args, Va
     state.forceList(args[1], pos, "while evaluating the second argument passed to builtins.filter");
 
     if (args[1].listSize(state.values) == 0) {
-        state.VRtoV(v) = *state.VRtoVP(args[1]);
+        v.set(state.values, args[1]);
         return;
     }
 
@@ -3607,7 +3607,7 @@ static void prim_filter(EvalState & state, const PosIdx pos, ValueRef * args, Va
     }
 
     if (same)
-        state.VRtoV(v) = *state.VRtoVP(args[1]);
+        v.set(state.values, args[1]);
     else {
         auto list = state.buildList(k);
         for (const auto & [n, v] : enumerate(list))
@@ -3707,7 +3707,7 @@ static void prim_foldlStrict(EvalState & state, const PosIdx pos, ValueRef * arg
         state.forceValue(v, pos);
     } else {
         state.forceValue(args[1], pos);
-        state.VRtoV(v) = *state.VRtoVP(args[1]);
+        v.set(state.values, args[1]);
     }
 }
 
@@ -3830,7 +3830,7 @@ static void prim_sort(EvalState & state, const PosIdx pos, ValueRef * args, Valu
 
     auto len = args[1].listSize(state.values);
     if (len == 0) {
-        state.VRtoV(v) = *state.VRtoVP(args[1]);
+        v.set(state.values, args[1]);
         return;
     }
 
