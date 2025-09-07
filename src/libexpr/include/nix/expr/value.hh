@@ -41,6 +41,12 @@ class Values;
 class ListBuilder;
 class ExternalValueBase;
 class ListView;
+namespace detail {
+    struct Lambda;
+    struct ClosureThunk;
+    struct PrimOpApplicationThunk;
+    struct FunctionApplicationThunk;
+}
 
 // XXX [speed]: this might not be needed when we're done
 inline void * allocBytes(size_t n);
@@ -178,6 +184,23 @@ class ValueRef {
     size_t listSize(Values & values) const noexcept;
 
     PosIdx determinePos(Values & values, const PosIdx pos) const;
+
+    SourcePath path(Values & values) const;
+    std::string_view string_view(Values & values) const noexcept;
+    const char * c_str(Values & values) const noexcept;
+    const char ** context(Values & values) const noexcept;
+    ExternalValueBase * external(Values & values) const noexcept;
+    const Bindings * attrs(Values & values) const noexcept;
+    const PrimOp * primOp(Values & values) const noexcept;
+    bool boolean(Values & values) const noexcept;
+    NixInt integer(Values & values) const noexcept;
+    NixFloat fpoint(Values & values) const noexcept;
+    detail::Lambda lambda(Values & values) const noexcept;
+    detail::ClosureThunk thunk(Values & values) const noexcept;
+    detail::PrimOpApplicationThunk primOpApp(Values & values) const noexcept;
+    detail::FunctionApplicationThunk app(Values & values) const noexcept;
+    const char * pathStr(Values & values) const noexcept;
+    SourceAccessor * pathAccessor(Values & values) const noexcept;
 };
 
 /**
@@ -1081,7 +1104,7 @@ inline bool ValueRef::isApp(Values & values) const
 
 bool ValueRef::isBlackhole(Values & values) const
 {
-    return isThunk(values) && values.VRtoV(*this).thunk().expr == (Expr *) &eBlackHole;
+    return isThunk(values) && thunk(values).expr == (Expr *) &eBlackHole;
 }
 
 // type() == nFunction

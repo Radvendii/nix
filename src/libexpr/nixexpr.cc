@@ -30,12 +30,12 @@ void Expr::show(EvalState & state, const SymbolTable & symbols, std::ostream & s
 
 void ExprInt::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << state.VRtoV(v).integer();
+    str << v.integer(state.values);
 }
 
 void ExprFloat::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << state.VRtoV(v).fpoint();
+    str << v.fpoint(state.values);
 }
 
 void ExprString::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const

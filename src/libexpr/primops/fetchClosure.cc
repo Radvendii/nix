@@ -128,7 +128,7 @@ static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * ar
     std::optional<StorePathOrGap> toPath;
     std::optional<bool> inputAddressedMaybe;
 
-    for (auto & attr : *state.VRtoVP(args[0])->attrs()) {
+    for (auto & attr : *args[0].attrs(state.values)) {
         const auto & attrName = state.symbols[attr.name];
         auto attrHint = [&]() -> std::string {
             return fmt("while evaluating the attribute '%s' passed to builtins.fetchClosure", attrName);
@@ -141,7 +141,7 @@ static void prim_fetchClosure(EvalState & state, const PosIdx pos, ValueRef * ar
 
         else if (attrName == "toPath") {
             state.forceValue(attr.value, attr.pos);
-            bool isEmptyString = attr.value.type(state.values) == nString && state.VRtoVP(attr.value)->string_view() == "";
+            bool isEmptyString = attr.value.type(state.values) == nString && attr.value.string_view(state.values) == "";
             if (isEmptyString) {
                 toPath = StorePathOrGap{};
             } else {

@@ -135,7 +135,7 @@ Symbol SymbolTable::operator[](SymbolRef ref) const
 {
     // to get from our Value to the SymbolData we look behind the start of the
     // string by the length of one SymbolData
-    return Symbol((SymbolData *) es.VRtoV(ref).c_str() - 1);
+    return Symbol((SymbolData *) ref.c_str(es.values) - 1);
 }
 
 void Value::print(EvalState & state, std::ostream & str, PrintOptions options)
@@ -180,13 +180,13 @@ std::string showType(EvalState & state, const ValueRef v)
 #pragma GCC diagnostic ignored "-Wswitch-enum"
     switch (state.VRtoV(v).getInternalType()) {
     case tString:
-        return state.VRtoV(v).context() ? "a string with context" : "a string";
+        return v.context(state.values) ? "a string with context" : "a string";
     case tPrimOp:
-        return fmt("the built-in function '%s'", std::string(state.VRtoV(v).primOp()->name));
+        return fmt("the built-in function '%s'", std::string(v.primOp(state.values)->name));
     case tPrimOpApp:
         return fmt("the partially applied built-in function '%s'", v.primOpAppPrimOp(state.values)->name);
     case tExternal:
-        return state.VRtoV(v).external()->showType();
+        return v.external(state.values)->showType();
     case tThunk:
         return v.isBlackhole(state.values) ? "a black hole" : "a thunk";
     case tApp:
@@ -221,11 +221,11 @@ PosIdx ValueRef::determinePos(Values & values, const PosIdx pos) const
 #pragma GCC diagnostic ignored "-Wswitch-enum"
     switch (values.VRtoV(*this).getInternalType()) {
     case tAttrs:
-        return values.VRtoV(*this).attrs()->pos;
+        return attrs(values)->pos;
     case tLambda:
-        return values.VRtoV(*this).lambda().fun->pos;
+        return lambda(values).fun->pos;
     case tApp:
-        return values.VRtoV(*this).app().left.determinePos(values, pos);
+        return app(values).left.determinePos(values, pos);
     default:
         return pos;
     }
@@ -243,8 +243,8 @@ bool ValueRef::isTrivial(Values & values) const
 {
     return !values.VRtoV(*this).isa<tApp, tPrimOpApp>()
            && (!values.VRtoV(*this).isa<tThunk>()
-               || (dynamic_cast<ExprAttrs *>(values.VRtoV(*this).thunk().expr) && ((ExprAttrs *) values.VRtoV(*this).thunk().expr)->dynamicAttrs.empty())
-               || dynamic_cast<ExprLambda *>(values.VRtoV(*this).thunk().expr) || dynamic_cast<ExprList *>(values.VRtoV(*this).thunk().expr));
+               || (dynamic_cast<ExprAttrs *>(thunk(values).expr) && ((ExprAttrs *) thunk(values).expr)->dynamicAttrs.empty())
+               || dynamic_cast<ExprLambda *>(thunk(values).expr) || dynamic_cast<ExprList *>(thunk(values).expr));
 }
 
 static SymbolRef getName(const AttrName & name, EvalState & state, Env & env)
@@ -584,7 +584,7 @@ void EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
         /* Install value the base environment. */
         staticBaseEnv->vars.emplace_back(symbols.create(name), baseEnvDispl);
         baseEnv.values[baseEnvDispl++] = v;
-        const_cast<Bindings *>(VRtoV(getBuiltins()).attrs())->push_back(Attr(symbols.create(name2), v));
+        const_cast<Bindings *>(getBuiltins().attrs(values))->push_back(Attr(symbols.create(name2), v));
     }
 }
 
@@ -605,27 +605,27 @@ const PrimOp * Value::primOpAppPrimOp(Values & values) const
 {
     ValueRef left = primOpApp().left;
     while (left && !left.isPrimOp(values)) {
-        left = values.VRtoVP(left)->primOpApp().left;
+        left = left.primOpApp(values).left;
     }
 
     if (!left)
         return nullptr;
 
     assert(left.isPrimOp(values));
-    return values.VRtoVP(left)->primOp();
+    return left.primOp(values);
 }
 const PrimOp * ValueRef::primOpAppPrimOp(Values & values) const
 {
-    ValueRef left = values.VRtoV(*this).primOpApp().left;
+    ValueRef left = primOpApp(values).left;
     while (left && !left.isPrimOp(values)) {
-        left = values.VRtoVP(left)->primOpApp().left;
+        left = left.primOpApp(values).left;
     }
 
     if (!left)
         return nullptr;
 
     assert(left.isPrimOp(values));
-    return values.VRtoVP(left)->primOp();
+    return left.primOp(values);
 }
 
 void Value::mkPrimOp(PrimOp * p)
@@ -672,7 +672,7 @@ void EvalState::addPrimOp(PrimOp && primOp)
     else {
         staticBaseEnv->vars.emplace_back(envName, baseEnvDispl);
         baseEnv.values[baseEnvDispl++] = v;
-        const_cast<Bindings *>(VRtoV(getBuiltins()).attrs())->push_back(Attr(symbols.create(primOp.name), v));
+        const_cast<Bindings *>(getBuiltins().attrs(values))->push_back(Attr(symbols.create(primOp.name), v));
     }
 }
 
@@ -683,7 +683,7 @@ ValueRef EvalState::getBuiltins()
 
 ValueRef EvalState::getBuiltin(const std::string & name)
 {
-    auto it = VRtoV(getBuiltins()).attrs()->get(symbols.create(name));
+    auto it = getBuiltins().attrs(values)->get(symbols.create(name));
     if (it)
         return it->value;
     else
@@ -705,7 +705,7 @@ std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
             };
     }
     if (v.isLambda(values)) {
-        auto exprLambda = VRtoV(v).lambda().fun;
+        auto exprLambda = v.lambda(values).fun;
 
         std::ostringstream s;
         std::string name;
@@ -748,7 +748,7 @@ std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
     }
     if (isFunctor(v)) {
         try {
-            ValueRef functor = VRtoV(v).attrs()->find(sFunctor)->value;
+            ValueRef functor = v.attrs(values)->find(sFunctor)->value;
             ValueRef vp[] = {v};
             Value partiallyApplied;
             // The first parameter is not user-provided, and may be
@@ -783,8 +783,8 @@ void printWithBindings(EvalState & state, const SymbolTable & st, const Env & en
     if (!env.values[0].isThunk(state.values)) {
         std::cout << "with: ";
         std::cout << ANSI_MAGENTA;
-        auto j = state.VRtoVP(env.values[0])->attrs()->begin();
-        while (j != state.VRtoVP(env.values[0])->attrs()->end()) {
+        auto j = env.values[0].attrs(state.values)->begin();
+        while (j != env.values[0].attrs(state.values)->end()) {
             std::cout << st[j->name] << " ";
             ++j;
         }
@@ -837,7 +837,7 @@ void mapStaticEnvBindings(EvalState & es, const SymbolTable & st, const StaticEn
 
         if (se.isWith && !env.values[0].isThunk(es.values)) {
             // add 'with' bindings.
-            for (auto & j : *es.VRtoVP(env.values[0])->attrs())
+            for (auto & j : *env.values[0].attrs(es.values))
                 vm.insert_or_assign(std::string(st[j.name]), j.value);
         } else {
             // iterate through staticenv bindings and add them.
@@ -1088,6 +1088,86 @@ size_t ValueRef::listSize(Values & values) const noexcept
 {
     return values.VRtoV(*this).isa<tListSmall>() ? (values.VRtoV(*this).getStorage<detail::SmallList>()[1] == ValueRef::null ? 1 : 2) : values.VRtoV(*this).getStorage<detail::List>().size;
 }
+
+SourcePath ValueRef::path(Values & values) const
+{
+    return SourcePath(nix::ref(pathAccessor(values)->shared_from_this()), CanonPath(CanonPath::unchecked_t(), pathStr(values)));
+}
+
+std::string_view ValueRef::string_view(Values & values) const noexcept
+{
+    return std::string_view(values.VRtoV(*this).getStorage<detail::StringWithContext>().c_str);
+}
+
+const char * ValueRef::c_str(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<detail::StringWithContext>().c_str;
+}
+
+const char ** ValueRef::context(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<detail::StringWithContext>().context;
+}
+
+ExternalValueBase * ValueRef::external(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<ExternalValueBase *>();
+}
+
+const Bindings * ValueRef::attrs(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<Bindings *>();
+}
+
+const PrimOp * ValueRef::primOp(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<PrimOp *>();
+}
+
+bool ValueRef::boolean(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<bool>();
+}
+
+NixInt ValueRef::integer(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<NixInt>();
+}
+
+NixFloat ValueRef::fpoint(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<NixFloat>();
+}
+
+detail::Lambda ValueRef::lambda(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<detail::Lambda>();
+}
+
+detail::ClosureThunk ValueRef::thunk(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<detail::ClosureThunk>();
+}
+
+detail::PrimOpApplicationThunk ValueRef::primOpApp(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<detail::PrimOpApplicationThunk>();
+}
+
+detail::FunctionApplicationThunk ValueRef::app(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<detail::FunctionApplicationThunk>();
+}
+
+const char * ValueRef::pathStr(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<detail::Path>().path;
+}
+
+SourceAccessor * ValueRef::pathAccessor(Values & values) const noexcept
+{
+    return values.VRtoV(*this).getStorage<detail::Path>().accessor;
+}
 // XXX [speed]
 
 
@@ -1108,7 +1188,7 @@ inline ValueRef EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval
     auto * fromWith = var.fromWith;
     while (1) {
         forceAttrs(env->values[0], fromWith->pos, "while evaluating the first subexpression of a with expression");
-        if (auto j = VRtoVP(env->values[0])->attrs()->get(var.name)) {
+        if (auto j = env->values[0].attrs(values)->get(var.name)) {
             if (countCalls)
                 attrSelects[j->pos]++;
             return j->value;
@@ -1455,8 +1535,8 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
                 vOverrides,
                 [&]() { return vOverrides.determinePos(state.values, noPos); },
                 "while evaluating the `__overrides` attribute");
-            bindings.grow(state.allocBindings(bindings.capacity() + state.VRtoVP(vOverrides)->attrs()->size()));
-            for (auto & i : *state.VRtoVP(vOverrides)->attrs()) {
+            bindings.grow(state.allocBindings(bindings.capacity() + vOverrides.attrs(state.values)->size()));
+            for (auto & i : *vOverrides.attrs(state.values)) {
                 AttrDefs::iterator j = attrs.find(i.name);
                 if (j != attrs.end()) {
                     (*bindings.bindings)[j->second.displ] = i;
@@ -1598,15 +1678,15 @@ void ExprSelect::eval(EvalState & state, Env & env, ValueRef v)
             auto name = getName(i, state, env);
             if (def) {
                 state.forceValue(vAttrs, pos);
-                if (vAttrs.type(state.values) != nAttrs || !(j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
+                if (vAttrs.type(state.values) != nAttrs || !(j = vAttrs.attrs(state.values)->get(name))) {
                     def->eval(state, env, v);
                     return;
                 }
             } else {
                 state.forceAttrs(vAttrs, pos, "while selecting an attribute");
-                if (!(j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
+                if (!(j = vAttrs.attrs(state.values)->get(name))) {
                     StringSet allAttrNames;
-                    for (auto & attr : *state.VRtoVP(vAttrs)->attrs())
+                    for (auto & attr : *vAttrs.attrs(state.values))
                         allAttrNames.insert(std::string(state.symbols[attr.name]));
                     auto suggestions = Suggestions::bestMatches(allAttrNames, state.symbols[name]);
                     state.error<EvalError>("attribute '%1%' missing", state.symbols[name])
@@ -1665,7 +1745,7 @@ void ExprOpHasAttr::eval(EvalState & state, Env & env, ValueRef v)
         state.forceValue(vAttrs, getPos());
         const Attr * j;
         auto name = getName(i, state, env);
-        if (vAttrs.type(state.values) == nAttrs && (j = state.VRtoVP(vAttrs)->attrs()->get(name))) {
+        if (vAttrs.type(state.values) == nAttrs && (j = vAttrs.attrs(state.values)->get(name))) {
             vAttrs = j->value;
         } else {
             v.mkBool(state.values, false);
@@ -1740,7 +1820,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                    argument has a default, use the default. */
                 size_t attrsUsed = 0;
                 for (auto & i : lambda.formals->formals) {
-                    auto j = VRtoVP(args[0])->attrs()->get(i.name);
+                    auto j = args[0].attrs(values)->get(i.name);
                     if (!j) {
                         if (!i.def) {
                             error<TypeError>(
@@ -1761,10 +1841,10 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
                 /* Check that each actual argument is listed as a formal
                    argument (unless the attribute match specifies a `...'). */
-                if (!lambda.formals->ellipsis && attrsUsed != VRtoVP(args[0])->attrs()->size()) {
+                if (!lambda.formals->ellipsis && attrsUsed != args[0].attrs(values)->size()) {
                     /* Nope, so show the first unexpected argument to the
                        user. */
-                    for (auto & i : *VRtoVP(args[0])->attrs())
+                    for (auto & i : *args[0].attrs(values))
                         if (!lambda.formals->has(i.name)) {
                             StringSet formalNames;
                             for (auto & formal : lambda.formals->formals)
@@ -1851,10 +1931,10 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
             ValueRef primOp = VPtoVR(&vCur);
             while (primOp.isPrimOpApp(values)) {
                 argsDone++;
-                primOp = VRtoVP(primOp)->primOpApp().left;
+                primOp = primOp.primOpApp(values).left;
             }
             assert(primOp.isPrimOp(values));
-            auto arity = VRtoVP(primOp)->primOp()->arity;
+            auto arity = primOp.primOp(values)->arity;
             auto argsLeft = arity - argsDone;
 
             if (args.size() < argsLeft) {
@@ -1867,13 +1947,13 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
                 ValueRef vArgs[maxPrimOpArity];
                 auto n = argsDone;
-                for (ValueRef arg = VPtoVR(&vCur); arg.isPrimOpApp(values); arg = VRtoVP(arg)->primOpApp().left)
-                    vArgs[--n] = VRtoVP(arg)->primOpApp().right;
+                for (ValueRef arg = VPtoVR(&vCur); arg.isPrimOpApp(values); arg = arg.primOpApp(values).left)
+                    vArgs[--n] = arg.primOpApp(values).right;
 
                 for (size_t i = 0; i < argsLeft; ++i)
                     vArgs[argsDone + i] = args[i];
 
-                auto fn = VRtoVP(primOp)->primOp();
+                auto fn = primOp.primOp(values);
                 nrPrimOpCalls++;
                 if (countCalls)
                     primOpCalls[fn->name]++;
@@ -1957,8 +2037,8 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
     forceValue(fun, pos);
 
     if (fun.type(values) == nAttrs) {
-        auto found = VRtoV(fun).attrs()->find(sFunctor);
-        if (found != VRtoV(fun).attrs()->end()) {
+        auto found = fun.attrs(values)->find(sFunctor);
+        if (found != fun.attrs(values)->end()) {
             ValueRef v = allocValue();
             callFunction(found->value, fun, v, pos);
             forceValue(v, pos);
@@ -1966,14 +2046,14 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
         }
     }
 
-    if (!fun.isLambda(values) || !VRtoV(fun).lambda().fun->hasFormals()) {
+    if (!fun.isLambda(values) || !fun.lambda(values).fun->hasFormals()) {
         VRtoV(res) = VRtoV(fun);
         return;
     }
 
-    auto attrs = buildBindings(std::max(static_cast<uint32_t>(VRtoV(fun).lambda().fun->formals->formals.size()), args.size()));
+    auto attrs = buildBindings(std::max(static_cast<uint32_t>(fun.lambda(values).fun->formals->formals.size()), args.size()));
 
-    if (VRtoV(fun).lambda().fun->formals->ellipsis) {
+    if (fun.lambda(values).fun->formals->ellipsis) {
         // If the formals have an ellipsis (eg the function accepts extra args) pass
         // all available automatic arguments (which includes arguments specified on
         // the command line via --arg/--argstr)
@@ -1981,7 +2061,7 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
             attrs.insert(v);
     } else {
         // Otherwise, only pass the arguments that the function accepts
-        for (auto & i : VRtoV(fun).lambda().fun->formals->formals) {
+        for (auto & i : fun.lambda(values).fun->formals->formals) {
             auto j = args.get(i.name);
             if (j) {
                 attrs.insert(*j);
@@ -1994,7 +2074,7 @@ values, or passed explicitly with '--arg' or '--argstr'. See
 https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
                     symbols[i.name])
                     .atPos(i.pos)
-                    .withFrame(*VRtoV(fun).lambda().env, *VRtoV(fun).lambda().fun)
+                    .withFrame(*fun.lambda(values).env, *fun.lambda(values).fun)
                     .debugThrow();
             }
         }
@@ -2132,7 +2212,7 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
 
     v.mkAttrs(state.values, attrs.alreadySorted());
 
-    state.nrOpUpdateValuesCopied += state.VRtoV(v).attrs()->size();
+    state.nrOpUpdateValuesCopied += v.attrs(state.values)->size();
 }
 
 void ExprOpConcatLists::eval(EvalState & state, Env & env, ValueRef v)
@@ -2326,13 +2406,13 @@ void EvalState::forceValueDeep(ValueRef v)
         forceValue(v, v.determinePos(values, noPos));
 
         if (v.type(values) == nAttrs) {
-            for (auto & i : *VRtoV(v).attrs())
+            for (auto & i : *v.attrs(values))
                 try {
                     // If the value is a thunk, we're evaling. Otherwise no trace necessary.
                     auto dts = debugRepl && i.value.isThunk(values) ? makeDebugTraceStacker(
                                                                      *this,
-                                                                     *VRtoVP(i.value)->thunk().expr,
-                                                                     *VRtoVP(i.value)->thunk().env,
+                                                                     *i.value.thunk(values).expr,
+                                                                     *i.value.thunk(values).env,
                                                                      i.pos,
                                                                      "while evaluating the attribute '%1%'",
                                                                      symbols[i.name])
@@ -2363,13 +2443,13 @@ NixInt EvalState::forceInt(ValueRef v, const PosIdx pos, std::string_view errorC
                 "expected an integer but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
-        return VRtoV(v).integer();
+        return v.integer(values);
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
     }
 
-    return VRtoV(v).integer();
+    return v.integer(values);
 }
 
 NixFloat EvalState::forceFloat(ValueRef v, const PosIdx pos, std::string_view errorCtx)
@@ -2377,13 +2457,13 @@ NixFloat EvalState::forceFloat(ValueRef v, const PosIdx pos, std::string_view er
     try {
         forceValue(v, pos);
         if (v.type(values) == nInt)
-            return VRtoV(v).integer().value;
+            return v.integer(values).value;
         else if (v.type(values) != nFloat)
             error<TypeError>(
                 "expected a float but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
-        return VRtoV(v).fpoint();
+        return v.fpoint(values);
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
@@ -2399,13 +2479,13 @@ bool EvalState::forceBool(ValueRef v, const PosIdx pos, std::string_view errorCt
                 "expected a Boolean but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
-        return VRtoV(v).boolean();
+        return v.boolean(values);
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
     }
 
-    return VRtoV(v).boolean();
+    return v.boolean(values);
 }
 
 Bindings::const_iterator EvalState::getAttr(SymbolRef attrSym, const Bindings * attrSet, std::string_view errorCtx)
@@ -2419,7 +2499,7 @@ Bindings::const_iterator EvalState::getAttr(SymbolRef attrSym, const Bindings * 
 
 bool EvalState::isFunctor(const ValueRef fun) /* XXX [speed] const */
 {
-    return fun.type(values) == nAttrs && VRtoV(fun).attrs()->find(sFunctor) != VRtoV(fun).attrs()->end();
+    return fun.type(values) == nAttrs && fun.attrs(values)->find(sFunctor) != fun.attrs(values)->end();
 }
 
 void EvalState::forceFunction(ValueRef v, const PosIdx pos, std::string_view errorCtx)
@@ -2446,7 +2526,7 @@ std::string_view EvalState::forceString(ValueRef v, const PosIdx pos, std::strin
                 "expected a string but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
-        return VRtoV(v).string_view();
+        return v.string_view(values);
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
         throw;
@@ -2455,8 +2535,8 @@ std::string_view EvalState::forceString(ValueRef v, const PosIdx pos, std::strin
 
 void copyContext(EvalState & state, const ValueRef v, NixStringContext & context, const ExperimentalFeatureSettings & xpSettings)
 {
-    if (state.VRtoV(v).context())
-        for (const char ** p = state.VRtoV(v).context(); *p; ++p)
+    if (v.context(state.values))
+        for (const char ** p = v.context(state.values); *p; ++p)
             context.insert(NixStringContextElem::parse(*p, xpSettings));
 }
 
@@ -2475,9 +2555,9 @@ std::string_view EvalState::forceString(
 std::string_view EvalState::forceStringNoCtx(ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     auto s = forceString(v, pos, errorCtx);
-    if (VRtoV(v).context()) {
+    if (v.context(values)) {
         error<EvalError>(
-            "the string '%1%' is not allowed to refer to a store path (such as '%2%')", VRtoV(v).string_view(), VRtoV(v).context()[0])
+            "the string '%1%' is not allowed to refer to a store path (such as '%2%')", v.string_view(values), v.context(values)[0])
             .withTrace(pos, errorCtx)
             .debugThrow();
     }
@@ -2488,20 +2568,20 @@ bool EvalState::isDerivation(ValueRef v)
 {
     if (v.type(values) != nAttrs)
         return false;
-    auto i = VRtoV(v).attrs()->get(sType);
+    auto i = v.attrs(values)->get(sType);
     if (!i)
         return false;
     forceValue(i->value, i->pos);
     if (i->value.type(values) != nString)
         return false;
-    return VRtoVP(i->value)->string_view().compare("derivation") == 0;
+    return i->value.string_view(values).compare("derivation") == 0;
 }
 
 std::optional<std::string>
 EvalState::tryAttrsToString(const PosIdx pos, ValueRef v, NixStringContext & context, bool coerceMore, bool copyToStore)
 {
-    auto i = VRtoV(v).attrs()->find(sToString);
-    if (i != VRtoV(v).attrs()->end()) {
+    auto i = v.attrs(values)->find(sToString);
+    if (i != v.attrs(values)->end()) {
         Value v1;
         callFunction(i->value, v, VPtoVR(&v1), pos);
         return coerceToString(
@@ -2530,24 +2610,24 @@ BackedStringView EvalState::coerceToString(
 
     if (v.type(values) == nString) {
         copyContext(*this, v, context);
-        return VRtoV(v).string_view();
+        return v.string_view(values);
     }
 
     if (v.type(values) == nPath) {
         return !canonicalizePath && !copyToStore
                    ? // FIXME: hack to preserve path literals that end in a
                      // slash, as in /foo/${x}.
-                   VRtoV(v).pathStr()
-                   : copyToStore ? store->printStorePath(copyPathToStore(context, VRtoV(v).path()))
-                                 : std::string(VRtoV(v).path().path.abs());
+                   v.pathStr(values)
+                   : copyToStore ? store->printStorePath(copyPathToStore(context, v.path(values)))
+                                 : std::string(v.path(values).path.abs());
     }
 
     if (v.type(values) == nAttrs) {
         auto maybeString = tryAttrsToString(pos, v, context, coerceMore, copyToStore);
         if (maybeString)
             return std::move(*maybeString);
-        auto i = VRtoV(v).attrs()->find(sOutPath);
-        if (i == VRtoV(v).attrs()->end()) {
+        auto i = v.attrs(values)->find(sOutPath);
+        if (i == v.attrs(values)->end()) {
             error<TypeError>(
                 "cannot coerce %1% to a string: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
                 .withTrace(pos, errorCtx)
@@ -2558,7 +2638,7 @@ BackedStringView EvalState::coerceToString(
 
     if (v.type(values) == nExternal) {
         try {
-            return VRtoV(v).external()->coerceToString(*this, pos, context, coerceMore, copyToStore);
+            return v.external(values)->coerceToString(*this, pos, context, coerceMore, copyToStore);
         } catch (Error & e) {
             e.addTrace(nullptr, errorCtx);
             throw;
@@ -2568,14 +2648,14 @@ BackedStringView EvalState::coerceToString(
     if (coerceMore) {
         /* Note that `false' is represented as an empty string for
            shell scripting convenience, just like `null'. */
-        if (v.type(values) == nBool && VRtoV(v).boolean())
+        if (v.type(values) == nBool && v.boolean(values))
             return "1";
-        if (v.type(values) == nBool && !VRtoV(v).boolean())
+        if (v.type(values) == nBool && !v.boolean(values))
             return "";
         if (v.type(values) == nInt)
-            return std::to_string(VRtoV(v).integer().value);
+            return std::to_string(v.integer(values).value);
         if (v.type(values) == nFloat)
-            return std::to_string(VRtoV(v).fpoint());
+            return std::to_string(v.fpoint(values));
         if (v.type(values) == nNull)
             return "";
 
@@ -2648,13 +2728,13 @@ SourcePath EvalState::coerceToPath(const PosIdx pos, ValueRef v, NixStringContex
 
     /* Handle path values directly, without coercing to a string. */
     if (v.type(values) == nPath)
-        return VRtoV(v).path();
+        return v.path(values);
 
     /* Similarly, handle __toString where the result may be a path
        value. */
     if (v.type(values) == nAttrs) {
-        auto i = VRtoV(v).attrs()->find(sToString);
-        if (i != VRtoV(v).attrs()->end()) {
+        auto i = v.attrs(values)->find(sToString);
+        if (i != v.attrs(values)->end()) {
             Value v1;
             callFunction(i->value, v, VPtoVR(&v1), pos);
             return coerceToPath(pos, VPtoVR(&v1), context, errorCtx);
@@ -2776,13 +2856,13 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
 
     switch (v1.type(values)) {
     case nInt:
-        if (VRtoV(v1).integer() != VRtoV(v2).integer()) {
-            error<AssertionError>("integer '%d' is not equal to integer '%d'", VRtoV(v1).integer(), VRtoV(v2).integer()).debugThrow();
+        if (v1.integer(values) != v2.integer(values)) {
+            error<AssertionError>("integer '%d' is not equal to integer '%d'", v1.integer(values), v2.integer(values)).debugThrow();
         }
         return;
 
     case nBool:
-        if (VRtoV(v1).boolean() != VRtoV(v2).boolean()) {
+        if (v1.boolean(values) != v2.boolean(values)) {
             error<AssertionError>(
                 "boolean '%s' is not equal to boolean '%s'",
                 ValuePrinter(*this, v1, errorPrintOptions),
@@ -2792,7 +2872,7 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         return;
 
     case nString:
-        if (strcmp(VRtoV(v1).c_str(), VRtoV(v2).c_str()) != 0) {
+        if (strcmp(v1.c_str(values), v2.c_str(values)) != 0) {
             error<AssertionError>(
                 "string '%s' is not equal to string '%s'",
                 ValuePrinter(*this, v1, errorPrintOptions),
@@ -2802,14 +2882,14 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         return;
 
     case nPath:
-        if (VRtoV(v1).pathAccessor() != VRtoV(v2).pathAccessor()) {
+        if (v1.pathAccessor(values) != v2.pathAccessor(values)) {
             error<AssertionError>(
                 "path '%s' is not equal to path '%s' because their accessors are different",
                 ValuePrinter(*this, v1, errorPrintOptions),
                 ValuePrinter(*this, v2, errorPrintOptions))
                 .debugThrow();
         }
-        if (strcmp(VRtoV(v1).pathStr(), VRtoV(v2).pathStr()) != 0) {
+        if (strcmp(v1.pathStr(values), v2.pathStr(values)) != 0) {
             error<AssertionError>(
                 "path '%s' is not equal to path '%s'",
                 ValuePrinter(*this, v1, errorPrintOptions),
@@ -2843,8 +2923,8 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
 
     case nAttrs: {
         if (isDerivation(v1) && isDerivation(v2)) {
-            auto i = VRtoV(v1).attrs()->get(sOutPath);
-            auto j = VRtoV(v2).attrs()->get(sOutPath);
+            auto i = v1.attrs(values)->get(sOutPath);
+            auto j = v2.attrs(values)->get(sOutPath);
             if (i && j) {
                 try {
                     assertEqValues(i->value, j->value, pos, errorCtx);
@@ -2857,7 +2937,7 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
             }
         }
 
-        if (VRtoV(v1).attrs()->size() != VRtoV(v2).attrs()->size()) {
+        if (v1.attrs(values)->size() != v2.attrs(values)->size()) {
             error<AssertionError>(
                 "attribute names of attribute set '%s' differs from attribute set '%s'",
                 ValuePrinter(*this, v1, errorPrintOptions),
@@ -2870,11 +2950,11 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
         // report about its result, we should follow in its literal footsteps and not
         // try anything fancy that could lead to an error.
         Bindings::const_iterator i, j;
-        for (i = VRtoV(v1).attrs()->begin(), j = VRtoV(v2).attrs()->begin(); i != VRtoV(v1).attrs()->end(); ++i, ++j) {
+        for (i = v1.attrs(values)->begin(), j = v2.attrs(values)->begin(); i != v1.attrs(values)->end(); ++i, ++j) {
             if (i->name != j->name) {
                 // A difference in a sorted list means that one attribute is not contained in the other, but we don't
                 // know which. Let's find out. Could use <, but this is more clear.
-                if (!VRtoV(v2).attrs()->get(i->name)) {
+                if (!v2.attrs(values)->get(i->name)) {
                     error<AssertionError>(
                         "attribute name '%s' is contained in '%s', but not in '%s'",
                         symbols[i->name],
@@ -2882,7 +2962,7 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
                         ValuePrinter(*this, v2, errorPrintOptions))
                         .debugThrow();
                 }
-                if (!VRtoV(v1).attrs()->get(j->name)) {
+                if (!v1.attrs(values)->get(j->name)) {
                     error<AssertionError>(
                         "attribute name '%s' is missing in '%s', but is contained in '%s'",
                         symbols[j->name],
@@ -2917,7 +2997,7 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
             .debugThrow();
 
     case nExternal:
-        if (!(*VRtoV(v1).external() == *VRtoV(v2).external())) {
+        if (!(*v1.external(values) == *v2.external(values))) {
             error<AssertionError>(
                 "external value '%s' is not equal to external value '%s'",
                 ValuePrinter(*this, v1, errorPrintOptions),
@@ -2928,8 +3008,8 @@ void EvalState::assertEqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::
 
     case nFloat:
         // !!!
-        if (!(VRtoV(v1).fpoint() == VRtoV(v2).fpoint())) {
-            error<AssertionError>("float '%f' is not equal to float '%f'", VRtoV(v1).fpoint(), VRtoV(v2).fpoint()).debugThrow();
+        if (!(v1.fpoint(values) == v2.fpoint(values))) {
+            error<AssertionError>("float '%f' is not equal to float '%f'", v1.fpoint(values), v2.fpoint(values)).debugThrow();
         }
         return;
 
@@ -2960,9 +3040,9 @@ bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string
 
     // Special case type-compatibility between float and int
     if (v1.type(values) == nInt && v2.type(values) == nFloat)
-        return VRtoV(v1).integer().value == VRtoV(v2).fpoint();
+        return v1.integer(values).value == v2.fpoint(values);
     if (v1.type(values) == nFloat && v2.type(values) == nInt)
-        return VRtoV(v1).fpoint() == VRtoV(v2).integer().value;
+        return v1.fpoint(values) == v2.integer(values).value;
 
     // All other types are not compatible with each other.
     if (v1.type(values) != v2.type(values))
@@ -2970,18 +3050,18 @@ bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string
 
     switch (v1.type(values)) {
     case nInt:
-        return VRtoV(v1).integer() == VRtoV(v2).integer();
+        return v1.integer(values) == v2.integer(values);
 
     case nBool:
-        return VRtoV(v1).boolean() == VRtoV(v2).boolean();
+        return v1.boolean(values) == v2.boolean(values);
 
     case nString:
-        return strcmp(VRtoV(v1).c_str(), VRtoV(v2).c_str()) == 0;
+        return strcmp(v1.c_str(values), v2.c_str(values)) == 0;
 
     case nPath:
         return
             // FIXME: compare accessors by their fingerprint.
-            VRtoV(v1).pathAccessor() == VRtoV(v2).pathAccessor() && strcmp(VRtoV(v1).pathStr(), VRtoV(v2).pathStr()) == 0;
+            v1.pathAccessor(values) == v2.pathAccessor(values) && strcmp(v1.pathStr(values), v2.pathStr(values)) == 0;
 
     case nNull:
         return true;
@@ -2998,18 +3078,18 @@ bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string
         /* If both sets denote a derivation (type = "derivation"),
            then compare their outPaths. */
         if (isDerivation(v1) && isDerivation(v2)) {
-            auto i = VRtoV(v1).attrs()->get(sOutPath);
-            auto j = VRtoV(v2).attrs()->get(sOutPath);
+            auto i = v1.attrs(values)->get(sOutPath);
+            auto j = v2.attrs(values)->get(sOutPath);
             if (i && j)
                 return eqValues(i->value, j->value, pos, errorCtx);
         }
 
-        if (VRtoV(v1).attrs()->size() != VRtoV(v2).attrs()->size())
+        if (v1.attrs(values)->size() != v2.attrs(values)->size())
             return false;
 
         /* Otherwise, compare the attributes one by one. */
         Bindings::const_iterator i, j;
-        for (i = VRtoV(v1).attrs()->begin(), j = VRtoV(v2).attrs()->begin(); i != VRtoV(v1).attrs()->end(); ++i, ++j)
+        for (i = v1.attrs(values)->begin(), j = v2.attrs(values)->begin(); i != v1.attrs(values)->end(); ++i, ++j)
             if (i->name != j->name || !eqValues(i->value, j->value, pos, errorCtx))
                 return false;
 
@@ -3021,11 +3101,11 @@ bool EvalState::eqValues(ValueRef v1, ValueRef v2, const PosIdx pos, std::string
         return false;
 
     case nExternal:
-        return *VRtoV(v1).external() == *VRtoV(v2).external();
+        return *v1.external(values) == *v2.external(values);
 
     case nFloat:
         // !!!
-        return VRtoV(v1).fpoint() == VRtoV(v2).fpoint();
+        return v1.fpoint(values) == v2.fpoint(values);
 
     case nThunk: // Must not be left by forceValue
         assert(false);

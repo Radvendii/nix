@@ -259,7 +259,7 @@ static void showHelp(std::vector<std::string> subcommand, NixArgs & toplevel)
     state.callFunction(vGenerateManpage, state.getBuiltin("false"), vRes, noPos);
     state.callFunction(vRes, vDump, vRes, noPos);
 
-    auto attr = state.VRtoVP(vRes)->attrs()->get(state.symbols.create(mdName + ".md"));
+    auto attr = vRes.attrs(state.values)->get(state.symbols.create(mdName + ".md"));
     if (!attr)
         throw UsageError("Nix has no subcommand '%s'", concatStringsSep("", subcommand));
 
@@ -431,12 +431,12 @@ void mainWrapped(int argc, char ** argv)
         evalSettings.pureEval = false;
         EvalState state({}, openStore("dummy://"), fetchSettings, evalSettings);
         auto builtinsJson = nlohmann::json::object();
-        for (auto & builtinPtr : state.VRtoV(state.getBuiltins()).attrs()->lexicographicOrder(state.symbols)) {
+        for (auto & builtinPtr : state.getBuiltins().attrs(state.values)->lexicographicOrder(state.symbols)) {
             auto & builtin = *builtinPtr;
             auto b = nlohmann::json::object();
             if (!builtin.value.isPrimOp(state.values))
                 continue;
-            auto primOp = state.VRtoVP(builtin.value)->primOp();
+            auto primOp = builtin.value.primOp(state.values);
             if (!primOp->doc)
                 continue;
             b["args"] = primOp->args;

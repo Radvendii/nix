@@ -225,7 +225,7 @@ private:
     {
         if (options.ansiColors)
             output << ANSI_CYAN;
-        output << state.VRtoV(v).integer();
+        output << v.integer(state.values);
         if (options.ansiColors)
             output << ANSI_NORMAL;
     }
@@ -234,7 +234,7 @@ private:
     {
         if (options.ansiColors)
             output << ANSI_CYAN;
-        output << state.VRtoV(v).fpoint();
+        output << v.fpoint(state.values);
         if (options.ansiColors)
             output << ANSI_NORMAL;
     }
@@ -243,21 +243,21 @@ private:
     {
         if (options.ansiColors)
             output << ANSI_CYAN;
-        printLiteralBool(output, state.VRtoV(v).boolean());
+        printLiteralBool(output, v.boolean(state.values));
         if (options.ansiColors)
             output << ANSI_NORMAL;
     }
 
     void printString(ValueRef v)
     {
-        printLiteralString(output, state.VRtoV(v).string_view(), options.maxStringLength, options.ansiColors);
+        printLiteralString(output, v.string_view(state.values), options.maxStringLength, options.ansiColors);
     }
 
     void printPath(ValueRef v)
     {
         if (options.ansiColors)
             output << ANSI_GREEN;
-        output << state.VRtoV(v).path().to_string(); // !!! escaping?
+        output << v.path(state.values).to_string(); // !!! escaping?
         if (options.ansiColors)
             output << ANSI_NORMAL;
     }
@@ -274,7 +274,7 @@ private:
     void printDerivation(ValueRef v)
     {
         std::optional<StorePath> storePath;
-        if (auto i = state.VRtoV(v).attrs()->get(state.sDrvPath)) {
+        if (auto i = v.attrs(state.values)->get(state.sDrvPath)) {
             NixStringContext context;
             storePath =
                 state.coerceToStorePath(i->pos, i->value, context, "while evaluating the drvPath of a derivation");
@@ -331,7 +331,7 @@ private:
 
     void printAttrs(ValueRef v, size_t depth)
     {
-        if (seen && !seen->insert((size_t) state.VRtoVP(v)->attrs()).second) {
+        if (seen && !seen->insert((size_t) v.attrs(state.values)).second) {
             printRepeated();
             return;
         }
@@ -343,7 +343,7 @@ private:
             output << "{";
 
             AttrVec sorted;
-            for (auto & i : *state.VRtoV(v).attrs())
+            for (auto & i : *v.attrs(state.values))
                 sorted.emplace_back(std::pair(state.symbols[i.name], i.value));
 
             if (options.maxAttrs == std::numeric_limits<size_t>::max())
@@ -455,18 +455,18 @@ private:
 
         if (v.isLambda(state.values)) {
             output << "lambda";
-            if (state.VRtoV(v).lambda().fun) {
-                if (state.VRtoV(v).lambda().fun->name) {
-                    output << " " << state.symbols[state.VRtoV(v).lambda().fun->name];
+            if (v.lambda(state.values).fun) {
+                if (v.lambda(state.values).fun->name) {
+                    output << " " << state.symbols[v.lambda(state.values).fun->name];
                 }
 
                 std::ostringstream s;
-                s << state.positions[state.VRtoV(v).lambda().fun->pos];
+                s << state.positions[v.lambda(state.values).fun->pos];
                 output << " @ " << filterANSIEscapes(toView(s));
             }
         } else if (v.isPrimOp(state.values)) {
-            if (state.VRtoV(v).primOp())
-                output << *state.VRtoV(v).primOp();
+            if (v.primOp(state.values))
+                output << *v.primOp(state.values);
             else
                 output << "primop";
         } else if (v.isPrimOpApp(state.values)) {
@@ -512,7 +512,7 @@ private:
 
     void printExternal(ValueRef v)
     {
-        state.VRtoV(v).external()->print(output);
+        v.external(state.values)->print(output);
     }
 
     void printUnknown()

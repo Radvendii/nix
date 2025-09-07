@@ -17,26 +17,26 @@ void printAmbiguous(
     }
     switch (v.type(state.values)) {
     case nInt:
-        str << state.VRtoV(v).integer();
+        str << v.integer(state.values);
         break;
     case nBool:
-        printLiteralBool(str, state.VRtoV(v).boolean());
+        printLiteralBool(str, v.boolean(state.values));
         break;
     case nString:
-        printLiteralString(str, state.VRtoV(v).string_view());
+        printLiteralString(str, v.string_view(state.values));
         break;
     case nPath:
-        str << state.VRtoV(v).path().to_string(); // !!! escaping?
+        str << v.path(state.values).to_string(); // !!! escaping?
         break;
     case nNull:
         str << "null";
         break;
     case nAttrs: {
-        if (seen && !state.VRtoV(v).attrs()->empty() && !seen->insert((size_t) state.VRtoV(v).attrs()).second)
+        if (seen && !v.attrs(state.values)->empty() && !seen->insert((size_t) v.attrs(state.values)).second)
             str << "«repeated»";
         else {
             str << "{ ";
-            for (auto & i : state.VRtoV(v).attrs()->lexicographicOrder(symbols)) {
+            for (auto & i : v.attrs(state.values)->lexicographicOrder(symbols)) {
                 str << symbols[i->name] << " = ";
                 printAmbiguous(state, i->value, symbols, str, seen, depth - 1);
                 str << "; ";
@@ -85,10 +85,10 @@ void printAmbiguous(
         }
         break;
     case nExternal:
-        str << *state.VRtoV(v).external();
+        str << *v.external(state.values);
         break;
     case nFloat:
-        str << state.VRtoV(v).fpoint();
+        str << v.fpoint(state.values);
         break;
     default:
         printError("Nix evaluator internal error: printAmbiguous: invalid value type");

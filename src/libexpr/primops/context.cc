@@ -265,7 +265,7 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
 
     auto sPath = state.symbols.create("path");
     auto sAllOutputs = state.symbols.create("allOutputs");
-    for (auto & i : *state.VRtoVP(args[1])->attrs()) {
+    for (auto & i : *args[1].attrs(state.values)) {
         const auto & name = state.symbols[i.name];
         if (!state.store->isStorePath(name))
             state.error<EvalError>("context key '%s' is not a store path", name).atPos(i.pos).debugThrow();
@@ -274,7 +274,7 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
             state.store->ensurePath(namePath);
         state.forceAttrs(i.value, i.pos, "while evaluating the value of a string context");
 
-        if (auto attr = state.VRtoVP(i.value)->attrs()->get(sPath)) {
+        if (auto attr = i.value.attrs(state.values)->get(sPath)) {
             if (state.forceBool(attr->value, attr->pos, "while evaluating the `path` attribute of a string context"))
                 context.emplace(
                     NixStringContextElem::Opaque{
@@ -282,7 +282,7 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
                     });
         }
 
-        if (auto attr = state.VRtoVP(i.value)->attrs()->get(sAllOutputs)) {
+        if (auto attr = i.value.attrs(state.values)->get(sAllOutputs)) {
             if (state.forceBool(
                     attr->value, attr->pos, "while evaluating the `allOutputs` attribute of a string context")) {
                 if (!isDerivation(name)) {
@@ -299,7 +299,7 @@ static void prim_appendContext(EvalState & state, const PosIdx pos, ValueRef * a
             }
         }
 
-        if (auto attr = state.VRtoVP(i.value)->attrs()->get(state.sOutputs)) {
+        if (auto attr = i.value.attrs(state.values)->get(state.sOutputs)) {
             state.forceList(attr->value, attr->pos, "while evaluating the `outputs` attribute of a string context");
             if (attr->value.listSize(state.values) && !isDerivation(name)) {
                 state

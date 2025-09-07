@@ -184,7 +184,7 @@ FrameInfo SampleStack::getPrimOpFrameInfo(const PrimOp & primOp, std::span<Value
             try {
                 /* Error context strings don't actually matter, since we ignore all eval errors. */
                 state.forceAttrs(args[0], pos, "");
-                auto attrs = state.VRtoVP(args[0])->attrs();
+                auto attrs = args[0].attrs(state.values);
                 auto nameAttr = state.getAttr(state.sName, attrs, "");
                 auto drvName = std::string(state.forceStringNoCtx(nameAttr->value, pos, ""));
                 return DerivationStrictFrameInfo{.callPos = pos, .drvName = std::move(drvName)};
@@ -204,14 +204,14 @@ FrameInfo SampleStack::getFrameInfoFromValueAndPos(const ValueRef v, std::span<V
     /* NOTE: No actual references to garbage collected values are not held in
        the profiler. */
     if (v.isLambda(state.values))
-        return LambdaFrameInfo{.expr = state.VRtoV(v).lambda().fun, .callPos = pos};
+        return LambdaFrameInfo{.expr = v.lambda(state.values).fun, .callPos = pos};
     else if (v.isPrimOp(state.values)) {
-        return getPrimOpFrameInfo(*state.VRtoV(v).primOp(), args, pos);
+        return getPrimOpFrameInfo(*v.primOp(state.values), args, pos);
     } else if (v.isPrimOpApp(state.values))
         /* Resolve primOp eagerly. Must not hold on to a reference to a Value. */
         return PrimOpFrameInfo{.expr = v.primOpAppPrimOp(state.values), .callPos = pos};
     else if (state.isFunctor(v)) {
-        const auto functor = state.VRtoV(v).attrs()->get(state.sFunctor);
+        const auto functor = v.attrs(state.values)->get(state.sFunctor);
         if (auto pos_ = posCache.lookup(pos); std::holds_alternative<std::monostate>(pos_.origin))
             /* HACK: In case callsite position is unresolved. */
             return FunctorFrameInfo{.pos = functor->pos};

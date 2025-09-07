@@ -95,7 +95,7 @@ static void fetchTree(
 
         fetchers::Attrs attrs;
 
-        if (auto aType = state.VRtoVP(args[0])->attrs()->get(state.sType)) {
+        if (auto aType = args[0].attrs(state.values)->get(state.sType)) {
             if (type)
                 state.error<EvalError>("unexpected argument 'type'").atPos(pos).debugThrow();
             type = state.forceStringNoCtx(
@@ -105,7 +105,7 @@ static void fetchTree(
 
         attrs.emplace("type", type.value());
 
-        for (auto & attr : *state.VRtoVP(args[0])->attrs()) {
+        for (auto & attr : *args[0].attrs(state.values)) {
             if (attr.name == state.sType)
                 continue;
             state.forceValue(attr.value, attr.pos);
@@ -115,9 +115,9 @@ static void fetchTree(
                     state.symbols[attr.name],
                     params.isFetchGit && state.symbols[attr.name] == "url" ? fixGitURL(s) : s);
             } else if (attr.value.type(state.values) == nBool)
-                attrs.emplace(state.symbols[attr.name], Explicit<bool>{state.VRtoVP(attr.value)->boolean()});
+                attrs.emplace(state.symbols[attr.name], Explicit<bool>{attr.value.boolean(state.values)});
             else if (attr.value.type(state.values) == nInt) {
-                auto intValue = state.VRtoVP(attr.value)->integer().value;
+                auto intValue = attr.value.integer(state.values).value;
 
                 if (intValue < 0)
                     state
@@ -491,7 +491,7 @@ static void fetch(
 
     if (isArgAttrs) {
 
-        for (auto & attr : *state.VRtoVP(args[0])->attrs()) {
+        for (auto & attr : *args[0].attrs(state.values)) {
             std::string_view n(state.symbols[attr.name]);
             if (n == "url")
                 url = state.forceStringNoCtx(attr.value, attr.pos, "while evaluating the url we should fetch");

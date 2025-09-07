@@ -777,7 +777,7 @@ void NixRepl::showLastLoaded()
 {
     RunPager pager;
 
-    for (auto & i : *state->VRtoV(lastLoaded).attrs()) {
+    for (auto & i : *lastLoaded.attrs(state->values)) {
         std::string_view name = state->symbols[i.name];
         logger->cout(name);
     }
@@ -824,24 +824,24 @@ void NixRepl::addAttrsToScope(ValueRef attrs)
         attrs,
         [&]() { return attrs.determinePos(state->values, noPos); },
         "while evaluating an attribute set to be merged in the global scope");
-    if (displ + state->VRtoV(attrs).attrs()->size() >= envSize)
+    if (displ + attrs.attrs(state->values)->size() >= envSize)
         throw Error("environment full; cannot add more variables");
 
-    for (auto & i : *state->VRtoV(attrs).attrs()) {
+    for (auto & i : *attrs.attrs(state->values)) {
         staticEnv->vars.emplace_back(i.name, displ);
         env->values[displ++] = i.value;
         varNames.emplace(state->symbols[i.name]);
     }
     staticEnv->sort();
     staticEnv->deduplicate();
-    notice("Added %1% variables.", state->VRtoV(attrs).attrs()->size());
+    notice("Added %1% variables.", attrs.attrs(state->values)->size());
 
     *state->VRtoVP(lastLoaded) = state->VRtoV(attrs);
 
     const int max_print = 20;
     int counter = 0;
     std::ostringstream loaded;
-    for (auto & i : state->VRtoV(attrs).attrs()->lexicographicOrder(state->symbols)) {
+    for (auto & i : attrs.attrs(state->values)->lexicographicOrder(state->symbols)) {
         if (counter >= max_print)
             break;
 
@@ -854,8 +854,8 @@ void NixRepl::addAttrsToScope(ValueRef attrs)
 
     notice("%1%", loaded.str());
 
-    if (state->VRtoV(attrs).attrs()->size() > max_print)
-        notice("... and %1% more; view with :ll", state->VRtoV(attrs).attrs()->size() - max_print);
+    if (attrs.attrs(state->values)->size() > max_print)
+        notice("... and %1% more; view with :ll", attrs.attrs(state->values)->size() - max_print);
 }
 
 void NixRepl::addVarToScope(const SymbolRef name, ValueRef v)

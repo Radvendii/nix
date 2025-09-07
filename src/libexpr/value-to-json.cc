@@ -24,23 +24,23 @@ json printValueAsJSON(
     switch (v.type(state.values)) {
 
     case nInt:
-        out = state.VRtoV(v).integer().value;
+        out = v.integer(state.values).value;
         break;
 
     case nBool:
-        out = state.VRtoV(v).boolean();
+        out = v.boolean(state.values);
         break;
 
     case nString:
         copyContext(state, v, context);
-        out = state.VRtoV(v).c_str();
+        out = v.c_str(state.values);
         break;
 
     case nPath:
         if (copyToStore)
-            out = state.store->printStorePath(state.copyPathToStore(context, state.VRtoV(v).path()));
+            out = state.store->printStorePath(state.copyPathToStore(context, v.path(state.values)));
         else
-            out = state.VRtoV(v).path().path.abs();
+            out = v.path(state.values).path.abs();
         break;
 
     case nNull:
@@ -53,11 +53,11 @@ json printValueAsJSON(
             out = *maybeString;
             break;
         }
-        if (auto i = state.VRtoV(v).attrs()->get(state.sOutPath))
+        if (auto i = v.attrs(state.values)->get(state.sOutPath))
             return printValueAsJSON(state, strict, i->value, i->pos, context, copyToStore);
         else {
             out = json::object();
-            for (auto & a : state.VRtoV(v).attrs()->lexicographicOrder(state.symbols)) {
+            for (auto & a : v.attrs(state.values)->lexicographicOrder(state.symbols)) {
                 try {
                     out.emplace(
                         state.symbols[a->name],
@@ -88,11 +88,11 @@ json printValueAsJSON(
     }
 
     case nExternal:
-        return state.VRtoV(v).external()->printValueAsJSON(state, strict, context, copyToStore);
+        return v.external(state.values)->printValueAsJSON(state, strict, context, copyToStore);
         break;
 
     case nFloat:
-        out = state.VRtoV(v).fpoint();
+        out = v.fpoint(state.values);
         break;
 
     case nThunk:

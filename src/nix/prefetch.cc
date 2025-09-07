@@ -208,7 +208,7 @@ static int main_nix_prefetch_url(int argc, char ** argv)
             state->forceAttrs(v, noPos, "while evaluating the source attribute to prefetch");
 
             /* Extract the URL. */
-            auto * attr = state->VRtoV(v).attrs()->get(state->symbols.create("urls"));
+            auto * attr = v.attrs(state->values)->get(state->symbols.create("urls"));
             if (!attr)
                 throw Error("attribute 'urls' missing");
             state->forceList(attr->value, noPos, "while evaluating the urls to prefetch");
@@ -218,7 +218,7 @@ static int main_nix_prefetch_url(int argc, char ** argv)
                 attr->value.listView(state->values)[0], noPos, "while evaluating the first url from the urls list");
 
             /* Extract the hash mode. */
-            auto attr2 = state->VRtoV(v).attrs()->get(state->symbols.create("outputHashMode"));
+            auto attr2 = v.attrs(state->values)->get(state->symbols.create("outputHashMode"));
             if (!attr2)
                 printInfo("warning: this does not look like a fetchurl call");
             else
@@ -228,7 +228,7 @@ static int main_nix_prefetch_url(int argc, char ** argv)
 
             /* Extract the name. */
             if (!name) {
-                auto attr3 = state->VRtoV(v).attrs()->get(state->symbols.create("name"));
+                auto attr3 = v.attrs(state->values)->get(state->symbols.create("name"));
                 if (!attr3)
                     name =
                         state->forceString(attr3->value, noPos, "while evaluating the name of the source to prefetch");

@@ -101,10 +101,10 @@ static void prim_flakeRefToString(EvalState & state, const PosIdx pos, ValueRef 
 {
     state.forceAttrs(args[0], noPos, "while evaluating the argument passed to builtins.flakeRefToString");
     fetchers::Attrs attrs;
-    for (const auto & attr : *state.VRtoVP(args[0])->attrs()) {
+    for (const auto & attr : *args[0].attrs(state.values)) {
         auto t = attr.value.type(state.values);
         if (t == nInt) {
-            auto intValue = state.VRtoVP(attr.value)->integer().value;
+            auto intValue = attr.value.integer(state.values).value;
 
             if (intValue < 0) {
                 state
@@ -116,9 +116,9 @@ static void prim_flakeRefToString(EvalState & state, const PosIdx pos, ValueRef 
 
             attrs.emplace(state.symbols[attr.name], uint64_t(intValue));
         } else if (t == nBool) {
-            attrs.emplace(state.symbols[attr.name], Explicit<bool>{state.VRtoVP(attr.value)->boolean()});
+            attrs.emplace(state.symbols[attr.name], Explicit<bool>{attr.value.boolean(state.values)});
         } else if (t == nString) {
-            attrs.emplace(state.symbols[attr.name], std::string(state.VRtoVP(attr.value)->string_view()));
+            attrs.emplace(state.symbols[attr.name], std::string(attr.value.string_view(state.values)));
         } else {
             state
                 .error<EvalError>(

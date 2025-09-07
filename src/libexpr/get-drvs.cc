@@ -127,7 +127,7 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
                     state->forceAttrs(out->value, i->pos, "while evaluating an output of a derivation");
 
                     /* And evaluate its ‘outPath’ attribute. */
-                    auto outPath = state->VRtoVP(out->value)->attrs()->get(state->sOutPath);
+                    auto outPath = out->value.attrs(state->values)->get(state->sOutPath);
                     if (!outPath)
                         continue; // FIXME: throw error?
                     NixStringContext context;
@@ -169,7 +169,7 @@ PackageInfo::Outputs PackageInfo::queryOutputs(bool withPaths, bool onlyOutputsT
         for (auto elem : outTI.listView(state->values)) {
             if (elem.type(state->values) != nString)
                 throw errMsg;
-            auto out = outputs.find(state->VRtoVP(elem)->c_str());
+            auto out = outputs.find(elem.c_str(state->values));
             if (out == outputs.end())
                 throw errMsg;
             result.insert(*out);
@@ -198,7 +198,7 @@ const Bindings * PackageInfo::getMeta()
     if (!a)
         return 0;
     state->forceAttrs(a->value, a->pos, "while evaluating the 'meta' attribute of a derivation");
-    meta = state->VRtoVP(a->value)->attrs();
+    meta = a->value.attrs(state->values);
     return meta;
 }
 
@@ -221,7 +221,7 @@ bool PackageInfo::checkMeta(ValueRef v)
                 return false;
         return true;
     } else if (v.type(state->values) == nAttrs) {
-        if (state->VRtoV(v).attrs()->get(state->sOutPath))
+        if (v.attrs(state->values)->get(state->sOutPath))
             return false;
         for (auto & i : *state->VRtoV(v).attrs())
             if (!checkMeta(i.value))
@@ -246,7 +246,7 @@ std::string PackageInfo::queryMetaString(const std::string & name)
     ValueRef v = queryMeta(name);
     if (!v || v.type(state->values) != nString)
         return "";
-    return state->VRtoVP(v)->c_str();
+    return v.c_str(state->values);
 }
 
 NixInt PackageInfo::queryMetaInt(const std::string & name, NixInt def)
@@ -255,11 +255,11 @@ NixInt PackageInfo::queryMetaInt(const std::string & name, NixInt def)
     if (!v)
         return def;
     if (v.type(state->values) == nInt)
-        return state->VRtoVP(v)->integer();
+        return v.integer(state->values);
     if (v.type(state->values) == nString) {
         /* Backwards compatibility with before we had support for
            integer meta fields. */
-        if (auto n = string2Int<NixInt::Inner>(state->VRtoVP(v)->c_str()))
+        if (auto n = string2Int<NixInt::Inner>(v.c_str(state->values)))
             return NixInt{*n};
     }
     return def;
@@ -271,11 +271,11 @@ NixFloat PackageInfo::queryMetaFloat(const std::string & name, NixFloat def)
     if (!v)
         return def;
     if (v.type(state->values) == nFloat)
-        return state->VRtoVP(v)->fpoint();
+        return v.fpoint(state->values);
     if (v.type(state->values) == nString) {
         /* Backwards compatibility with before we had support for
            float meta fields. */
-        if (auto n = string2Float<NixFloat>(state->VRtoVP(v)->c_str()))
+        if (auto n = string2Float<NixFloat>(v.c_str(state->values)))
             return *n;
     }
     return def;
@@ -287,13 +287,13 @@ bool PackageInfo::queryMetaBool(const std::string & name, bool def)
     if (!v)
         return def;
     if (v.type(state->values) == nBool)
-        return state->VRtoVP(v)->boolean();
+        return v.boolean(state->values);
     if (v.type(state->values) == nString) {
         /* Backwards compatibility with before we had support for
            Boolean meta fields. */
-        if (state->VRtoVP(v)->string_view() == "true")
+        if (v.string_view(state->values) == "true")
             return true;
-        if (state->VRtoVP(v)->string_view() == "false")
+        if (v.string_view(state->values) == "false")
             return false;
     }
     return def;
@@ -335,10 +335,10 @@ static bool getDerivation(
 
         /* Remove spurious duplicates (e.g., a set like `rec { x =
            derivation {...}; y = x;}'. */
-        if (!done.insert(state.VRtoV(v).attrs()).second)
+        if (!done.insert(v.attrs(state.values)).second)
             return false;
 
-        PackageInfo drv(state, attrPath, state.VRtoV(v).attrs());
+        PackageInfo drv(state, attrPath, v.attrs(state.values));
 
         drv.queryName();
 
@@ -411,7 +411,7 @@ static void getDerivations(
                     should we recurse into it?  => Only if it has a
                     `recurseForDerivations = true' attribute. */
                     if (i->value.type(state.values) == nAttrs) {
-                        auto j = state.VRtoVP(i->value)->attrs()->get(state.sRecurseForDerivations);
+                        auto j = i->value.attrs(state.values)->get(state.sRecurseForDerivations);
                         if (j
                             && state.forceBool(
                                 j->value, j->pos, "while evaluating the attribute `recurseForDerivations`"))

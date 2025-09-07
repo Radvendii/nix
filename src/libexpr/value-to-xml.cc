@@ -72,21 +72,21 @@ static void printValueAsXML(
     switch (v.type(state.values)) {
 
     case nInt:
-        doc.writeEmptyElement("int", singletonAttrs("value", fmt("%1%", state.VRtoV(v).integer())));
+        doc.writeEmptyElement("int", singletonAttrs("value", fmt("%1%", v.integer(state.values))));
         break;
 
     case nBool:
-        doc.writeEmptyElement("bool", singletonAttrs("value", state.VRtoV(v).boolean() ? "true" : "false"));
+        doc.writeEmptyElement("bool", singletonAttrs("value", v.boolean(state.values) ? "true" : "false"));
         break;
 
     case nString:
         /* !!! show the context? */
         copyContext(state, v, context);
-        doc.writeEmptyElement("string", singletonAttrs("value", state.VRtoV(v).c_str()));
+        doc.writeEmptyElement("string", singletonAttrs("value", v.c_str(state.values)));
         break;
 
     case nPath:
-        doc.writeEmptyElement("path", singletonAttrs("value", state.VRtoV(v).path().to_string()));
+        doc.writeEmptyElement("path", singletonAttrs("value", v.path(state.values).to_string()));
         break;
 
     case nNull:
@@ -98,31 +98,31 @@ static void printValueAsXML(
             XMLAttrs xmlAttrs;
 
             Path drvPath;
-            if (auto a = state.VRtoV(v).attrs()->get(state.sDrvPath)) {
+            if (auto a = v.attrs(state.values)->get(state.sDrvPath)) {
                 if (strict)
                     state.forceValue(a->value, a->pos);
                 if (a->value.type(state.values) == nString)
-                    xmlAttrs["drvPath"] = drvPath = state.VRtoVP(a->value)->c_str();
+                    xmlAttrs["drvPath"] = drvPath = a->value.c_str(state.values);
             }
 
-            if (auto a = state.VRtoV(v).attrs()->get(state.sOutPath)) {
+            if (auto a = v.attrs(state.values)->get(state.sOutPath)) {
                 if (strict)
                     state.forceValue(a->value, a->pos);
                 if (a->value.type(state.values) == nString)
-                    xmlAttrs["outPath"] = state.VRtoVP(a->value)->c_str();
+                    xmlAttrs["outPath"] = a->value.c_str(state.values);
             }
 
             XMLOpenElement _(doc, "derivation", xmlAttrs);
 
             if (drvPath != "" && drvsSeen.insert(drvPath).second)
-                showAttrs(state, strict, location, *state.VRtoV(v).attrs(), doc, context, drvsSeen);
+                showAttrs(state, strict, location, *v.attrs(state.values), doc, context, drvsSeen);
             else
                 doc.writeEmptyElement("repeated");
         }
 
         else {
             XMLOpenElement _(doc, "attrs");
-            showAttrs(state, strict, location, *state.VRtoV(v).attrs(), doc, context, drvsSeen);
+            showAttrs(state, strict, location, *v.attrs(state.values), doc, context, drvsSeen);
         }
 
         break;
@@ -142,30 +142,30 @@ static void printValueAsXML(
         }
         XMLAttrs xmlAttrs;
         if (location)
-            posToXML(state, xmlAttrs, state.positions[state.VRtoV(v).lambda().fun->pos]);
+            posToXML(state, xmlAttrs, state.positions[v.lambda(state.values).fun->pos]);
         XMLOpenElement _(doc, "function", xmlAttrs);
 
-        if (state.VRtoV(v).lambda().fun->hasFormals()) {
+        if (v.lambda(state.values).fun->hasFormals()) {
             XMLAttrs attrs;
-            if (state.VRtoV(v).lambda().fun->arg)
-                attrs["name"] = state.symbols[state.VRtoV(v).lambda().fun->arg];
-            if (state.VRtoV(v).lambda().fun->formals->ellipsis)
+            if (v.lambda(state.values).fun->arg)
+                attrs["name"] = state.symbols[v.lambda(state.values).fun->arg];
+            if (v.lambda(state.values).fun->formals->ellipsis)
                 attrs["ellipsis"] = "1";
             XMLOpenElement _(doc, "attrspat", attrs);
-            for (auto & i : state.VRtoV(v).lambda().fun->formals->lexicographicOrder(state.symbols))
+            for (auto & i : v.lambda(state.values).fun->formals->lexicographicOrder(state.symbols))
                 doc.writeEmptyElement("attr", singletonAttrs("name", state.symbols[i.name]));
         } else
-            doc.writeEmptyElement("varpat", singletonAttrs("name", state.symbols[state.VRtoV(v).lambda().fun->arg]));
+            doc.writeEmptyElement("varpat", singletonAttrs("name", state.symbols[v.lambda(state.values).fun->arg]));
 
         break;
     }
 
     case nExternal:
-        state.VRtoV(v).external()->printValueAsXML(state, strict, location, doc, context, drvsSeen, pos);
+        v.external(state.values)->printValueAsXML(state, strict, location, doc, context, drvsSeen, pos);
         break;
 
     case nFloat:
-        doc.writeEmptyElement("float", singletonAttrs("value", fmt("%1%", state.VRtoV(v).fpoint())));
+        doc.writeEmptyElement("float", singletonAttrs("value", fmt("%1%", v.fpoint(state.values))));
         break;
 
     case nThunk:

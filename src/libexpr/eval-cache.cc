@@ -21,7 +21,7 @@ void CachedEvalError::force()
     auto v = cursor->forceValue();
 
     if (v.type(cursor->root->state.values) == nAttrs) {
-        auto a = cursor->root->state.VRtoV(v).attrs()->get(this->attr);
+        auto a = v.attrs(cursor->root->state.values)->get(this->attr);
 
         state.forceValue(a->value, a->pos);
     }
@@ -343,7 +343,7 @@ ValueRef AttrCursor::getValue()
         if (parent) {
             auto vParent = parent->first->getValue();
             root->state.forceAttrs(vParent, noPos, "while searching for an attribute");
-            auto attr = root->state.VRtoV(vParent).attrs()->get(parent->second);
+            auto attr = vParent.attrs(root->state.values)->get(parent->second);
             if (!attr)
                 throw Error("attribute '%s' is unexpectedly missing", getAttrPathStr());
             _value = allocRootValue(attr->value);
@@ -405,14 +405,14 @@ ValueRef AttrCursor::forceValue()
 
     if (root->db && (!cachedValue || std::get_if<placeholder_t>(&cachedValue->second))) {
         if (v.type(root->state.values) == nString)
-            cachedValue = {root->db->setString(getKey(), root->state.VRtoV(v).c_str(), root->state.VRtoV(v).context()), string_t{root->state.VRtoV(v).c_str(), {}}};
+            cachedValue = {root->db->setString(getKey(), v.c_str(root->state.values), v.context(root->state.values)), string_t{v.c_str(root->state.values), {}}};
         else if (v.type(root->state.values) == nPath) {
-            auto path = root->state.VRtoV(v).path().path;
+            auto path = v.path(root->state.values).path;
             cachedValue = {root->db->setString(getKey(), path.abs()), string_t{path.abs(), {}}};
         } else if (v.type(root->state.values) == nBool)
-            cachedValue = {root->db->setBool(getKey(), root->state.VRtoV(v).boolean()), root->state.VRtoV(v).boolean()};
+            cachedValue = {root->db->setBool(getKey(), v.boolean(root->state.values)), v.boolean(root->state.values)};
         else if (v.type(root->state.values) == nInt)
-            cachedValue = {root->db->setInt(getKey(), root->state.VRtoV(v).integer().value), int_t{root->state.VRtoV(v).integer()}};
+            cachedValue = {root->db->setInt(getKey(), v.integer(root->state.values).value), int_t{v.integer(root->state.values)}};
         else if (v.type(root->state.values) == nAttrs)
             ; // FIXME: do something?
         else
@@ -468,7 +468,7 @@ std::shared_ptr<AttrCursor> AttrCursor::maybeGetAttr(SymbolRef name)
         return nullptr;
     // error<TypeError>("'%s' is not an attribute set", getAttrPathStr()).debugThrow();
 
-    auto attr = root->state.VRtoV(v).attrs()->get(name);
+    auto attr = v.attrs(root->state.values)->get(name);
 
     if (!attr) {
         if (root->db) {
@@ -540,7 +540,7 @@ std::string AttrCursor::getString()
     if (v.type(root->state.values) != nString && v.type(root->state.values) != nPath)
         root->state.error<TypeError>("'%s' is not a string but %s", getAttrPathStr(), showType(root->state, v)).debugThrow();
 
-    return v.type(root->state.values) == nString ? root->state.VRtoV(v).c_str() : root->state.VRtoV(v).path().to_string();
+    return v.type(root->state.values) == nString ? v.c_str(root->state.values) : v.path(root->state.values).to_string();
 }
 
 string_t AttrCursor::getStringWithContext()
@@ -579,9 +579,9 @@ string_t AttrCursor::getStringWithContext()
     if (v.type(root->state.values) == nString) {
         NixStringContext context;
         copyContext(root->state, v, context);
-        return {root->state.VRtoV(v).c_str(), std::move(context)};
+        return {v.c_str(root->state.values), std::move(context)};
     } else if (v.type(root->state.values) == nPath)
-        return {root->state.VRtoV(v).path().to_string(), {}};
+        return {v.path(root->state.values).to_string(), {}};
     else
         root->state.error<TypeError>("'%s' is not a string but %s", getAttrPathStr(), showType(root->state, v)).debugThrow();
 }
@@ -604,7 +604,7 @@ bool AttrCursor::getBool()
     if (v.type(root->state.values) != nBool)
         root->state.error<TypeError>("'%s' is not a Boolean", getAttrPathStr()).debugThrow();
 
-    return root->state.VRtoV(v).boolean();
+    return v.boolean(root->state.values);
 }
 
 NixInt AttrCursor::getInt()
@@ -625,7 +625,7 @@ NixInt AttrCursor::getInt()
     if (v.type(root->state.values) != nInt)
         root->state.error<TypeError>("'%s' is not an integer", getAttrPathStr()).debugThrow();
 
-    return root->state.VRtoV(v).integer();
+    return v.integer(root->state.values);
 }
 
 std::vector<std::string> AttrCursor::getListOfStrings()
@@ -680,7 +680,7 @@ std::vector<SymbolRef> AttrCursor::getAttrs()
         root->state.error<TypeError>("'%s' is not an attribute set", getAttrPathStr()).debugThrow();
 
     std::vector<SymbolRef> attrs;
-    for (auto & attr : *root->state.VRtoV(getValue()).attrs())
+    for (auto & attr : *getValue().attrs(root->state.values))
         attrs.push_back(attr.name);
     std::sort(attrs.begin(), attrs.end(), [&](SymbolRef a, SymbolRef b) {
         std::string_view sa = root->state.symbols[a], sb = root->state.symbols[b];

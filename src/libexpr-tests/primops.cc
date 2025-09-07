@@ -198,7 +198,7 @@ TEST_F(PrimOpTest, unsafeGetAttrPos)
     auto file = v.attrs()->find(createSymbol("file"));
     ASSERT_NE(file, nullptr);
     ASSERT_THAT(*state.VRtoVP(file->value), IsString());
-    auto s = baseNameOf(state.VRtoVP(file->value)->string_view());
+    auto s = baseNameOf(file->value.string_view(state.values));
     ASSERT_EQ(s, "foo.nix");
 
     auto line = v.attrs()->find(createSymbol("line"));

@@ -452,7 +452,7 @@ ref<eval_cache::EvalCache> openEvalCache(EvalState & state, std::shared_ptr<flak
 
         state.forceAttrs(vFlake, noPos, "while parsing cached flake data");
 
-        auto aOutputs = state.VRtoVP(vFlake)->attrs()->get(state.symbols.create("outputs"));
+        auto aOutputs = vFlake.attrs(state.values)->get(state.symbols.create("outputs"));
         assert(aOutputs);
 
         return aOutputs->value;

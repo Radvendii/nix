@@ -89,9 +89,9 @@ Env & EvalState::allocEnv(size_t size)
 void EvalState::forceValue(ValueRef v, const PosIdx pos)
 {
     if (v.isThunk(values)) {
-        Env * env = VRtoV(v).thunk().env;
+        Env * env = v.thunk(values).env;
         assert(env || v.isBlackhole(values));
-        Expr * expr = VRtoV(v).thunk().expr;
+        Expr * expr = v.thunk(values).expr;
         try {
             v.mkBlackhole(values);
             // checkInterrupt();
@@ -105,7 +105,7 @@ void EvalState::forceValue(ValueRef v, const PosIdx pos)
             throw;
         }
     } else if (v.isApp(values))
-        callFunction(VRtoV(v).app().left, VRtoV(v).app().right, v, pos);
+        callFunction(v.app(values).left, v.app(values).right, v, pos);
 }
 
 [[gnu::always_inline]]

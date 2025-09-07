@@ -184,11 +184,11 @@ TEST_P(AttrSetMergeTrvialExpressionTest, attrsetMergeLazy)
 
     ASSERT_THAT(*state.VRtoVP(a->value), IsAttrsOfSize(2));
 
-    auto b = state.VRtoVP(a->value)->attrs()->find(createSymbol("b"));
+    auto b = a->value.attrs(state.values)->find(createSymbol("b"));
     ASSERT_NE(b, nullptr);
     ASSERT_THAT(*state.VRtoVP(b->value), IsIntEq(1));
 
-    auto c = state.VRtoVP(a->value)->attrs()->find(createSymbol("c"));
+    auto c = a->value.attrs(state.values)->find(createSymbol("c"));
     ASSERT_NE(c, nullptr);
     ASSERT_THAT(*state.VRtoVP(c->value), IsIntEq(2));
 }
