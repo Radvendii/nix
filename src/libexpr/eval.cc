@@ -239,6 +239,13 @@ bool Value::isTrivial() const
                || (dynamic_cast<ExprAttrs *>(thunk().expr) && ((ExprAttrs *) thunk().expr)->dynamicAttrs.empty())
                || dynamic_cast<ExprLambda *>(thunk().expr) || dynamic_cast<ExprList *>(thunk().expr));
 }
+bool ValueRef::isTrivial(Values & values) const
+{
+    return !values.VRtoV(*this).isa<tApp, tPrimOpApp>()
+           && (!values.VRtoV(*this).isa<tThunk>()
+               || (dynamic_cast<ExprAttrs *>(values.VRtoV(*this).thunk().expr) && ((ExprAttrs *) values.VRtoV(*this).thunk().expr)->dynamicAttrs.empty())
+               || dynamic_cast<ExprLambda *>(values.VRtoV(*this).thunk().expr) || dynamic_cast<ExprList *>(values.VRtoV(*this).thunk().expr));
+}
 
 static SymbolRef getName(const AttrName & name, EvalState & state, Env & env)
 {

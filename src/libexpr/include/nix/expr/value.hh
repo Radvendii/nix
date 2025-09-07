@@ -136,6 +136,7 @@ class ValueRef {
     inline bool isLambda(Values & values) const;
     inline bool isPrimOp(Values & values) const;
     inline bool isPrimOpApp(Values & values) const;
+    bool isTrivial(Values & values) const;
 
     /**
      * Returns the normal type of a Value. This only returns nThunk if
