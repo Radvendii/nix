@@ -182,7 +182,7 @@ std::string showType(EvalState & state, const ValueRef v)
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch-enum"
-    switch (state.VRtoV(v).getInternalType()) {
+    switch (v.getInternalType(state.values)) {
     case tString:
         return v.context(state.values) ? "a string with context" : "a string";
     case tPrimOp:
@@ -223,7 +223,7 @@ PosIdx ValueRef::determinePos(Values & values, const PosIdx pos) const
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wswitch-enum"
-    switch (values.VRtoV(*this).getInternalType()) {
+    switch (getInternalType(values)) {
     case tAttrs:
         return attrs(values)->pos;
     case tLambda:
@@ -1169,6 +1169,10 @@ const char * ValueRef::pathStr(Values & values) const noexcept
 SourceAccessor * ValueRef::pathAccessor(Values & values) const noexcept
 {
     return values.VRtoV(*this).getStorage<detail::Path>().accessor;
+}
+InternalType ValueRef::getInternalType(Values & values) const noexcept
+{
+    return values.VRtoV(*this).internalType;
 }
 // XXX [speed]
 

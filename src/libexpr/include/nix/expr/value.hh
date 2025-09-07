@@ -202,6 +202,9 @@ class ValueRef {
     detail::FunctionApplicationThunk app(Values & values) const noexcept;
     const char * pathStr(Values & values) const noexcept;
     SourceAccessor * pathAccessor(Values & values) const noexcept;
+
+    /** Get internal type currently occupying the storage. */
+    InternalType getInternalType(Values & values) const noexcept;
 };
 
 /**
@@ -472,6 +475,7 @@ protected:
     {
         return internalType;
     }
+    friend class ValueRef;
 };
 
 /**
@@ -1132,7 +1136,7 @@ inline bool ValueRef::isPrimOpApp(Values & values) const
  */
 inline ValueType ValueRef::type(Values & values, bool invalidIsThunk) const
 {
-    switch (values.VRtoV(*this).getInternalType()) {
+    switch (getInternalType(values)) {
     case tUninitialized:
         break;
     case tInt:
