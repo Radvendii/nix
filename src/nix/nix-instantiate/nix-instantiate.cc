@@ -42,10 +42,10 @@ void processExpr(
     }
 
     Value vRoot;
-    state.eval(e, state.VPtoVR(&vRoot));
+    state.eval(e, vRoot.ref(state.values));
 
     for (auto & i : attrPaths) {
-        ValueRef v(findAlongAttrPath(state, i, autoArgs, state.VPtoVR(&vRoot)).first);
+        ValueRef v(findAlongAttrPath(state, i, autoArgs, vRoot.ref(state.values)).first);
         state.forceValue(v, v.determinePos(state.values, noPos));
 
         NixStringContext context;
@@ -54,21 +54,21 @@ void processExpr(
             if (autoArgs.empty())
                 vRes = v.toStack(state.values);
             else
-                state.autoCallFunction(autoArgs, v, state.VPtoVR(&vRes));
+                state.autoCallFunction(autoArgs, v, vRes.ref(state.values));
             if (output == okRaw)
-                std::cout << *state.coerceToString(noPos, state.VPtoVR(&vRes), context, "while generating the nix-instantiate output");
+                std::cout << *state.coerceToString(noPos, vRes.ref(state.values), context, "while generating the nix-instantiate output");
             // We intentionally don't output a newline here. The default PS1 for Bash in NixOS starts with a newline
             // and other interactive shells like Zsh are smart enough to print a missing newline before the prompt.
             else if (output == okXML)
-                printValueAsXML(state, strict, location, state.VPtoVR(&vRes), std::cout, context, noPos);
+                printValueAsXML(state, strict, location, vRes.ref(state.values), std::cout, context, noPos);
             else if (output == okJSON) {
-                printValueAsJSON(state, strict, state.VPtoVR(&vRes), v.determinePos(state.values, noPos), std::cout, context);
+                printValueAsJSON(state, strict, vRes.ref(state.values), v.determinePos(state.values, noPos), std::cout, context);
                 std::cout << std::endl;
             } else {
                 if (strict)
-                    state.forceValueDeep(state.VPtoVR(&vRes));
+                    state.forceValueDeep(vRes.ref(state.values));
                 std::set<size_t> seen;
-                printAmbiguous(state, state.VPtoVR(&vRes), state.symbols, std::cout, &seen, std::numeric_limits<int>::max());
+                printAmbiguous(state, vRes.ref(state.values), state.symbols, std::cout, &seen, std::numeric_limits<int>::max());
                 std::cout << std::endl;
             }
         } else {

@@ -177,9 +177,9 @@ static void loadDerivations(
     PackageInfos & elems)
 {
     Value vRoot;
-    loadSourceExpr(state, nixExprPath, state.VPtoVR(&vRoot));
+    loadSourceExpr(state, nixExprPath, vRoot.ref(state.values));
 
-    ValueRef v(findAlongAttrPath(state, pathPrefix, autoArgs, state.VPtoVR(&vRoot)).first);
+    ValueRef v(findAlongAttrPath(state, pathPrefix, autoArgs, vRoot.ref(state.values)).first);
 
     getDerivations(state, v, pathPrefix, autoArgs, elems, true);
 
@@ -394,14 +394,14 @@ static void queryInstSources(
     case srcNixExprs: {
 
         Value vArg;
-        loadSourceExpr(state, *instSource.nixExprPath, state.VPtoVR(&vArg));
+        loadSourceExpr(state, *instSource.nixExprPath, vArg.ref(state.values));
 
         for (auto & i : args) {
             Expr * eFun = state.parseExprFromString(i, state.rootPath("."));
             Value vFun, vTmp;
-            state.eval(eFun, state.VPtoVR(&vFun));
-            vTmp.mkApp(state.VPtoVR(&vFun), state.VPtoVR(&vArg));
-            getDerivations(state, state.VPtoVR(&vTmp), "", *instSource.autoArgs, elems, true);
+            state.eval(eFun, vFun.ref(state.values));
+            vTmp.mkApp(vFun.ref(state.values), vArg.ref(state.values));
+            getDerivations(state, vTmp.ref(state.values), "", *instSource.autoArgs, elems, true);
         }
 
         break;
@@ -446,9 +446,9 @@ static void queryInstSources(
 
     case srcAttrPath: {
         Value vRoot;
-        loadSourceExpr(state, *instSource.nixExprPath, state.VPtoVR(&vRoot));
+        loadSourceExpr(state, *instSource.nixExprPath, vRoot.ref(state.values));
         for (auto & i : args) {
-            ValueRef v(findAlongAttrPath(state, i, *instSource.autoArgs, state.VPtoVR(&vRoot)).first);
+            ValueRef v(findAlongAttrPath(state, i, *instSource.autoArgs, vRoot.ref(state.values)).first);
             getDerivations(state, v, "", *instSource.autoArgs, elems, true);
         }
         break;

@@ -260,7 +260,7 @@ void SourceExprCommand::completeInstallable(AddCompletions & completions, std::s
             auto e = state->parseExprFromFile(resolveExprPath(lookupFileArg(*state, *file)));
 
             Value root;
-            state->eval(e, state->VPtoVR(&root));
+            state->eval(e, root.ref(state->values));
 
             auto autoArgs = getAutoArgs(*state);
 
@@ -275,10 +275,10 @@ void SourceExprCommand::completeInstallable(AddCompletions & completions, std::s
                 prefix_ = "";
             }
 
-            auto [v1, pos] = findAlongAttrPath(*state, prefix_, *autoArgs, state->VPtoVR(&root));
+            auto [v1, pos] = findAlongAttrPath(*state, prefix_, *autoArgs, root.ref(state->values));
             state->forceValue(v1, pos);
             Value v2;
-            state->autoCallFunction(*autoArgs, v1, state->VPtoVR(&v2));
+            state->autoCallFunction(*autoArgs, v1, v2.ref(state->values));
 
             if (v2.type() == nAttrs) {
                 for (auto & i : *v2.attrs()) {

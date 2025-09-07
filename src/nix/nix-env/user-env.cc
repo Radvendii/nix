@@ -23,9 +23,9 @@ PackageInfos queryInstalled(EvalState & state, const Path & userEnv)
     auto manifestFile = userEnv + "/manifest.nix";
     if (pathExists(manifestFile)) {
         Value v;
-        state.evalFile(state.rootPath(CanonPath(manifestFile)).resolveSymlinks(), state.VPtoVR(&v));
+        state.evalFile(state.rootPath(CanonPath(manifestFile)).resolveSymlinks(), v.ref(state.values));
         Bindings & bindings(*state.allocBindings(0));
-        getDerivations(state, state.VPtoVR(&v), "", bindings, elems, false);
+        getDerivations(state, v.ref(state.values), "", bindings, elems, false);
     }
     return elems;
 }
@@ -107,7 +107,7 @@ bool createUserEnv(
        environment. */
     auto manifestFile = ({
         std::ostringstream str;
-        printAmbiguous(state, state.VPtoVR(&manifest), state.symbols, str, nullptr, std::numeric_limits<int>::max());
+        printAmbiguous(state, manifest.ref(state.values), state.symbols, str, nullptr, std::numeric_limits<int>::max());
         StringSource source{toView(str)};
         state.store->addToStoreFromDump(
             source,
@@ -124,22 +124,22 @@ bool createUserEnv(
         state.parseExprFromString(
 #include "buildenv.nix.gen.hh"
             , state.rootPath(CanonPath::root)),
-        state.VPtoVR(&envBuilder));
+        envBuilder.ref(state.values));
 
     /* Construct a Nix expression that calls the user environment
        builder with the manifest as argument. */
     auto attrs = state.buildBindings(3);
     state.mkStorePathString(manifestFile, attrs.alloc("manifest"));
-    attrs.insert(state.symbols.create("derivations"), state.VPtoVR(&manifest));
+    attrs.insert(state.symbols.create("derivations"), manifest.ref(state.values));
     Value args;
     args.mkAttrs(attrs);
 
     Value topLevel;
-    topLevel.mkApp(state.VPtoVR(&envBuilder), state.VPtoVR(&args));
+    topLevel.mkApp(envBuilder.ref(state.values), args.ref(state.values));
 
     /* Evaluate it. */
     debug("evaluating user environment builder");
-    state.forceValue(state.VPtoVR(&topLevel), topLevel.determinePos(state.values, noPos));
+    state.forceValue(topLevel.ref(state.values), topLevel.determinePos(state.values, noPos));
     NixStringContext context;
     auto & aDrvPath(*topLevel.attrs()->find(state.sDrvPath));
     auto topLevelDrv = state.coerceToStorePath(aDrvPath.pos, aDrvPath.value, context, "");

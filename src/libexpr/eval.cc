@@ -140,7 +140,7 @@ Symbol SymbolTable::operator[](SymbolRef ref) const
 
 void Value::print(EvalState & state, std::ostream & str, PrintOptions options)
 {
-    printValue(state, str, state.VPtoVR(this), options);
+    printValue(state, str, this->ref(state.values), options);
 }
 void ValueRef::print(EvalState & state, std::ostream & str, PrintOptions options)
 {
@@ -257,8 +257,8 @@ static SymbolRef getName(const AttrName & name, EvalState & state, Env & env)
         return name.symbol;
     } else {
         Value nameValue;
-        name.expr->eval(state, env, state.VPtoVR(&nameValue));
-        state.forceStringNoCtx(state.VPtoVR(&nameValue), name.expr->getPos(), "while evaluating an attribute name");
+        name.expr->eval(state, env, nameValue.ref(state.values));
+        state.forceStringNoCtx(nameValue.ref(state.values), name.expr->getPos(), "while evaluating an attribute name");
         return state.symbols.create(nameValue.string_view());
     }
 }
@@ -758,9 +758,9 @@ std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
             // So preferably we show docs that are relevant to the
             // "partially applied" function returned by e.g. `const`.
             // We apply the first argument:
-            callFunction(functor, vp, VPtoVR(&partiallyApplied), noPos);
+            callFunction(functor, vp, partiallyApplied.ref(values), noPos);
             auto _level = addCallDepth(noPos);
-            return getDoc(VPtoVR(&partiallyApplied));
+            return getDoc(partiallyApplied.ref(values));
         } catch (Error & e) {
             e.addTrace(nullptr, "while partially calling '%1%' to retrieve documentation", "__functor");
             throw;
@@ -1442,10 +1442,10 @@ inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::stri
 {
     try {
         Value v;
-        e->eval(*this, env, VPtoVR(&v));
+        e->eval(*this, env, v.ref(values));
         if (v.type() != nBool)
             error<TypeError>(
-                "expected a Boolean but found %1%: %2%", showType(*this, VPtoVR(&v)), ValuePrinter(*this, VPtoVR(&v), errorPrintOptions))
+                "expected a Boolean but found %1%: %2%", showType(*this, v.ref(values)), ValuePrinter(*this, v.ref(values), errorPrintOptions))
                 .atPos(pos)
                 .withFrame(env, *e)
                 .debugThrow();
@@ -1577,11 +1577,11 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
     /* Dynamic attrs apply *after* rec and __overrides. */
     for (auto & i : dynamicAttrs) {
         Value nameVal;
-        i.nameExpr->eval(state, *dynamicEnv, state.VPtoVR(&nameVal));
-        state.forceValue(state.VPtoVR(&nameVal), i.pos);
+        i.nameExpr->eval(state, *dynamicEnv, nameVal.ref(state.values));
+        state.forceValue(nameVal.ref(state.values), i.pos);
         if (nameVal.type() == nNull)
             continue;
-        state.forceStringNoCtx(state.VPtoVR(&nameVal), i.pos, "while evaluating the name of a dynamic attribute");
+        state.forceStringNoCtx(nameVal.ref(state.values), i.pos, "while evaluating the name of a dynamic attribute");
         auto nameSym = state.symbols.create(nameVal.string_view());
         if (sort)
             // FIXME: inefficient
@@ -1677,9 +1677,9 @@ void ExprSelect::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value vTmp;
     PosIdx pos2;
-    ValueRef vAttrs = state.VPtoVR(&vTmp);
+    ValueRef vAttrs = vTmp.ref(state.values);
 
-    e->eval(state, env, state.VPtoVR(&vTmp));
+    e->eval(state, env, vTmp.ref(state.values));
 
     try {
         auto dts = state.debugRepl ? makeDebugTraceStacker(
@@ -1743,11 +1743,11 @@ SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, ValueR
     SymbolRef name = getName(attrPath[attrPath.size() - 1], state, env);
 
     if (attrPath.size() == 1) {
-        e->eval(state, env, state.VPtoVR(&vTmp));
+        e->eval(state, env, vTmp.ref(state.values));
     } else {
         ExprSelect init(*this);
         init.attrPath.pop_back();
-        init.eval(state, env, state.VPtoVR(&vTmp));
+        init.eval(state, env, vTmp.ref(state.values));
     }
     attrs.setFromStack(state.values, vTmp);
     return name;
@@ -1756,9 +1756,9 @@ SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, ValueR
 void ExprOpHasAttr::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value vTmp;
-    ValueRef vAttrs = state.VPtoVR(&vTmp);
+    ValueRef vAttrs = vTmp.ref(state.values);
 
-    e->eval(state, env, state.VPtoVR(&vTmp));
+    e->eval(state, env, vTmp.ref(state.values));
 
     for (auto & i : attrPath) {
         state.forceValue(vAttrs, getPos());
@@ -1899,7 +1899,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                                      lambda.name ? concatStrings("'", symbols[lambda.name], "'") : "anonymous lambda")
                                : nullptr;
 
-                lambda.body->eval(*this, env2, VPtoVR(&vCur));
+                lambda.body->eval(*this, env2, vCur.ref(values));
             } catch (Error & e) {
                 if (loggerSettings.showTrace.get()) {
                     addErrorTrace(
@@ -1933,7 +1933,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                     primOpCalls[fn->name]++;
 
                 try {
-                    fn->fun(*this, vCur.determinePos(values, noPos), args.data(), VPtoVR(&vCur));
+                    fn->fun(*this, vCur.determinePos(values, noPos), args.data(), vCur.ref(values));
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
@@ -1947,7 +1947,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
         else if (vCur.isPrimOpApp()) {
             /* Figure out the number of arguments still needed. */
             size_t argsDone = 0;
-            ValueRef primOp = VPtoVR(&vCur);
+            ValueRef primOp = vCur.ref(values);
             while (primOp.isPrimOpApp(values)) {
                 argsDone++;
                 primOp = primOp.primOpApp(values).left;
@@ -1966,7 +1966,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
                 ValueRef vArgs[maxPrimOpArity];
                 auto n = argsDone;
-                for (ValueRef arg = VPtoVR(&vCur); arg.isPrimOpApp(values); arg = arg.primOpApp(values).left)
+                for (ValueRef arg = vCur.ref(values); arg.isPrimOpApp(values); arg = arg.primOpApp(values).left)
                     vArgs[--n] = arg.primOpApp(values).right;
 
                 for (size_t i = 0; i < argsLeft; ++i)
@@ -1983,7 +1983,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                     // 2. Create a fake env (arg1, arg2, etc.) and a fake expr (arg1: arg2: etc: builtins.name arg1 arg2
                     // etc)
                     //    so the debugger allows to inspect the wrong parameters passed to the builtin.
-                    fn->fun(*this, vCur.determinePos(values, noPos), vArgs, VPtoVR(&vCur));
+                    fn->fun(*this, vCur.determinePos(values, noPos), vArgs, vCur.ref(values));
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
@@ -2001,7 +2001,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
             ValueRef args2[] = {allocValue(), args[0]};
             args2[0].setFromStack(values, vCur);
             try {
-                callFunction(functor->value, args2, VPtoVR(&vCur), functor->pos);
+                callFunction(functor->value, args2, vCur.ref(values), functor->pos);
             } catch (Error & e) {
                 e.addTrace(positions[pos], "while calling a functor (an attribute set with a '__functor' attribute)");
                 throw;
@@ -2012,8 +2012,8 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
         else
             error<TypeError>(
                 "attempt to call something which is not a function but %1%: %2%",
-                showType(*this, VPtoVR(&vCur)),
-                ValuePrinter(*this, VPtoVR(&vCur), errorPrintOptions))
+                showType(*this, vCur.ref(values)),
+                ValuePrinter(*this, vCur.ref(values), errorPrintOptions))
                 .atPos(pos)
                 .debugThrow();
     }
@@ -2027,7 +2027,7 @@ void ExprCall::eval(EvalState & state, Env & env, ValueRef v)
         state.debugRepl ? makeDebugTraceStacker(state, *this, env, getPos(), "while calling a function") : nullptr;
 
     Value vFun;
-    fun->eval(state, env, state.VPtoVR(&vFun));
+    fun->eval(state, env, vFun.ref(state.values));
 
     // Empirical arity of Nixpkgs lambdas by regex e.g. ([a-zA-Z]+:(\s|(/\*.*\/)|(#.*\n))*){5}
     // 2: over 4000
@@ -2039,7 +2039,7 @@ void ExprCall::eval(EvalState & state, Env & env, ValueRef v)
     for (size_t i = 0; i < args.size(); ++i)
         vArgs[i] = args[i]->maybeThunk(state, env);
 
-    state.callFunction(state.VPtoVR(&vFun), vArgs, v, pos);
+    state.callFunction(vFun.ref(state.values), vArgs, v, pos);
 }
 
 // Lifted out of callFunction() because it creates a temporary that
@@ -2129,10 +2129,10 @@ void ExprAssert::eval(EvalState & state, Env & env, ValueRef v)
         if (auto eq = dynamic_cast<ExprOpEq *>(cond)) {
             try {
                 Value v1;
-                eq->e1->eval(state, env, state.VPtoVR(&v1));
+                eq->e1->eval(state, env, v1.ref(state.values));
                 Value v2;
-                eq->e2->eval(state, env, state.VPtoVR(&v2));
-                state.assertEqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), eq->pos, "in an equality assertion");
+                eq->e2->eval(state, env, v2.ref(state.values));
+                state.assertEqValues(v1.ref(state.values), v2.ref(state.values), eq->pos, "in an equality assertion");
             } catch (AssertionError & e) {
                 e.addTrace(state.positions[pos], "while evaluating the condition of the assertion '%s'", exprStr);
                 throw;
@@ -2152,19 +2152,19 @@ void ExprOpNot::eval(EvalState & state, Env & env, ValueRef v)
 void ExprOpEq::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value v1;
-    e1->eval(state, env, state.VPtoVR(&v1));
+    e1->eval(state, env, v1.ref(state.values));
     Value v2;
-    e2->eval(state, env, state.VPtoVR(&v2));
-    v.mkBool(state.values, state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for equality"));
+    e2->eval(state, env, v2.ref(state.values));
+    v.mkBool(state.values, state.eqValues(v1.ref(state.values), v2.ref(state.values), pos, "while testing two values for equality"));
 }
 
 void ExprOpNEq::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value v1;
-    e1->eval(state, env, state.VPtoVR(&v1));
+    e1->eval(state, env, v1.ref(state.values));
     Value v2;
-    e2->eval(state, env, state.VPtoVR(&v2));
-    v.mkBool(state.values, !state.eqValues(state.VPtoVR(&v1), state.VPtoVR(&v2), pos, "while testing two values for inequality"));
+    e2->eval(state, env, v2.ref(state.values));
+    v.mkBool(state.values, !state.eqValues(v1.ref(state.values), v2.ref(state.values), pos, "while testing two values for inequality"));
 }
 
 void ExprOpAnd::eval(EvalState & state, Env & env, ValueRef v)
@@ -2192,8 +2192,8 @@ void ExprOpImpl::eval(EvalState & state, Env & env, ValueRef v)
 void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value v1, v2;
-    state.evalAttrs(env, e1, state.VPtoVR(&v1), pos, "in the left operand of the update (//) operator");
-    state.evalAttrs(env, e2, state.VPtoVR(&v2), pos, "in the right operand of the update (//) operator");
+    state.evalAttrs(env, e1, v1.ref(state.values), pos, "in the left operand of the update (//) operator");
+    state.evalAttrs(env, e2, v2.ref(state.values), pos, "in the right operand of the update (//) operator");
 
     state.nrOpUpdates++;
 
@@ -2237,10 +2237,10 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
 void ExprOpConcatLists::eval(EvalState & state, Env & env, ValueRef v)
 {
     Value v1;
-    e1->eval(state, env, state.VPtoVR(&v1));
+    e1->eval(state, env, v1.ref(state.values));
     Value v2;
-    e2->eval(state, env, state.VPtoVR(&v2));
-    ValueRef lists[2] = {state.VPtoVR(&v1), state.VPtoVR(&v2)};
+    e2->eval(state, env, v2.ref(state.values));
+    ValueRef lists[2] = {v1.ref(state.values), v2.ref(state.values)};
     state.concatLists(v, 2, lists, pos, "while evaluating one of the elements to concatenate");
 }
 
@@ -2311,7 +2311,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, ValueRef v)
     for (auto & [i_pos, i] : *es) {
         Value vTmp;
 
-        i->eval(state, env, state.VPtoVR(&vTmp));
+        i->eval(state, env, vTmp.ref(state.values));
 
         /* If the first element is a path, then the result will also
            be a path, we don't copy anything (yet - that's done later,
@@ -2337,7 +2337,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, ValueRef v)
                 nf = n.value;
                 nf += vTmp.fpoint();
             } else
-                state.error<EvalError>("cannot add %1% to an integer", showType(state, state.VPtoVR(&vTmp)))
+                state.error<EvalError>("cannot add %1% to an integer", showType(state, vTmp.ref(state.values)))
                     .atPos(i_pos)
                     .withFrame(env, *this)
                     .debugThrow();
@@ -2347,7 +2347,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, ValueRef v)
             } else if (vTmp.type() == nFloat) {
                 nf += vTmp.fpoint();
             } else
-                state.error<EvalError>("cannot add %1% to a float", showType(state, state.VPtoVR(&vTmp)))
+                state.error<EvalError>("cannot add %1% to a float", showType(state, vTmp.ref(state.values)))
                     .atPos(i_pos)
                     .withFrame(env, *this)
                     .debugThrow();
@@ -2358,7 +2358,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, ValueRef v)
             canonized in the first place if it's coming from a ./${foo} type
             path */
             auto part = state.coerceToString(
-                i_pos, state.VPtoVR(&vTmp), context, "while evaluating a path segment", false, firstType == nString, !first);
+                i_pos, vTmp.ref(state.values), context, "while evaluating a path segment", false, firstType == nString, !first);
             sSize += part->size();
             s.emplace_back(std::move(part));
         }
@@ -2602,10 +2602,10 @@ EvalState::tryAttrsToString(const PosIdx pos, ValueRef v, NixStringContext & con
     auto i = v.attrs(values)->find(sToString);
     if (i != v.attrs(values)->end()) {
         Value v1;
-        callFunction(i->value, v, VPtoVR(&v1), pos);
+        callFunction(i->value, v, v1.ref(values), pos);
         return coerceToString(
                    pos,
-                   VPtoVR(&v1),
+                   v1.ref(values),
                    context,
                    "while evaluating the result of the `__toString` attribute",
                    coerceMore,
@@ -2755,8 +2755,8 @@ SourcePath EvalState::coerceToPath(const PosIdx pos, ValueRef v, NixStringContex
         auto i = v.attrs(values)->find(sToString);
         if (i != v.attrs(values)->end()) {
             Value v1;
-            callFunction(i->value, v, VPtoVR(&v1), pos);
-            return coerceToPath(pos, VPtoVR(&v1), context, errorCtx);
+            callFunction(i->value, v, v1.ref(values), pos);
+            return coerceToPath(pos, v1.ref(values), context, errorCtx);
         }
     }
 

@@ -29,30 +29,7 @@ inline void * allocBytes(size_t n)
 ValueRef EvalState::allocValue()
 {
     nrValues++;
-    return VPtoVR(&values.values.emplace_back());
-    // return values.size() - 1;
-// #if NIX_USE_BOEHMGC
-//     /* We use the boehm batch allocator to speed up allocations of Values (of which there are many).
-//        GC_malloc_many returns a linked list of objects of the given size, where the first word
-//        of each object is also the pointer to the next object in the list. This also means that we
-//        have to explicitly clear the first word of every object we take. */
-//     if (!*valueAllocCache) {
-//         *valueAllocCache = GC_malloc_many(sizeof(Value));
-//         if (!*valueAllocCache)
-//             throw std::bad_alloc();
-//     }
-
-//     /* GC_NEXT is a convenience macro for accessing the first word of an object.
-//        Take the first list item, advance the list to the next item, and clear the next pointer. */
-//     void * p = *valueAllocCache;
-//     *valueAllocCache = GC_NEXT(p);
-//     GC_NEXT(p) = nullptr;
-// #else
-//     void * p = allocBytes(sizeof(Value));
-// #endif
-
-//     nrValues++;
-//     return (Value *) p;
+    return values.create();
 }
 
 [[gnu::always_inline]]

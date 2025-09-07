@@ -439,10 +439,6 @@ public:
         std::shared_ptr<Store> buildStore = nullptr);
     ~EvalState();
 
-    ValueRef VPtoVR(Value *v) {
-        return values.VPtoVR(v);
-    }
-
     LookupPath getLookupPath()
     {
         return lookupPath;

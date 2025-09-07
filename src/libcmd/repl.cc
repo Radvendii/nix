@@ -287,9 +287,9 @@ StringSet NixRepl::completePrefix(const std::string & prefix)
 
             Expr * e = parseString(expr);
             Value v;
-            e->eval(*state, *env, state->VPtoVR(&v));
+            e->eval(*state, *env, v.ref(state->values));
             state->forceAttrs(
-                state->VPtoVR(&v),
+                v.ref(state->values),
                 noPos,
                 "while evaluating an attrset for the purpose of completion (this error should not be displayed; file an issue?)");
 
@@ -466,8 +466,8 @@ ProcessLineResult NixRepl::processLine(std::string line)
 
     else if (command == ":a" || command == ":add") {
         Value v;
-        evalString(arg, state->VPtoVR(&v));
-        addAttrsToScope(state->VPtoVR(&v));
+        evalString(arg, v.ref(state->values));
+        addAttrsToScope(v.ref(state->values));
     }
 
     else if (command == ":l" || command == ":load") {
@@ -490,14 +490,14 @@ ProcessLineResult NixRepl::processLine(std::string line)
 
     else if (command == ":e" || command == ":edit") {
         Value v;
-        evalString(arg, state->VPtoVR(&v));
+        evalString(arg, v.ref(state->values));
 
         const auto [path, line] = [&]() -> std::pair<SourcePath, uint32_t> {
             if (v.type() == nPath || v.type() == nString) {
                 NixStringContext context;
-                auto path = state->coerceToPath(noPos, state->VPtoVR(&v), context, "while evaluating the filename to edit");
+                auto path = state->coerceToPath(noPos, v.ref(state->values), context, "while evaluating the filename to edit");
                 return {path, 0};
-            } else if (state->VPtoVR(&v).isLambda(state->values)) {
+            } else if (v.ref(state->values).isLambda(state->values)) {
                 auto pos = state->positions[v.lambda().fun->pos];
                 if (auto path = std::get_if<SourcePath>(&pos.origin))
                     return {*path, pos.line};
@@ -505,7 +505,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
                     throw Error("'%s' cannot be shown in an editor", pos);
             } else {
                 // assume it's a derivation
-                return findPackageFilename(*state, state->VPtoVR(&v), arg);
+                return findPackageFilename(*state, v.ref(state->values), arg);
             }
         }();
 
@@ -525,24 +525,24 @@ ProcessLineResult NixRepl::processLine(std::string line)
 
     else if (command == ":t") {
         Value v;
-        evalString(arg, state->VPtoVR(&v));
-        logger->cout(showType(*state, state->VPtoVR(&v)));
+        evalString(arg, v.ref(state->values));
+        logger->cout(showType(*state, v.ref(state->values)));
     }
 
     else if (command == ":u") {
         Value v, f, result;
-        evalString(arg, state->VPtoVR(&v));
-        evalString("drv: (import <nixpkgs> {}).runCommand \"shell\" { buildInputs = [ drv ]; } \"\"", state->VPtoVR(&f));
-        state->callFunction(state->VPtoVR(&f), state->VPtoVR(&v), state->VPtoVR(&result), PosIdx());
+        evalString(arg, v.ref(state->values));
+        evalString("drv: (import <nixpkgs> {}).runCommand \"shell\" { buildInputs = [ drv ]; } \"\"", f.ref(state->values));
+        state->callFunction(f.ref(state->values), v.ref(state->values), result.ref(state->values), PosIdx());
 
-        StorePath drvPath = getDerivationPath(state->VPtoVR(&result));
+        StorePath drvPath = getDerivationPath(result.ref(state->values));
         runNix("nix-shell", {state->store->printStorePath(drvPath)});
     }
 
     else if (command == ":b" || command == ":bl" || command == ":i" || command == ":sh" || command == ":log") {
         Value v;
-        evalString(arg, state->VPtoVR(&v));
-        StorePath drvPath = getDerivationPath(state->VPtoVR(&v));
+        evalString(arg, v.ref(state->values));
+        StorePath drvPath = getDerivationPath(v.ref(state->values));
         Path drvPathRaw = state->store->printStorePath(drvPath);
 
         if (command == ":b" || command == ":bl") {
@@ -600,12 +600,12 @@ ProcessLineResult NixRepl::processLine(std::string line)
 
     else if (command == ":p" || command == ":print") {
         Value v;
-        evalString(arg, state->VPtoVR(&v));
+        evalString(arg, v.ref(state->values));
         auto suspension = logger->suspend();
         if (v.type() == nString) {
             std::cout << v.string_view();
         } else {
-            printValue(std::cout, state->VPtoVR(&v));
+            printValue(std::cout, v.ref(state->values));
         }
         std::cout << std::endl;
     }
@@ -624,10 +624,10 @@ ProcessLineResult NixRepl::processLine(std::string line)
         DocComment fallbackDoc;
         if (auto select = dynamic_cast<ExprSelect *>(expr)) {
             Value vAttrs;
-            auto name = select->evalExceptFinalSelect(*state, *env, state->VPtoVR(&vAttrs));
+            auto name = select->evalExceptFinalSelect(*state, *env, vAttrs.ref(state->values));
             fallbackName = state->symbols[name];
 
-            state->forceAttrs(state->VPtoVR(&vAttrs), noPos, "while evaluating an attribute set to look for documentation");
+            state->forceAttrs(vAttrs.ref(state->values), noPos, "while evaluating an attribute set to look for documentation");
             auto attrs = vAttrs.attrs();
             assert(attrs);
             auto attr = attrs->get(name);
@@ -637,7 +637,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
                 // behaves like
                 // nix-repl> builtins.foo<tab>
                 // error: attribute 'foo' missing
-                evalString(arg, state->VPtoVR(&v));
+                evalString(arg, v.ref(state->values));
                 assert(false);
             }
             if (attr->pos) {
@@ -646,8 +646,8 @@ ProcessLineResult NixRepl::processLine(std::string line)
             }
         }
 
-        evalString(arg, state->VPtoVR(&v));
-        if (auto doc = state->getDoc(state->VPtoVR(&v))) {
+        evalString(arg, v.ref(state->values));
+        if (auto doc = state->getDoc(v.ref(state->values))) {
             std::string markdown;
 
             if (!doc->args.empty() && doc->name) {
@@ -705,9 +705,9 @@ ProcessLineResult NixRepl::processLine(std::string line)
             addVarToScope(state->symbols.create(name), v);
         } else {
             Value v;
-            evalString(line, state->VPtoVR(&v));
+            evalString(line, v.ref(state->values));
             auto suspension = logger->suspend();
-            printValue(std::cout, state->VPtoVR(&v), 1);
+            printValue(std::cout, v.ref(state->values), 1);
             std::cout << std::endl;
         }
     }
@@ -720,9 +720,9 @@ void NixRepl::loadFile(const Path & path)
     loadedFiles.remove(path);
     loadedFiles.push_back(path);
     Value v, v2;
-    state->evalFile(lookupFileArg(*state, path), state->VPtoVR(&v));
-    state->autoCallFunction(*autoArgs, state->VPtoVR(&v), state->VPtoVR(&v2));
-    addAttrsToScope(state->VPtoVR(&v2));
+    state->evalFile(lookupFileArg(*state, path), v.ref(state->values));
+    state->autoCallFunction(*autoArgs, v.ref(state->values), v2.ref(state->values));
+    addAttrsToScope(v2.ref(state->values));
 }
 
 void NixRepl::loadFlake(const std::string & flakeRefS)
@@ -757,8 +757,8 @@ void NixRepl::loadFlake(const std::string & flakeRefS)
                 .useRegistries = !evalSettings.pureEval,
                 .allowUnlocked = !evalSettings.pureEval,
             }),
-        state->VPtoVR(&v));
-    addAttrsToScope(state->VPtoVR(&v));
+        v.ref(state->values));
+    addAttrsToScope(v.ref(state->values));
 }
 
 void NixRepl::initEnv()

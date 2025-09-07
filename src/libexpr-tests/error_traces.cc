@@ -58,7 +58,7 @@ TEST_F(ErrorTraceTest, NestedThrows)
     ASSERT_THROW(                                                                                                  \
         std::string expr(args); std::string name = expr.substr(0, expr.find(" ")); try {                           \
             Value v = eval("builtins." args);                                                                      \
-            state.forceValueDeep(state.VPtoVR(&v));                                                                \
+            state.forceValueDeep(v.ref(state.values));                                                             \
         } catch (BaseError & e) {                                                                                  \
             ASSERT_EQ(PrintToString(e.info().msg), PrintToString(message));                                        \
             ASSERT_EQ(e.info().traces.size(), 1u) << "while testing " args << std::endl << e.what();               \
@@ -72,7 +72,7 @@ TEST_F(ErrorTraceTest, NestedThrows)
     ASSERT_THROW(                                                                                                  \
         std::string expr(args); std::string name = expr.substr(0, expr.find(" ")); try {                           \
             Value v = eval("builtins." args);                                                                      \
-            state.forceValueDeep(state.VPtoVR(&v));                                                                \
+            state.forceValueDeep(v.ref(state.values));                                                             \
         } catch (BaseError & e) {                                                                                  \
             ASSERT_EQ(PrintToString(e.info().msg), PrintToString(message));                                        \
             ASSERT_EQ(e.info().traces.size(), 2u) << "while testing " args << std::endl << e.what();               \
@@ -88,7 +88,7 @@ TEST_F(ErrorTraceTest, NestedThrows)
     ASSERT_THROW(                                                                                                  \
         std::string expr(args); std::string name = expr.substr(0, expr.find(" ")); try {                           \
             Value v = eval("builtins." args);                                                                      \
-            state.forceValueDeep(state.VPtoVR(&v));                                                                \
+            state.forceValueDeep(v.ref(state.values));                                                             \
         } catch (BaseError & e) {                                                                                  \
             ASSERT_EQ(PrintToString(e.info().msg), PrintToString(message));                                        \
             ASSERT_EQ(e.info().traces.size(), 3u) << "while testing " args << std::endl << e.what();               \
@@ -106,7 +106,7 @@ TEST_F(ErrorTraceTest, NestedThrows)
     ASSERT_THROW(                                                                                                  \
         std::string expr(args); std::string name = expr.substr(0, expr.find(" ")); try {                           \
             Value v = eval("builtins." args);                                                                      \
-            state.forceValueDeep(state.VPtoVR(&v));                                                                \
+            state.forceValueDeep(v.ref(state.values));                                                             \
         } catch (BaseError & e) {                                                                                  \
             ASSERT_EQ(PrintToString(e.info().msg), PrintToString(message));                                        \
             ASSERT_EQ(e.info().traces.size(), 4u) << "while testing " args << std::endl << e.what();               \

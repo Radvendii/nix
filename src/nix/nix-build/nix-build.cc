@@ -408,7 +408,7 @@ static void main_nix_build(int argc, char ** argv)
 
     for (auto e : exprs) {
         Value vRoot;
-        state->eval(e, state->VPtoVR(&vRoot));
+        state->eval(e, vRoot.ref(state->values));
 
         std::function<bool(const ValueRef v)> takesNixShellAttr;
         takesNixShellAttr = [&](const ValueRef v) {
@@ -429,7 +429,7 @@ static void main_nix_build(int argc, char ** argv)
 
         for (auto & i : attrPaths) {
             ValueRef v(
-                findAlongAttrPath(*state, i, takesNixShellAttr(state->VPtoVR(&vRoot)) ? *autoArgsWithInNixShell : *autoArgs, state->VPtoVR(&vRoot))
+                findAlongAttrPath(*state, i, takesNixShellAttr(vRoot.ref(state->values)) ? *autoArgsWithInNixShell : *autoArgs, vRoot.ref(state->values))
                      .first);
             state->forceValue(v, v.determinePos(state->values, noPos));
             getDerivations(*state, v, "", takesNixShellAttr(v) ? *autoArgsWithInNixShell : *autoArgs, drvs, false);
@@ -468,9 +468,9 @@ static void main_nix_build(int argc, char ** argv)
                 auto expr = state->parseExprFromString("(import <nixpkgs> {}).bashInteractive", state->rootPath("."));
 
                 Value v;
-                state->eval(expr, state->VPtoVR(&v));
+                state->eval(expr, v.ref(state->values));
 
-                auto drv = getDerivation(*state, state->VPtoVR(&v), false);
+                auto drv = getDerivation(*state, v.ref(state->values), false);
                 if (!drv)
                     throw Error("the 'bashInteractive' attribute in <nixpkgs> did not evaluate to a derivation");
 

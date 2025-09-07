@@ -7,12 +7,12 @@ namespace nix {
 class JSONValueTest : public LibExprTest
 {
 protected:
-    // XXX [speed]: this one can stay a Value &. In the future it will refer to a StackValue
-    std::string getJSONValue(Value & value)
+    // XXX [speed]: this one can stay a Value. In the future it will refer to a StackValue
+    std::string getJSONValue(Value value)
     {
         std::stringstream ss;
         NixStringContext ps;
-        printValueAsJSON(state, true, state.VPtoVR(&value), noPos, ss, ps);
+        printValueAsJSON(state, true, value.ref(state.values), noPos, ss, ps);
         return ss.str();
     }
 };

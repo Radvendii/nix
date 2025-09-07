@@ -783,9 +783,9 @@ static void prim_genericClosure(EvalState & state, const PosIdx pos, ValueRef * 
 
         /* Call the `operator' function with `e' as argument. */
         Value newElements;
-        state.callFunction(op->value, e, state.VPtoVR(&newElements), noPos);
+        state.callFunction(op->value, e, newElements.ref(state.values), noPos);
         state.forceList(
-            state.VPtoVR(&newElements),
+            newElements.ref(state.values),
             noPos,
             "while evaluating the return value of the `operator` passed to builtins.genericClosure");
 
@@ -2643,11 +2643,11 @@ bool EvalState::callPathFilter(ValueRef filterFun, const SourcePath & path, PosI
     arg1.mkString(path.path.abs());
 
     // assert that type is not "unknown"
-    ValueRef args[]{VPtoVR(&arg1), fileTypeToString(*this, st.type)};
+    ValueRef args[]{arg1.ref(values), fileTypeToString(*this, st.type)};
     Value res;
-    callFunction(filterFun, args, VPtoVR(&res), pos);
+    callFunction(filterFun, args, res.ref(values), pos);
 
-    return forceBool(VPtoVR(&res), pos, "while evaluating the return value of the path filter function");
+    return forceBool(res.ref(values), pos, "while evaluating the return value of the path filter function");
 }
 
 static void addPath(
@@ -3598,9 +3598,9 @@ static void prim_filter(EvalState & state, const PosIdx pos, ValueRef * args, Va
     bool same = true;
     for (size_t n = 0; n < len; ++n) {
         Value res;
-        state.callFunction(args[0], args[1].listView(state.values)[n], state.VPtoVR(&res), noPos);
+        state.callFunction(args[0], args[1].listView(state.values)[n], res.ref(state.values), noPos);
         if (state.forceBool(
-                state.VPtoVR(&res), pos, "while evaluating the return value of the filtering function passed to builtins.filter"))
+                res.ref(state.values), pos, "while evaluating the return value of the filtering function passed to builtins.filter"))
             vs[k++] = args[1].listView(state.values)[n];
         else
             same = false;
@@ -3743,8 +3743,8 @@ static void anyOrAll(bool any, EvalState & state, const PosIdx pos, ValueRef * a
 
     Value vTmp;
     for (auto elem : args[1].listView(state.values)) {
-        state.callFunction(args[0], elem, state.VPtoVR(&vTmp), pos);
-        bool res = state.forceBool(state.VPtoVR(&vTmp), pos, errorCtx);
+        state.callFunction(args[0], elem, vTmp.ref(state.values), pos);
+        bool res = state.forceBool(vTmp.ref(state.values), pos, errorCtx);
         if (res == any) {
             v.mkBool(state.values, any);
             return;
@@ -3852,9 +3852,9 @@ static void prim_sort(EvalState & state, const PosIdx pos, ValueRef * args, Valu
 
         ValueRef vs[] = {a, b};
         Value vBool;
-        state.callFunction(args[0], vs, state.VPtoVR(&vBool), noPos);
+        state.callFunction(args[0], vs, vBool.ref(state.values), noPos);
         return state.forceBool(
-            state.VPtoVR(&vBool), pos, "while evaluating the return value of the sorting function passed to builtins.sort");
+            vBool.ref(state.values), pos, "while evaluating the return value of the sorting function passed to builtins.sort");
     };
 
     /* NOTE: Using custom implementation because std::sort and std::stable_sort
@@ -3929,9 +3929,9 @@ static void prim_partition(EvalState & state, const PosIdx pos, ValueRef * args,
         auto vElem = args[1].listView(state.values)[n];
         state.forceValue(vElem, pos);
         Value res;
-        state.callFunction(args[0], vElem, state.VPtoVR(&res), pos);
+        state.callFunction(args[0], vElem, res.ref(state.values), pos);
         if (state.forceBool(
-                state.VPtoVR(&res), pos, "while evaluating the return value of the partition function passed to builtins.partition"))
+                res.ref(state.values), pos, "while evaluating the return value of the partition function passed to builtins.partition"))
             right.push_back(vElem);
         else
             wrong.push_back(vElem);
@@ -3986,9 +3986,9 @@ static void prim_groupBy(EvalState & state, const PosIdx pos, ValueRef * args, V
 
     for (auto vElem : args[1].listView(state.values)) {
         Value res;
-        state.callFunction(args[0], vElem, state.VPtoVR(&res), pos);
+        state.callFunction(args[0], vElem, res.ref(state.values), pos);
         auto name = state.forceStringNoCtx(
-            state.VPtoVR(&res), pos, "while evaluating the return value of the grouping function passed to builtins.groupBy");
+            res.ref(state.values), pos, "while evaluating the return value of the grouping function passed to builtins.groupBy");
         auto sym = state.symbols.create(name);
         auto vector = attrs.try_emplace(sym, ValueVector()).first;
         vector->second.push_back(vElem);
@@ -4045,9 +4045,9 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, ValueRef * args,
     for (size_t n = 0; n < nrLists; ++n) {
         Value listValue;
         ValueRef vElem = args[1].listView(state.values)[n];
-        state.callFunction(args[0], vElem, state.VPtoVR(&listValue), pos);
+        state.callFunction(args[0], vElem, listValue.ref(state.values), pos);
         state.forceList(
-            state.VPtoVR(&listValue),
+            listValue.ref(state.values),
             listValue.determinePos(state.values, args[0].determinePos(state.values, pos)),
             "while evaluating the return value of the function passed to builtins.concatMap");
         len += listValue.listSize();

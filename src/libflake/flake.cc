@@ -223,7 +223,7 @@ static Flake readFlake(
 
     // NOTE evalFile forces vInfo to be an attrset because mustBeTrivial is true.
     Value vInfo;
-    state.evalFile(flakePath, state.VPtoVR(&vInfo), true);
+    state.evalFile(flakePath, vInfo.ref(state.values), true);
 
     Flake flake{
         .originalRef = originalRef,

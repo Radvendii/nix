@@ -697,6 +697,8 @@ struct Value : public ValueStorage<sizeof(void *)>
 
 public:
 
+    inline ValueRef ref(Values & values) const;
+
     void print(EvalState & state, std::ostream & str, PrintOptions options = PrintOptions{});
 
     // Functions needed to distinguish the type
@@ -929,7 +931,7 @@ public:
 
     SourcePath path() const
     {
-        return SourcePath(ref(pathAccessor()->shared_from_this()), CanonPath(CanonPath::unchecked_t(), pathStr()));
+        return SourcePath(nix::ref(pathAccessor()->shared_from_this()), CanonPath(CanonPath::unchecked_t(), pathStr()));
     }
 
     std::string_view string_view() const noexcept
@@ -1098,6 +1100,13 @@ class Values {
         // Offset by 1 so we don't overlap with ValueRef::null
         return ValueRef{(uint32_t)((v - &values.front() + 1) << 1)};
     }
+
+    ValueRef create()
+    {
+        values.emplace_back();
+        // Intentionally off by 1 so we don't overlap with ValueRef::null
+        return ValueRef{(uint32_t)(values.size() << 1)};
+    }
 };
 
 // type() == nThunk
@@ -1257,5 +1266,17 @@ inline void ValueRef::mkFloat(Values & values, NixFloat n) noexcept
 {
     values.VRtoV(*this).setStorage(n);
     nrFloat++;
+}
+
+inline ValueRef Value::ref(Values & values) const
+{
+    // XXX [speed]: would really be nice if we could error check this properly (i.e. is it on the stack)
+    size_t offset_64 = (size_t) this - values.stackPtr;
+    size_t int31_max = 0x3FFFFFFF;
+    if (offset_64 > int31_max && -offset_64 > int31_max) [[unlikely]]
+      std::cout << "value pointer out of range: " << std::hex << this << " (" << values.stackPtr << ")" << "\n";
+    int32_t offset = (size_t) this - values.stackPtr;
+    ValueRef ret{(uint32_t) offset << 1 | 0x1};
+    return ret;
 }
 } // namespace nix
