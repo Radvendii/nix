@@ -279,86 +279,78 @@ public:
     friend class ValueRef;
 };
 
+// XXX [speed]: perhaps add `using Foo = detail::Foo` statements in all the relevant places
 namespace detail {
+/**
+ * Strings in the evaluator carry a so-called `context` which
+ * is a list of strings representing store paths.  This is to
+ * allow users to write things like
+ *
+ *   "--with-freetype2-library=" + freetype + "/lib"
+ *
+ * where `freetype` is a derivation (or a source to be copied
+ * to the store).  If we just concatenated the strings without
+ * keeping track of the referenced store paths, then if the
+ * string is used as a derivation attribute, the derivation
+ * will not have the correct dependencies in its inputDrvs and
+ * inputSrcs.
+
+ * The semantics of the context is as follows: when a string
+ * with context C is used as a derivation attribute, then the
+ * derivations in C will be added to the inputDrvs of the
+ * derivation, and the other store paths in C will be added to
+ * the inputSrcs of the derivations.
+
+ * For canonicity, the store paths should be in sorted order.
+ */
+struct StringWithContext
+{
+    const char * c_str;
+    const char ** context; // must be in sorted order
+};
+
+struct Path
+{
+    SourceAccessor * accessor;
+    const char * path;
+};
+
+struct Null
+{};
+
+struct ClosureThunk
+{
+    Env * env;
+    Expr * expr;
+};
+
+struct FunctionApplicationThunk
+{
+    ValueRef left, right;
+};
 
 /**
- * Implementation mixin class for defining the public types
- * In can be inherited from by the actual ValueStorage implementations
- * for free due to Empty Base Class Optimization (EBCO).
+ * Like FunctionApplicationThunk, but must be a distinct type in order to
+ * resolve overloads to `tPrimOpApp` instead of `tApp`.
+ * This type helps with the efficient implementation of arity>=2 primop calls.
  */
-struct ValueBase
+struct PrimOpApplicationThunk
 {
-    /**
-     * Strings in the evaluator carry a so-called `context` which
-     * is a list of strings representing store paths.  This is to
-     * allow users to write things like
-     *
-     *   "--with-freetype2-library=" + freetype + "/lib"
-     *
-     * where `freetype` is a derivation (or a source to be copied
-     * to the store).  If we just concatenated the strings without
-     * keeping track of the referenced store paths, then if the
-     * string is used as a derivation attribute, the derivation
-     * will not have the correct dependencies in its inputDrvs and
-     * inputSrcs.
+    ValueRef left, right;
+};
 
-     * The semantics of the context is as follows: when a string
-     * with context C is used as a derivation attribute, then the
-     * derivations in C will be added to the inputDrvs of the
-     * derivation, and the other store paths in C will be added to
-     * the inputSrcs of the derivations.
+struct Lambda
+{
+    Env * env;
+    ExprLambda * fun;
+};
 
-     * For canonicity, the store paths should be in sorted order.
-     */
-    struct StringWithContext
-    {
-        const char * c_str;
-        const char ** context; // must be in sorted order
-    };
+using SmallList = std::array<ValueRef, 2>;
 
-    struct Path
-    {
-        SourceAccessor * accessor;
-        const char * path;
-    };
-
-    struct Null
-    {};
-
-    struct ClosureThunk
-    {
-        Env * env;
-        Expr * expr;
-    };
-
-    struct FunctionApplicationThunk
-    {
-        ValueRef left, right;
-    };
-
-    /**
-     * Like FunctionApplicationThunk, but must be a distinct type in order to
-     * resolve overloads to `tPrimOpApp` instead of `tApp`.
-     * This type helps with the efficient implementation of arity>=2 primop calls.
-     */
-    struct PrimOpApplicationThunk
-    {
-        ValueRef left, right;
-    };
-
-    struct Lambda
-    {
-        Env * env;
-        ExprLambda * fun;
-    };
-
-    using SmallList = std::array<ValueRef, 2>;
-
-    struct List
-    {
-        size_t size;
-        ValueRef const * elems;
-    };
+struct List
+{
+    size_t size;
+    ValueRef const * elems;
 };
 
 template<typename T>
@@ -373,17 +365,17 @@ struct PayloadTypeToInternalType
 #define NIX_VALUE_STORAGE_FOR_EACH_FIELD(MACRO)                     \
     MACRO(NixInt, integer, tInt)                                    \
     MACRO(bool, boolean, tBool)                                     \
-    MACRO(ValueBase::StringWithContext, string, tString)            \
-    MACRO(ValueBase::Path, path, tPath)                             \
-    MACRO(ValueBase::Null, null_, tNull)                            \
+    MACRO(detail::StringWithContext, string, tString)            \
+    MACRO(detail::Path, path, tPath)                             \
+    MACRO(detail::Null, null_, tNull)                            \
     MACRO(Bindings *, attrs, tAttrs)                                \
-    MACRO(ValueBase::List, bigList, tListN)                         \
-    MACRO(ValueBase::SmallList, smallList, tListSmall)              \
-    MACRO(ValueBase::ClosureThunk, thunk, tThunk)                   \
-    MACRO(ValueBase::FunctionApplicationThunk, app, tApp)           \
-    MACRO(ValueBase::Lambda, lambda, tLambda)                       \
+    MACRO(detail::List, bigList, tListN)                         \
+    MACRO(detail::SmallList, smallList, tListSmall)              \
+    MACRO(detail::ClosureThunk, thunk, tThunk)                   \
+    MACRO(detail::FunctionApplicationThunk, app, tApp)           \
+    MACRO(detail::Lambda, lambda, tLambda)                       \
     MACRO(PrimOp *, primOp, tPrimOp)                                \
-    MACRO(ValueBase::PrimOpApplicationThunk, primOpApp, tPrimOpApp) \
+    MACRO(detail::PrimOpApplicationThunk, primOpApp, tPrimOpApp) \
     MACRO(ExternalValueBase *, external, tExternal)                 \
     MACRO(NixFloat, fpoint, tFloat)
 
@@ -415,7 +407,7 @@ inline constexpr InternalType payloadTypeToInternalType = PayloadTypeToInternalT
  * getInternalType methods.
  */
 template<std::size_t ptrSize>
-class ValueStorage : public detail::ValueBase
+class ValueStorage
 {
 protected:
     using Payload = union
@@ -468,8 +460,8 @@ protected:
 class ListView
 {
     using SpanType = std::span<ValueRef const>;
-    using SmallList = detail::ValueBase::SmallList;
-    using List = detail::ValueBase::List;
+    using SmallList = detail::SmallList;
+    using List = detail::List;
 
     std::variant<SmallList, List> raw;
 
@@ -782,7 +774,7 @@ public:
 
     inline void mkString(const char * s, const char ** context = 0) noexcept
     {
-        setStorage(StringWithContext{.c_str = s, .context = context});
+        setStorage(detail::StringWithContext{.c_str = s, .context = context});
         nrString++;
     }
 
@@ -798,13 +790,13 @@ public:
 
     inline void mkPath(SourceAccessor * accessor, const char * path) noexcept
     {
-        setStorage(Path{.accessor = accessor, .path = path});
+        setStorage(detail::Path{.accessor = accessor, .path = path});
         nrPath++;
     }
 
     inline void mkNull() noexcept
     {
-        setStorage(Null{});
+        setStorage(detail::Null{});
         nrNull++;
     }
 
@@ -827,27 +819,27 @@ public:
             nrListSmall++;
         }
         else {
-            setStorage(List{.size = builder.size, .elems = builder.elems});
+            setStorage(detail::List{.size = builder.size, .elems = builder.elems});
             nrListN++;
         }
     }
 
     inline void mkThunk(Env * e, Expr * ex) noexcept
     {
-        setStorage(ClosureThunk{.env = e, .expr = ex});
+        setStorage(detail::ClosureThunk{.env = e, .expr = ex});
         nrThunk++;
     }
 
     inline void mkApp(ValueRef l, ValueRef r) noexcept
     {
-        setStorage(FunctionApplicationThunk{.left = l, .right = r});
+        setStorage(detail::FunctionApplicationThunk{.left = l, .right = r});
         nrApp++;
     }
 
 
     inline void mkLambda(Env * e, ExprLambda * f) noexcept
     {
-        setStorage(Lambda{.env = e, .fun = f});
+        setStorage(detail::Lambda{.env = e, .fun = f});
         nrLambda++;
     }
 
@@ -857,7 +849,7 @@ public:
 
     inline void mkPrimOpApp(ValueRef l, ValueRef r) noexcept
     {
-        setStorage(PrimOpApplicationThunk{.left = l, .right = r});
+        setStorage(detail::PrimOpApplicationThunk{.left = l, .right = r});
         nrPrimOpApp++;
     }
 
@@ -886,12 +878,12 @@ public:
 
     ListView listView() const noexcept
     {
-        return isa<tListSmall>() ? ListView(getStorage<SmallList>()) : ListView(getStorage<List>());
+        return isa<tListSmall>() ? ListView(getStorage<detail::SmallList>()) : ListView(getStorage<detail::List>());
     }
 
     size_t listSize() const noexcept
     {
-        return isa<tListSmall>() ? (getStorage<SmallList>()[1] == ValueRef::null ? 1 : 2) : getStorage<List>().size;
+        return isa<tListSmall>() ? (getStorage<detail::SmallList>()[1] == ValueRef::null ? 1 : 2) : getStorage<detail::List>().size;
     }
 
     PosIdx determinePos(Values & values, const PosIdx pos) const;
@@ -910,17 +902,17 @@ public:
 
     std::string_view string_view() const noexcept
     {
-        return std::string_view(getStorage<StringWithContext>().c_str);
+        return std::string_view(getStorage<detail::StringWithContext>().c_str);
     }
 
     const char * c_str() const noexcept
     {
-        return getStorage<StringWithContext>().c_str;
+        return getStorage<detail::StringWithContext>().c_str;
     }
 
     const char ** context() const noexcept
     {
-        return getStorage<StringWithContext>().context;
+        return getStorage<detail::StringWithContext>().context;
     }
 
     ExternalValueBase * external() const noexcept
@@ -953,34 +945,34 @@ public:
         return getStorage<NixFloat>();
     }
 
-    Lambda lambda() const noexcept
+    detail::Lambda lambda() const noexcept
     {
-        return getStorage<Lambda>();
+        return getStorage<detail::Lambda>();
     }
 
-    ClosureThunk thunk() const noexcept
+    detail::ClosureThunk thunk() const noexcept
     {
-        return getStorage<ClosureThunk>();
+        return getStorage<detail::ClosureThunk>();
     }
 
-    PrimOpApplicationThunk primOpApp() const noexcept
+    detail::PrimOpApplicationThunk primOpApp() const noexcept
     {
-        return getStorage<PrimOpApplicationThunk>();
+        return getStorage<detail::PrimOpApplicationThunk>();
     }
 
-    FunctionApplicationThunk app() const noexcept
+    detail::FunctionApplicationThunk app() const noexcept
     {
-        return getStorage<FunctionApplicationThunk>();
+        return getStorage<detail::FunctionApplicationThunk>();
     }
 
     const char * pathStr() const noexcept
     {
-        return getStorage<Path>().path;
+        return getStorage<detail::Path>().path;
     }
 
     SourceAccessor * pathAccessor() const noexcept
     {
-        return getStorage<Path>().accessor;
+        return getStorage<detail::Path>().accessor;
     }
 };
 
@@ -1171,19 +1163,19 @@ inline void ValueRef::mkBool(Values & values, bool b) noexcept
 
 inline void ValueRef::mkString(Values & values, const char * s, const char ** context) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::ValueBase::StringWithContext{.c_str = s, .context = context});
+    values.VRtoV(*this).setStorage(detail::StringWithContext{.c_str = s, .context = context});
     nrString++;
 }
 
 inline void ValueRef::mkPath(Values & values, SourceAccessor * accessor, const char * path) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::ValueBase::Path{.accessor = accessor, .path = path});
+    values.VRtoV(*this).setStorage(detail::Path{.accessor = accessor, .path = path});
     nrPath++;
 }
 
 inline void ValueRef::mkNull(Values & values) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::ValueBase::Null{});
+    values.VRtoV(*this).setStorage(detail::Null{});
     nrNull++;
 }
 
@@ -1195,20 +1187,20 @@ inline void ValueRef::mkAttrs(Values & values, Bindings * a) noexcept
 
 inline void ValueRef::mkThunk(Values & values, Env * e, Expr * ex) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::ValueBase::ClosureThunk{.env = e, .expr = ex});
+    values.VRtoV(*this).setStorage(detail::ClosureThunk{.env = e, .expr = ex});
     nrThunk++;
 }
 
 inline void ValueRef::mkApp(Values & values, ValueRef l, ValueRef r) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::ValueBase::FunctionApplicationThunk{.left = l, .right = r});
+    values.VRtoV(*this).setStorage(detail::FunctionApplicationThunk{.left = l, .right = r});
     nrApp++;
 }
 
 
 inline void ValueRef::mkLambda(Values & values, Env * e, ExprLambda * f) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::ValueBase::Lambda{.env = e, .fun = f});
+    values.VRtoV(*this).setStorage(detail::Lambda{.env = e, .fun = f});
     nrLambda++;
 }
 
@@ -1219,7 +1211,7 @@ inline void ValueRef::mkBlackhole(Values & values)
 
 inline void ValueRef::mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::ValueBase::PrimOpApplicationThunk{.left = l, .right = r});
+    values.VRtoV(*this).setStorage(detail::PrimOpApplicationThunk{.left = l, .right = r});
     nrPrimOpApp++;
 }
 
