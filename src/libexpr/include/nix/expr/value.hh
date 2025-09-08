@@ -1082,7 +1082,8 @@ void forceNoNullByte(std::string_view s, std::function<Pos()> = nullptr);
 class Values {
     public:
 
-    std::vector<Value> values;
+    std::vector<InternalType> types;
+    std::vector<detail::Payload> payloads;
 
     /**
      * In order to refer to Values allocated on the stack in a ValueRef (32
@@ -1112,7 +1113,7 @@ class Values {
             return ((Value *)(stackPtr + offset))->internalType;
         }
         // XXX [speed]: we could save a pointer to &Values.front() - 1, so we don't have to offset by 1 every time
-        return values[(ref.ref >> 1) - 1].internalType;
+        return types[(ref.ref >> 1) - 1];
     }
 
     detail::Payload & payloadOf(ValueRef ref) noexcept
@@ -1123,7 +1124,7 @@ class Values {
             int32_t offset = (int32_t)ref.ref >> 1;
             return ((Value *)(stackPtr + offset))->payload;
         }
-        return values[(ref.ref >> 1) - 1].payload;
+        return payloads[(ref.ref >> 1) - 1];
     }
 
 #define NIX_VALUES_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
@@ -1154,9 +1155,10 @@ class Values {
 
     ValueRef create()
     {
-        values.emplace_back();
+        types.emplace_back();
+        payloads.emplace_back();
         // Intentionally off by 1 so we don't overlap with ValueRef::null
-        return ValueRef{(uint32_t)(values.size() << 1)};
+        return ValueRef{(uint32_t)(types.size() << 1)};
     }
 };
 
