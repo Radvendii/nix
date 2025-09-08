@@ -401,8 +401,6 @@ EvalState::EvalState(
     , trylevel(0)
     , regexCache(makeRegexCache())
 #if NIX_USE_BOEHMGC
-    // , values(100000)
-    // , valueAllocCache(std::allocate_shared<void *>(traceable_allocator<void *>(), nullptr))
     , env1AllocCache(std::allocate_shared<void *>(traceable_allocator<void *>(), nullptr))
     , baseEnvP(std::allocate_shared<Env *>(traceable_allocator<Env *>(), &allocEnv(BASE_ENV_SIZE)))
     , baseEnv(**baseEnvP)
@@ -1059,27 +1057,6 @@ ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string 
 }
 ValueRef ValueRef::null{0};
 SymbolRef SymbolRef::null{ValueRef::null};
-
-#define NIX_VALUE_REF_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
-template<>                                                   \
-K ValueRef::getStorage(Values & values) const noexcept       \
-{                                                            \
-    return values.payloadOf(*this).FIELD_NAME;               \
-}
-
-#define NIX_VALUE_REF_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
-void ValueRef::setStorage(Values & values, K val) noexcept   \
-{                                                            \
-    values.payloadOf(*this).FIELD_NAME = val;                \
-    values.typeOf(*this) = DISCRIMINATOR;                    \
-}
-
-NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_GET_IMPL)
-NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_SET_IMPL)
-#undef NIX_VALUE_REF_GET_IMPL
-#undef NIX_VALUE_REF_SET_IMPL
-
-
 
 void ValueRef::mkList(Values & values, const ListBuilder & builder) noexcept
 {

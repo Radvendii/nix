@@ -241,10 +241,12 @@ class ValueRef {
     Value toStack(Values & values) const;
 
     template<typename T>
-    T getStorage(Values & values) const noexcept;
+    [[gnu::always_inline]]
+    inline T getStorage(Values & values) const noexcept;
 
 #define NIX_VALUE_REF_SET_DECL(K, FIELD_NAME, DISCRIMINATOR) \
-    void setStorage(Values & values, K val) noexcept;
+    [[gnu::always_inline]]                                   \
+    inline void setStorage(Values & values, K val) noexcept;
 
     NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_SET_DECL)
 #undef NIX_VALUE_REF_SET_DECL
@@ -379,12 +381,15 @@ namespace detail {
 
  * For canonicity, the store paths should be in sorted order.
  */
+ // XXX [speed]: strings without context can fit in 8 bytes
+ // XXX [speed]: are we deduplicating context strings at all? we should be.
 struct StringWithContext
 {
     const char * c_str;
     const char ** context; // must be in sorted order
 };
 
+// XXX [speed]: consider putting the string in memory after the SourceAccessor
 struct Path
 {
     SourceAccessor * accessor;
@@ -394,6 +399,7 @@ struct Path
 struct Null
 {};
 
+// XXX [speed]: we gotta pt Envs and Exprs in arrays so we can use 32 bit indices
 struct ClosureThunk
 {
     Env * env;
@@ -415,6 +421,7 @@ struct PrimOpApplicationThunk
     ValueRef left, right;
 };
 
+// XXX [speed]: we gotta pt Envs and Exprs in arrays so we can use 32 bit indices
 struct Lambda
 {
     Env * env;
@@ -423,6 +430,8 @@ struct Lambda
 
 using SmallList = std::array<ValueRef, 2>;
 
+// XXX [speed]: we could null-terminate the list, but then calculating the size is slow. We could store the size at the beginning of the list...
+// XXX [speed]: how many lists could we make into tSlices?
 struct List
 {
     size_t size;
@@ -1077,7 +1086,8 @@ class Values {
         stackPtr = (size_t) &stackValue;
     }
 
-    InternalType & typeOf(ValueRef ref) noexcept
+    [[gnu::always_inline]]
+    inline InternalType & typeOf(ValueRef ref) noexcept
     {
         if (!ref)
             unreachable();
@@ -1091,7 +1101,8 @@ class Values {
         return types[(ref.ref >> 1) - 1];
     }
 
-    detail::Payload & payloadOf(ValueRef ref) noexcept
+    [[gnu::always_inline]]
+    inline detail::Payload & payloadOf(ValueRef ref) noexcept
     {
         if (!ref)
             unreachable();
@@ -1115,6 +1126,29 @@ class Values {
         return ValueRef{(uint32_t)(types.size() << 1)};
     }
 };
+
+#define NIX_VALUE_REF_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR)        \
+template<>                                                          \
+[[gnu::always_inline]]                                              \
+inline K ValueRef::getStorage(Values & values) const noexcept       \
+{                                                                   \
+    return values.payloadOf(*this).FIELD_NAME;                      \
+}
+
+#define NIX_VALUE_REF_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR)        \
+[[gnu::always_inline]]                                              \
+inline void ValueRef::setStorage(Values & values, K val) noexcept   \
+{                                                                   \
+    values.payloadOf(*this).FIELD_NAME = val;                       \
+    values.typeOf(*this) = DISCRIMINATOR;                           \
+}
+
+NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_GET_IMPL)
+NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_SET_IMPL)
+#undef NIX_VALUE_REF_GET_IMPL
+#undef NIX_VALUE_REF_SET_IMPL
+
+
 
 // type() == nThunk
 inline bool ValueRef::isThunk(Values & values) const
