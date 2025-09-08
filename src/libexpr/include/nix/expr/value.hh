@@ -41,11 +41,18 @@ class Values;
 class ListBuilder;
 class ExternalValueBase;
 class ListView;
+class ValueRef;
 namespace detail {
     struct Lambda;
     struct ClosureThunk;
     struct PrimOpApplicationThunk;
     struct FunctionApplicationThunk;
+    struct StringWithContext;
+    struct Null;
+    struct List;
+    using SmallList = std::array<ValueRef, 2>;
+    struct Path;
+    union Payload;
 }
 
 // XXX [speed]: this might not be needed when we're done
@@ -108,6 +115,29 @@ class Printer;
 
 using NixInt = checked::Checked<int64_t>;
 using NixFloat = double;
+
+/**
+ * All stored types must be distinct (not type aliases) for the purposes of
+ * overload resolution in setStorage. This ensures there's a bijection from
+ * InternalType <-> C++ type.
+ */
+#define NIX_VALUE_FOR_EACH_FIELD(MACRO)                             \
+    MACRO(NixInt, integer, tInt)                                    \
+    MACRO(bool, boolean, tBool)                                     \
+    MACRO(detail::StringWithContext, string, tString)               \
+    MACRO(detail::Path, path, tPath)                                \
+    MACRO(detail::Null, null_, tNull)                               \
+    MACRO(Bindings *, attrs, tAttrs)                                \
+    MACRO(detail::List, bigList, tListN)                            \
+    MACRO(detail::SmallList, smallList, tListSmall)                 \
+    MACRO(detail::ClosureThunk, thunk, tThunk)                      \
+    MACRO(detail::FunctionApplicationThunk, app, tApp)              \
+    MACRO(detail::Lambda, lambda, tLambda)                          \
+    MACRO(PrimOp *, primOp, tPrimOp)                                \
+    MACRO(detail::PrimOpApplicationThunk, primOpApp, tPrimOpApp)    \
+    MACRO(ExternalValueBase *, external, tExternal)                 \
+    MACRO(NixFloat, fpoint, tFloat)
+
 
 class ValueRef {
     public:
@@ -209,6 +239,21 @@ class ValueRef {
     void set(Values & values, ValueRef other) noexcept;
     void setFromStack(Values & values, Value const & v) noexcept;
     Value toStack(Values & values) const;
+
+    template<typename T>
+    T getStorage(Values & values) const noexcept;
+
+#define NIX_VALUE_REF_SET_DECL(K, FIELD_NAME, DISCRIMINATOR) \
+    void setStorage(Values & values, K val) noexcept;
+
+    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_SET_DECL)
+#undef NIX_VALUE_REF_SET_DECL
+
+    template<InternalType... discriminator>
+    bool isa(Values & values) const noexcept
+    {
+        return ((getInternalType(values) == discriminator) || ...);
+    }
 };
 
 /**
@@ -388,28 +433,6 @@ template<typename T>
 struct PayloadTypeToInternalType
 {};
 
-/**
- * All stored types must be distinct (not type aliases) for the purposes of
- * overload resolution in setStorage. This ensures there's a bijection from
- * InternalType <-> C++ type.
- */
-#define NIX_VALUE_STORAGE_FOR_EACH_FIELD(MACRO)                     \
-    MACRO(NixInt, integer, tInt)                                    \
-    MACRO(bool, boolean, tBool)                                     \
-    MACRO(detail::StringWithContext, string, tString)            \
-    MACRO(detail::Path, path, tPath)                             \
-    MACRO(detail::Null, null_, tNull)                            \
-    MACRO(Bindings *, attrs, tAttrs)                                \
-    MACRO(detail::List, bigList, tListN)                         \
-    MACRO(detail::SmallList, smallList, tListSmall)              \
-    MACRO(detail::ClosureThunk, thunk, tThunk)                   \
-    MACRO(detail::FunctionApplicationThunk, app, tApp)           \
-    MACRO(detail::Lambda, lambda, tLambda)                       \
-    MACRO(PrimOp *, primOp, tPrimOp)                                \
-    MACRO(detail::PrimOpApplicationThunk, primOpApp, tPrimOpApp) \
-    MACRO(ExternalValueBase *, external, tExternal)                 \
-    MACRO(NixFloat, fpoint, tFloat)
-
 #define NIX_VALUE_PAYLOAD_TYPE(T, FIELD_NAME, DISCRIMINATOR) \
     template<>                                               \
     struct PayloadTypeToInternalType<T>                      \
@@ -417,7 +440,7 @@ struct PayloadTypeToInternalType
         static constexpr InternalType value = DISCRIMINATOR; \
     };
 
-NIX_VALUE_STORAGE_FOR_EACH_FIELD(NIX_VALUE_PAYLOAD_TYPE)
+NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_PAYLOAD_TYPE)
 
 #undef NIX_VALUE_PAYLOAD_TYPE
 
@@ -427,7 +450,7 @@ inline constexpr InternalType payloadTypeToInternalType = PayloadTypeToInternalT
 union Payload
 {
 #define NIX_VALUE_STORAGE_DEFINE_FIELD(T, FIELD_NAME, DISCRIMINATOR) T FIELD_NAME;
-    NIX_VALUE_STORAGE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_DEFINE_FIELD)
+    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_DEFINE_FIELD)
 #undef NIX_VALUE_STORAGE_DEFINE_FIELD
 };
 
@@ -450,6 +473,14 @@ private:
     Payload payload;
 
 protected:
+
+    ValueStorage() = default;
+    ValueStorage(InternalType internalType, Payload payload)
+        : internalType(internalType)
+        , payload(payload)
+    {
+    }
+
 #define NIX_VALUE_STORAGE_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
     void getStorage(K & val) const noexcept                      \
     {                                                            \
@@ -464,12 +495,11 @@ protected:
         internalType = DISCRIMINATOR;                            \
     }
 
-    NIX_VALUE_STORAGE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_GET_IMPL)
-    NIX_VALUE_STORAGE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_SET_IMPL)
+    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_GET_IMPL)
+    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_SET_IMPL)
 
 #undef NIX_VALUE_STORAGE_SET_IMPL
 #undef NIX_VALUE_STORAGE_GET_IMPL
-#undef NIX_VALUE_STORAGE_FOR_EACH_FIELD
 
     /** Get internal type currently occupying the storage. */
     InternalType getInternalType() const noexcept
@@ -477,6 +507,7 @@ protected:
         return internalType;
     }
     friend class ValueRef;
+    friend class Values;
 };
 
 /**
@@ -682,6 +713,7 @@ struct Value : public ValueStorage
         return ((getInternalType() == discriminator) || ...);
     }
 
+    // XXX [speed]: this could take in InternalType as the template parameter and return auto
     template<typename T>
     T getStorage() const noexcept
     {
@@ -692,7 +724,14 @@ struct Value : public ValueStorage
         return out;
     }
 
+    Value(ValueStorage vs)
+        : ValueStorage(vs)
+    {
+    }
+
 public:
+
+    Value() = default;
 
     inline ValueRef ref(Values & values) const;
 
@@ -1062,17 +1101,55 @@ class Values {
         stackPtr = (size_t) &stackValue;
     }
 
-    Value & VRtoV(ValueRef ref) {
+    InternalType & typeOf(ValueRef ref) noexcept
+    {
         if (!ref)
             unreachable();
         // XXX [speed] make sure this branching statement gets optimzied out
         if (ref.ref & 0x1) {
             // use arithmetic shift to preserve sign bit
             int32_t offset = (int32_t)ref.ref >> 1;
-            return *(Value *)(stackPtr + offset);
+            return ((Value *)(stackPtr + offset))->internalType;
         }
         // XXX [speed]: we could save a pointer to &Values.front() - 1, so we don't have to offset by 1 every time
-        return values[(ref.ref >> 1) - 1];
+        return values[(ref.ref >> 1) - 1].internalType;
+    }
+
+    detail::Payload & payloadOf(ValueRef ref) noexcept
+    {
+        if (!ref)
+            unreachable();
+        if (ref.ref & 0x1) {
+            int32_t offset = (int32_t)ref.ref >> 1;
+            return ((Value *)(stackPtr + offset))->payload;
+        }
+        return values[(ref.ref >> 1) - 1].payload;
+    }
+
+#define NIX_VALUES_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
+    void getStorage(ValueRef ref, K & val) noexcept       \
+    {                                                     \
+        assert(typeOf(ref) == DISCRIMINATOR);             \
+        val = payloadOf(ref).FIELD_NAME;                  \
+    }
+
+#define NIX_VALUES_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
+    void setStorage(ValueRef ref, K val) noexcept         \
+    {                                                     \
+        payloadOf(ref).FIELD_NAME = val;                  \
+        typeOf(ref) = DISCRIMINATOR;                      \
+    }
+
+    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUES_GET_IMPL)
+    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUES_SET_IMPL)
+
+#undef NIX_VALUES_GET_IMPL
+#undef NIX_VALUES_SET_IMPL
+
+    template<InternalType... discriminator>
+    bool isa(ValueRef ref) noexcept
+    {
+        return ((typeOf(ref) == discriminator) || ...);
     }
 
     ValueRef create()
@@ -1086,12 +1163,12 @@ class Values {
 // type() == nThunk
 inline bool ValueRef::isThunk(Values & values) const
 {
-    return values.VRtoV(*this).isa<tThunk>();
+    return isa<tThunk>(values);
 };
 
 inline bool ValueRef::isApp(Values & values) const
 {
-    return values.VRtoV(*this).isa<tApp>();
+    return isa<tApp>(values);
 };
 
 bool ValueRef::isBlackhole(Values & values) const
@@ -1102,17 +1179,17 @@ bool ValueRef::isBlackhole(Values & values) const
 // type() == nFunction
 inline bool ValueRef::isLambda(Values & values) const
 {
-    return values.VRtoV(*this).isa<tLambda>();
+    return isa<tLambda>(values);
 };
 
 inline bool ValueRef::isPrimOp(Values & values) const
 {
-    return values.VRtoV(*this).isa<tPrimOp>();
+    return isa<tPrimOp>(values);
 };
 
 inline bool ValueRef::isPrimOpApp(Values & values) const
 {
-    return values.VRtoV(*this).isa<tPrimOpApp>();
+    return isa<tPrimOpApp>(values);
 };
 /**
  * Returns the normal type of a Value. This only returns nThunk if
@@ -1166,56 +1243,56 @@ inline void ValueRef::mkInt(Values & values, NixInt::Inner n) noexcept
 
 inline void ValueRef::mkInt(Values & values, NixInt n) noexcept
 {
-    values.VRtoV(*this).setStorage(NixInt{n});
+    setStorage(values, NixInt{n});
     nrInt++;
 }
 
 inline void ValueRef::mkBool(Values & values, bool b) noexcept
 {
-    values.VRtoV(*this).setStorage(b);
+    setStorage(values, b);
     nrBool++;
 }
 
 inline void ValueRef::mkString(Values & values, const char * s, const char ** context) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::StringWithContext{.c_str = s, .context = context});
+    setStorage(values, detail::StringWithContext{.c_str = s, .context = context});
     nrString++;
 }
 
 inline void ValueRef::mkPath(Values & values, SourceAccessor * accessor, const char * path) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::Path{.accessor = accessor, .path = path});
+    setStorage(values, detail::Path{.accessor = accessor, .path = path});
     nrPath++;
 }
 
 inline void ValueRef::mkNull(Values & values) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::Null{});
+    setStorage(values, detail::Null{});
     nrNull++;
 }
 
 inline void ValueRef::mkAttrs(Values & values, Bindings * a) noexcept
 {
-    values.VRtoV(*this).setStorage(a);
+    setStorage(values, a);
     nrAttrs++;
 }
 
 inline void ValueRef::mkThunk(Values & values, Env * e, Expr * ex) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::ClosureThunk{.env = e, .expr = ex});
+    setStorage(values, detail::ClosureThunk{.env = e, .expr = ex});
     nrThunk++;
 }
 
 inline void ValueRef::mkApp(Values & values, ValueRef l, ValueRef r) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::FunctionApplicationThunk{.left = l, .right = r});
+    setStorage(values, detail::FunctionApplicationThunk{.left = l, .right = r});
     nrApp++;
 }
 
 
 inline void ValueRef::mkLambda(Values & values, Env * e, ExprLambda * f) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::Lambda{.env = e, .fun = f});
+    setStorage(values, detail::Lambda{.env = e, .fun = f});
     nrLambda++;
 }
 
@@ -1226,19 +1303,19 @@ inline void ValueRef::mkBlackhole(Values & values)
 
 inline void ValueRef::mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept
 {
-    values.VRtoV(*this).setStorage(detail::PrimOpApplicationThunk{.left = l, .right = r});
+    setStorage(values, detail::PrimOpApplicationThunk{.left = l, .right = r});
     nrPrimOpApp++;
 }
 
 inline void ValueRef::mkExternal(Values & values, ExternalValueBase * e) noexcept
 {
-    values.VRtoV(*this).setStorage(e);
+    setStorage(values, e);
     nrExternal++;
 }
 
 inline void ValueRef::mkFloat(Values & values, NixFloat n) noexcept
 {
-    values.VRtoV(*this).setStorage(n);
+    setStorage(values, n);
     nrFloat++;
 }
 

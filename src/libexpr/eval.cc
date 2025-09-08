@@ -245,8 +245,8 @@ bool Value::isTrivial() const
 }
 bool ValueRef::isTrivial(Values & values) const
 {
-    return !values.VRtoV(*this).isa<tApp, tPrimOpApp>()
-           && (!values.VRtoV(*this).isa<tThunk>()
+    return !isa<tApp, tPrimOpApp>(values)
+           && (!isa<tThunk>(values)
                || (dynamic_cast<ExprAttrs *>(thunk(values).expr) && ((ExprAttrs *) thunk(values).expr)->dynamicAttrs.empty())
                || dynamic_cast<ExprLambda *>(thunk(values).expr) || dynamic_cast<ExprList *>(thunk(values).expr));
 }
@@ -641,7 +641,7 @@ void Value::mkPrimOp(PrimOp * p)
 void ValueRef::mkPrimOp(Values & values, PrimOp * p)
 {
     p->check();
-    values.VRtoV(*this).setStorage(p);
+    setStorage(values, p);
     nrPrimOp++;
 }
 
@@ -1063,32 +1063,32 @@ SymbolRef SymbolRef::null{ValueRef::null};
 void ValueRef::mkList(Values & values, const ListBuilder & builder) noexcept
 {
     if (builder.size == 1) {
-        values.VRtoV(*this).setStorage(std::array<ValueRef, 2>{builder.inlineElems[0], ValueRef::null});
+        setStorage(values, std::array<ValueRef, 2>{builder.inlineElems[0], ValueRef::null});
         nrListSmall++;
     }
     else if (builder.size == 2) {
-        values.VRtoV(*this).setStorage(std::array<ValueRef, 2>{builder.inlineElems[0], builder.inlineElems[1]});
+        setStorage(values, std::array<ValueRef, 2>{builder.inlineElems[0], builder.inlineElems[1]});
         nrListSmall++;
     }
     else {
-        values.VRtoV(*this).setStorage(detail::List{.size = builder.size, .elems = builder.elems});
+        setStorage(values, detail::List{.size = builder.size, .elems = builder.elems});
         nrListN++;
     }
 }
 
 bool ValueRef::isList(Values & values) const noexcept
 {
-    return values.VRtoV(*this).isa<tListSmall, tListN>();
+    return isa<tListSmall, tListN>(values);
 }
 
 ListView ValueRef::listView(Values & values) const noexcept
 {
-    return values.VRtoV(*this).isa<tListSmall>() ? ListView(values.VRtoV(*this).getStorage<detail::SmallList>()) : ListView(values.VRtoV(*this).getStorage<detail::List>());
+    return isa<tListSmall>(values) ? ListView(getStorage<detail::SmallList>(values)) : ListView(getStorage<detail::List>(values));
 }
 
 size_t ValueRef::listSize(Values & values) const noexcept
 {
-    return values.VRtoV(*this).isa<tListSmall>() ? (values.VRtoV(*this).getStorage<detail::SmallList>()[1] == ValueRef::null ? 1 : 2) : values.VRtoV(*this).getStorage<detail::List>().size;
+    return isa<tListSmall>(values) ? (getStorage<detail::SmallList>(values)[1] == ValueRef::null ? 1 : 2) : getStorage<detail::List>(values).size;
 }
 
 SourcePath ValueRef::path(Values & values) const
@@ -1098,94 +1098,116 @@ SourcePath ValueRef::path(Values & values) const
 
 std::string_view ValueRef::string_view(Values & values) const noexcept
 {
-    return std::string_view(values.VRtoV(*this).getStorage<detail::StringWithContext>().c_str);
+    return std::string_view(getStorage<detail::StringWithContext>(values).c_str);
 }
 
 const char * ValueRef::c_str(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<detail::StringWithContext>().c_str;
+    return getStorage<detail::StringWithContext>(values).c_str;
 }
 
 const char ** ValueRef::context(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<detail::StringWithContext>().context;
+    return getStorage<detail::StringWithContext>(values).context;
 }
 
 ExternalValueBase * ValueRef::external(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<ExternalValueBase *>();
+    return getStorage<ExternalValueBase *>(values);
 }
 
 const Bindings * ValueRef::attrs(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<Bindings *>();
+    return getStorage<Bindings *>(values);
 }
 
 const PrimOp * ValueRef::primOp(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<PrimOp *>();
+    return getStorage<PrimOp *>(values);
 }
 
 bool ValueRef::boolean(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<bool>();
+    return getStorage<bool>(values);
 }
 
 NixInt ValueRef::integer(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<NixInt>();
+    return getStorage<NixInt>(values);
 }
 
 NixFloat ValueRef::fpoint(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<NixFloat>();
+    return getStorage<NixFloat>(values);
 }
 
 detail::Lambda ValueRef::lambda(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<detail::Lambda>();
+    return getStorage<detail::Lambda>(values);
 }
 
 detail::ClosureThunk ValueRef::thunk(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<detail::ClosureThunk>();
+    return getStorage<detail::ClosureThunk>(values);
 }
 
 detail::PrimOpApplicationThunk ValueRef::primOpApp(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<detail::PrimOpApplicationThunk>();
+    return getStorage<detail::PrimOpApplicationThunk>(values);
 }
 
 detail::FunctionApplicationThunk ValueRef::app(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<detail::FunctionApplicationThunk>();
+    return getStorage<detail::FunctionApplicationThunk>(values);
 }
 
 const char * ValueRef::pathStr(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<detail::Path>().path;
+    return getStorage<detail::Path>(values).path;
 }
 
 SourceAccessor * ValueRef::pathAccessor(Values & values) const noexcept
 {
-    return values.VRtoV(*this).getStorage<detail::Path>().accessor;
+    return getStorage<detail::Path>(values).accessor;
 }
 InternalType ValueRef::getInternalType(Values & values) const noexcept
 {
-    return values.VRtoV(*this).internalType;
+    return values.typeOf(*this);
 }
 void ValueRef::set(Values & values, ValueRef other) noexcept
 {
-    values.VRtoV(*this) = values.VRtoV(other);
+    values.typeOf(*this) = values.typeOf(other);
+    values.payloadOf(*this) = values.payloadOf(other);
 }
 void ValueRef::setFromStack(Values & values, Value const & v) noexcept
 {
-    values.VRtoV(*this) = v;
+    values.typeOf(*this) = v.internalType;
+    values.payloadOf(*this) = v.payload;
 }
 Value ValueRef::toStack(Values & values) const
 {
-    return values.VRtoV(*this);
+    return ValueStorage{values.typeOf(*this), values.payloadOf(*this)};
 }
+
+template<typename T>
+T ValueRef::getStorage(Values & values) const noexcept
+{
+    if (getInternalType(values) != detail::payloadTypeToInternalType<T>) [[unlikely]]
+        unreachable();
+    T out;
+    values.getStorage(*this, out);
+    return out;
+}
+
+#define NIX_VALUE_REF_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
+void ValueRef::setStorage(Values & values, K val) noexcept   \
+{                                                            \
+    values.setStorage(*this, val);                           \
+}
+
+NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_SET_IMPL)
+#undef NIX_VALUE_REF_SET_IMPL
+
 
 // XXX [speed]
 
