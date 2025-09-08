@@ -430,14 +430,9 @@ inline constexpr InternalType payloadTypeToInternalType = PayloadTypeToInternalT
  * Discriminated union of types stored in the value.
  * The union discriminator is @ref InternalType enumeration.
  *
- * This class can be specialized with a non-type template parameter
- * of pointer size for more optimized data layouts on when pointer alignment
- * bits can be used for storing the discriminator.
- *
  * All specializations of this type need to implement getStorage, setStorage and
  * getInternalType methods.
  */
-template<std::size_t ptrSize>
 class ValueStorage
 {
 protected:
@@ -674,7 +669,7 @@ public:
 
 static_assert(std::random_access_iterator<ListView::iterator>);
 
-struct Value : public ValueStorage<sizeof(void *)>
+struct Value : public ValueStorage
 {
     friend std::string showType(EvalState & state, const ValueRef v);
     friend class ValueRef;
