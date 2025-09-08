@@ -424,6 +424,13 @@ NIX_VALUE_STORAGE_FOR_EACH_FIELD(NIX_VALUE_PAYLOAD_TYPE)
 template<typename T>
 inline constexpr InternalType payloadTypeToInternalType = PayloadTypeToInternalType<T>::value;
 
+union Payload
+{
+#define NIX_VALUE_STORAGE_DEFINE_FIELD(T, FIELD_NAME, DISCRIMINATOR) T FIELD_NAME;
+    NIX_VALUE_STORAGE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_DEFINE_FIELD)
+#undef NIX_VALUE_STORAGE_DEFINE_FIELD
+};
+
 } // namespace detail
 
 /**
@@ -436,12 +443,7 @@ inline constexpr InternalType payloadTypeToInternalType = PayloadTypeToInternalT
 class ValueStorage
 {
 protected:
-    using Payload = union
-    {
-#define NIX_VALUE_STORAGE_DEFINE_FIELD(T, FIELD_NAME, DISCRIMINATOR) T FIELD_NAME;
-        NIX_VALUE_STORAGE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_DEFINE_FIELD)
-#undef NIX_VALUE_STORAGE_DEFINE_FIELD
-    };
+    using Payload = detail::Payload;
 
 private:
     InternalType internalType = tUninitialized;
