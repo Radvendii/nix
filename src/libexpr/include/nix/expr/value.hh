@@ -1101,27 +1101,6 @@ class Values {
         }
         return payloads[(ref.ref >> 1) - 1];
     }
-
-#define NIX_VALUES_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
-    void getStorage(ValueRef ref, K & val) noexcept       \
-    {                                                     \
-        assert(typeOf(ref) == DISCRIMINATOR);             \
-        val = payloadOf(ref).FIELD_NAME;                  \
-    }
-
-#define NIX_VALUES_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
-    void setStorage(ValueRef ref, K val) noexcept         \
-    {                                                     \
-        payloadOf(ref).FIELD_NAME = val;                  \
-        typeOf(ref) = DISCRIMINATOR;                      \
-    }
-
-    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUES_GET_IMPL)
-    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUES_SET_IMPL)
-
-#undef NIX_VALUES_GET_IMPL
-#undef NIX_VALUES_SET_IMPL
-
     template<InternalType... discriminator>
     bool isa(ValueRef ref) noexcept
     {

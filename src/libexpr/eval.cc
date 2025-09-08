@@ -1060,6 +1060,27 @@ ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string 
 ValueRef ValueRef::null{0};
 SymbolRef SymbolRef::null{ValueRef::null};
 
+#define NIX_VALUE_REF_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
+template<>                                                   \
+K ValueRef::getStorage(Values & values) const noexcept       \
+{                                                            \
+    return values.payloadOf(*this).FIELD_NAME;               \
+}
+
+#define NIX_VALUE_REF_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
+void ValueRef::setStorage(Values & values, K val) noexcept   \
+{                                                            \
+    values.payloadOf(*this).FIELD_NAME = val;                \
+    values.typeOf(*this) = DISCRIMINATOR;                    \
+}
+
+NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_GET_IMPL)
+NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_SET_IMPL)
+#undef NIX_VALUE_REF_GET_IMPL
+#undef NIX_VALUE_REF_SET_IMPL
+
+
+
 void ValueRef::mkList(Values & values, const ListBuilder & builder) noexcept
 {
     if (builder.size == 1) {
@@ -1188,27 +1209,6 @@ Value ValueRef::toStack(Values & values) const
 {
     return {values.typeOf(*this), values.payloadOf(*this)};
 }
-
-template<typename T>
-T ValueRef::getStorage(Values & values) const noexcept
-{
-    if (getInternalType(values) != detail::payloadTypeToInternalType<T>) [[unlikely]]
-        unreachable();
-    T out;
-    values.getStorage(*this, out);
-    return out;
-}
-
-#define NIX_VALUE_REF_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
-void ValueRef::setStorage(Values & values, K val) noexcept   \
-{                                                            \
-    values.setStorage(*this, val);                           \
-}
-
-NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_SET_IMPL)
-#undef NIX_VALUE_REF_SET_IMPL
-
-
 // XXX [speed]
 
 
