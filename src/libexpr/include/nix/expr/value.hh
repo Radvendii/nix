@@ -457,60 +457,6 @@ union Payload
 } // namespace detail
 
 /**
- * Discriminated union of types stored in the value.
- * The union discriminator is @ref InternalType enumeration.
- *
- * All specializations of this type need to implement getStorage, setStorage and
- * getInternalType methods.
- */
-class ValueStorage
-{
-protected:
-    using Payload = detail::Payload;
-
-private:
-    InternalType internalType = tUninitialized;
-    Payload payload;
-
-protected:
-
-    ValueStorage() = default;
-    ValueStorage(InternalType internalType, Payload payload)
-        : internalType(internalType)
-        , payload(payload)
-    {
-    }
-
-#define NIX_VALUE_STORAGE_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
-    void getStorage(K & val) const noexcept                      \
-    {                                                            \
-        assert(internalType == DISCRIMINATOR);                   \
-        val = payload.FIELD_NAME;                                \
-    }
-
-#define NIX_VALUE_STORAGE_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
-    void setStorage(K val) noexcept                              \
-    {                                                            \
-        payload.FIELD_NAME = val;                                \
-        internalType = DISCRIMINATOR;                            \
-    }
-
-    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_GET_IMPL)
-    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_SET_IMPL)
-
-#undef NIX_VALUE_STORAGE_SET_IMPL
-#undef NIX_VALUE_STORAGE_GET_IMPL
-
-    /** Get internal type currently occupying the storage. */
-    InternalType getInternalType() const noexcept
-    {
-        return internalType;
-    }
-    friend class ValueRef;
-    friend class Values;
-};
-
-/**
  * View into a list of ValueRef that is itself immutable.
  *
  * Since not all representations of ValueStorage can provide
@@ -701,9 +647,23 @@ public:
 };
 
 static_assert(std::random_access_iterator<ListView::iterator>);
-
-struct Value : public ValueStorage
+/**
+ * Discriminated union of types stored in the value.
+ * The union discriminator is @ref InternalType enumeration.
+ */
+struct Value
 {
+    friend class ValueRef;
+    friend class Values;
+private:
+    using Payload = detail::Payload;
+    InternalType internalType = tUninitialized;
+    Payload payload;
+    InternalType getInternalType() const noexcept
+    {
+        return internalType;
+    }
+public:
     friend std::string showType(EvalState & state, const ValueRef v);
     friend class ValueRef;
 
@@ -713,25 +673,40 @@ struct Value : public ValueStorage
         return ((getInternalType() == discriminator) || ...);
     }
 
-    // XXX [speed]: this could take in InternalType as the template parameter and return auto
     template<typename T>
-    T getStorage() const noexcept
-    {
-        if (getInternalType() != detail::payloadTypeToInternalType<T>) [[unlikely]]
-            unreachable();
-        T out;
-        ValueStorage::getStorage(out);
-        return out;
+    T getStorage() const noexcept;
+
+    // XXX [speed]: this could take in InternalType as the template parameter and return auto
+#define NIX_VALUE_STORAGE_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
+    template<>                                                   \
+    K getStorage<K>() const noexcept                             \
+    {                                                            \
+        assert(internalType == DISCRIMINATOR);                   \
+        return payload.FIELD_NAME;                               \
+    }
+    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_GET_IMPL)
+#undef NIX_VALUE_STORAGE_GET_IMPL
+
+#define NIX_VALUE_STORAGE_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
+    void setStorage(K val) noexcept                              \
+    {                                                            \
+        payload.FIELD_NAME = val;                                \
+        internalType = DISCRIMINATOR;                            \
     }
 
-    Value(ValueStorage vs)
-        : ValueStorage(vs)
-    {
-    }
+    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_SET_IMPL)
+
+#undef NIX_VALUE_STORAGE_SET_IMPL
 
 public:
 
     Value() = default;
+    Value(InternalType internalType, Payload payload)
+        : internalType(internalType)
+        , payload(payload)
+    {
+    }
+
 
     inline ValueRef ref(Values & values) const;
 

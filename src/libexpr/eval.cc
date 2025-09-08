@@ -1186,7 +1186,7 @@ void ValueRef::setFromStack(Values & values, Value const & v) noexcept
 }
 Value ValueRef::toStack(Values & values) const
 {
-    return ValueStorage{values.typeOf(*this), values.payloadOf(*this)};
+    return {values.typeOf(*this), values.payloadOf(*this)};
 }
 
 template<typename T>
