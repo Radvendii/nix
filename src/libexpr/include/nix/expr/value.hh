@@ -60,7 +60,7 @@ inline void * allocBytes(size_t n);
 
 class BindingsBuilder;
 
-typedef enum {
+enum InternalType : uint8_t {
     tUninitialized = 0,
     tInt = 1,
     tBool,
@@ -77,7 +77,7 @@ typedef enum {
     tPrimOpApp,
     tExternal,
     tFloat
-} InternalType;
+};
 
 /**
  * This type abstracts over all actual value types in the language,
