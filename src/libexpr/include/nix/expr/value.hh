@@ -390,6 +390,8 @@ struct StringWithContext
 };
 
 // XXX [speed]: consider putting the string in memory after the SourceAccessor
+// XXX [speed]: path is the path part *after* the accessor! <accessor>/<path>.
+// XXX [speed]: maybe use SourcePath?
 struct Path
 {
     SourceAccessor * accessor;
@@ -437,24 +439,6 @@ struct List
     size_t size;
     ValueRef const * elems;
 };
-
-template<typename T>
-struct PayloadTypeToInternalType
-{};
-
-#define NIX_VALUE_PAYLOAD_TYPE(T, FIELD_NAME, DISCRIMINATOR) \
-template<>                                                   \
-struct PayloadTypeToInternalType<T>                          \
-{                                                            \
-    static constexpr InternalType value = DISCRIMINATOR;     \
-};
-
-NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_PAYLOAD_TYPE)
-
-#undef NIX_VALUE_PAYLOAD_TYPE
-
-template<typename T>
-inline constexpr InternalType payloadTypeToInternalType = PayloadTypeToInternalType<T>::value;
 
 union Payload
 {
