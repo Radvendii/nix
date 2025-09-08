@@ -434,11 +434,11 @@ struct PayloadTypeToInternalType
 {};
 
 #define NIX_VALUE_PAYLOAD_TYPE(T, FIELD_NAME, DISCRIMINATOR) \
-    template<>                                               \
-    struct PayloadTypeToInternalType<T>                      \
-    {                                                        \
-        static constexpr InternalType value = DISCRIMINATOR; \
-    };
+template<>                                                   \
+struct PayloadTypeToInternalType<T>                          \
+{                                                            \
+    static constexpr InternalType value = DISCRIMINATOR;     \
+};
 
 NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_PAYLOAD_TYPE)
 
