@@ -66,7 +66,7 @@ Expr * parseExprFromBuf(
     const SourcePath & basePath,
     SymbolTable & symbols,
     const EvalSettings & settings,
-	EvalState & evalState,
+	Values & values,
     PosTable & positions,
     DocCommentMap & docComments,
     const ref<SourceAccessor> rootFS,
@@ -248,7 +248,7 @@ expr_pipe_into
 
 expr_op
   : '!' expr_op %prec NOT { $$ = new ExprOpNot($2); }
-  | '-' expr_op %prec NEGATE { $$ = new ExprCall(CUR_POS, new ExprVar(state->s.sub), {new ExprInt(state->evalState, 0), $2}); }
+  | '-' expr_op %prec NEGATE { $$ = new ExprCall(CUR_POS, new ExprVar(state->s.sub), {new ExprInt(state->values, 0), $2}); }
   | expr_op EQ expr_op { $$ = new ExprOpEq($1, $3); }
   | expr_op NEQ expr_op { $$ = new ExprOpNEq($1, $3); }
   | expr_op '<' expr_op { $$ = new ExprCall(state->at(@2), new ExprVar(state->s.lessThan), {$1, $3}); }
@@ -303,8 +303,8 @@ expr_simple
       else
           $$ = new ExprVar(CUR_POS, state->symbols.create($1));
   }
-  | INT_LIT { $$ = new ExprInt(state->evalState, $1); }
-  | FLOAT_LIT { $$ = new ExprFloat(state->evalState, $1); }
+  | INT_LIT { $$ = new ExprInt(state->values, $1); }
+  | FLOAT_LIT { $$ = new ExprFloat(state->values, $1); }
   | '"' string_parts '"' { $$ = $2; }
   | IND_STRING_OPEN ind_string_parts IND_STRING_CLOSE {
       $$ = state->stripIndentation(CUR_POS, std::move(*$2));
@@ -320,7 +320,7 @@ expr_simple
       $$ = new ExprCall(CUR_POS,
           new ExprVar(state->s.findFile),
           {new ExprVar(state->s.nixPath),
-           new ExprString(state->evalState, std::move(path))});
+           new ExprString(state->values, std::move(path))});
   }
   | URI {
       static bool noURLLiterals = experimentalFeatureSettings.isEnabled(Xp::NoUrlLiterals);
@@ -329,7 +329,7 @@ expr_simple
               .msg = HintFmt("URL literals are disabled"),
               .pos = state->positions[CUR_POS]
           });
-      $$ = new ExprString(state->evalState, std::string($1));
+      $$ = new ExprString(state->values, std::string($1));
   }
   | '(' expr ')' { $$ = $2; }
   /* Let expressions `let {..., body = ...}' are just desugared
@@ -346,19 +346,19 @@ expr_simple
   ;
 
 string_parts
-  : STR { $$ = new ExprString(state->evalState, std::string($1)); }
+  : STR { $$ = new ExprString(state->values, std::string($1)); }
   | string_parts_interpolated { $$ = new ExprConcatStrings(CUR_POS, true, $1); }
-  | { $$ = new ExprString(state->evalState, ""); }
+  | { $$ = new ExprString(state->values, ""); }
   ;
 
 string_parts_interpolated
   : string_parts_interpolated STR
-  { $$ = $1; $1->emplace_back(state->at(@2), new ExprString(state->evalState, std::string($2))); }
+  { $$ = $1; $1->emplace_back(state->at(@2), new ExprString(state->values, std::string($2))); }
   | string_parts_interpolated DOLLAR_CURLY expr '}' { $$ = $1; $1->emplace_back(state->at(@2), $3); }
   | DOLLAR_CURLY expr '}' { $$ = new std::vector<std::pair<PosIdx, Expr *>>; $$->emplace_back(state->at(@1), $2); }
   | STR DOLLAR_CURLY expr '}' {
       $$ = new std::vector<std::pair<PosIdx, Expr *>>;
-      $$->emplace_back(state->at(@1), new ExprString(state->evalState, std::string($1)));
+      $$->emplace_back(state->at(@1), new ExprString(state->values, std::string($1)));
       $$->emplace_back(state->at(@2), $3);
     }
   ;
@@ -384,8 +384,8 @@ path_start
            root filesystem accessor, rather than the accessor of the
            current Nix expression. */
         literal.front() == '/'
-        ? new ExprPath(state->evalState, state->rootFS, std::move(path))
-        : new ExprPath(state->evalState, state->basePath.accessor, std::move(path));
+        ? new ExprPath(state->values, state->rootFS, std::move(path))
+        : new ExprPath(state->values, state->basePath.accessor, std::move(path));
   }
   | HPATH {
     if (state->settings.pureEval) {
@@ -395,7 +395,7 @@ path_start
         );
     }
     Path path(getHome() + std::string($1.p + 1, $1.l - 1));
-    $$ = new ExprPath(state->evalState, ref<SourceAccessor>(state->rootFS), std::move(path));
+    $$ = new ExprPath(state->values, ref<SourceAccessor>(state->rootFS), std::move(path));
   }
   ;
 
@@ -541,7 +541,7 @@ Expr * parseExprFromBuf(
     const SourcePath & basePath,
     SymbolTable & symbols,
     const EvalSettings & settings,
-	EvalState & evalState,
+	Values & values,
     PosTable & positions,
     DocCommentMap & docComments,
     const ref<SourceAccessor> rootFS,
@@ -555,7 +555,7 @@ Expr * parseExprFromBuf(
     };
     ParserState state {
         .lexerState = lexerState,
-	    .evalState = evalState,
+	    .values = values,
         .symbols = symbols,
         .positions = positions,
         .basePath = basePath,

@@ -23,56 +23,56 @@ std::ostream & operator<<(std::ostream & str, const Symbol & symbol)
     return printIdentifier(str, s);
 }
 
-void Expr::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void Expr::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     unreachable();
 }
 
-void ExprInt::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprInt::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << v.integer(state.values);
+    str << v.integer(values);
 }
 
-void ExprFloat::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprFloat::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << v.fpoint(state.values);
+    str << v.fpoint(values);
 }
 
-void ExprString::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprString::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     printLiteralString(str, s);
 }
 
-void ExprPath::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprPath::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << s;
 }
 
-void ExprVar::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprVar::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << symbols[name];
 }
 
-void ExprSelect::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprSelect::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(";
-    e->show(state, symbols, str);
-    str << ")." << showAttrPath(state, symbols, attrPath);
+    e->show(values, symbols, str);
+    str << ")." << showAttrPath(values, symbols, attrPath);
     if (def) {
         str << " or (";
-        def->show(state, symbols, str);
+        def->show(values, symbols, str);
         str << ")";
     }
 }
 
-void ExprOpHasAttr::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprOpHasAttr::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "((";
-    e->show(state, symbols, str);
-    str << ") ? " << showAttrPath(state, symbols, attrPath) << ")";
+    e->show(values, symbols, str);
+    str << ") ? " << showAttrPath(values, symbols, attrPath) << ")";
 }
 
-void ExprAttrs::showBindings(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprAttrs::showBindings(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     typedef const decltype(attrs)::value_type * Attr;
     std::vector<Attr> sorted;
@@ -109,7 +109,7 @@ void ExprAttrs::showBindings(EvalState & state, const SymbolTable & symbols, std
     }
     for (const auto & [from, syms] : inheritsFrom) {
         str << "inherit (";
-        (*inheritFromExprs)[from]->show(state, symbols, str);
+        (*inheritFromExprs)[from]->show(values, symbols, str);
         str << ")";
         for (auto sym : syms)
             str << " " << symbols[sym];
@@ -118,40 +118,40 @@ void ExprAttrs::showBindings(EvalState & state, const SymbolTable & symbols, std
     for (auto & i : sorted) {
         if (i->second.kind == AttrDef::Kind::Plain) {
             str << symbols[i->first] << " = ";
-            i->second.e->show(state, symbols, str);
+            i->second.e->show(values, symbols, str);
             str << "; ";
         }
     }
     for (auto & i : dynamicAttrs) {
         str << "\"${";
-        i.nameExpr->show(state, symbols, str);
+        i.nameExpr->show(values, symbols, str);
         str << "}\" = ";
-        i.valueExpr->show(state, symbols, str);
+        i.valueExpr->show(values, symbols, str);
         str << "; ";
     }
 }
 
-void ExprAttrs::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprAttrs::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     if (recursive)
         str << "rec ";
     str << "{ ";
-    showBindings(state, symbols, str);
+    showBindings(values, symbols, str);
     str << "}";
 }
 
-void ExprList::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprList::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "[ ";
     for (auto & i : elems) {
         str << "(";
-        i->show(state, symbols, str);
+        i->show(values, symbols, str);
         str << ") ";
     }
     str << "]";
 }
 
-void ExprLambda::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprLambda::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(";
     if (hasFormals()) {
@@ -168,7 +168,7 @@ void ExprLambda::show(EvalState & state, const SymbolTable & symbols, std::ostre
             str << symbols[i.name];
             if (i.def) {
                 str << " ? ";
-                i.def->show(state, symbols, str);
+                i.def->show(values, symbols, str);
             }
         }
         if (formals->ellipsis) {
@@ -183,66 +183,66 @@ void ExprLambda::show(EvalState & state, const SymbolTable & symbols, std::ostre
     if (arg)
         str << symbols[arg];
     str << ": ";
-    body->show(state, symbols, str);
+    body->show(values, symbols, str);
     str << ")";
 }
 
-void ExprCall::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprCall::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << '(';
-    fun->show(state, symbols, str);
+    fun->show(values, symbols, str);
     for (auto e : args) {
         str << ' ';
-        e->show(state, symbols, str);
+        e->show(values, symbols, str);
     }
     str << ')';
 }
 
-void ExprLet::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprLet::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(let ";
-    attrs->showBindings(state, symbols, str);
+    attrs->showBindings(values, symbols, str);
     str << "in ";
-    body->show(state, symbols, str);
+    body->show(values, symbols, str);
     str << ")";
 }
 
-void ExprWith::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprWith::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(with ";
-    attrs->show(state, symbols, str);
+    attrs->show(values, symbols, str);
     str << "; ";
-    body->show(state, symbols, str);
+    body->show(values, symbols, str);
     str << ")";
 }
 
-void ExprIf::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprIf::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(if ";
-    cond->show(state, symbols, str);
+    cond->show(values, symbols, str);
     str << " then ";
-    then->show(state, symbols, str);
+    then->show(values, symbols, str);
     str << " else ";
-    else_->show(state, symbols, str);
+    else_->show(values, symbols, str);
     str << ")";
 }
 
-void ExprAssert::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprAssert::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "assert ";
-    cond->show(state, symbols, str);
+    cond->show(values, symbols, str);
     str << "; ";
-    body->show(state, symbols, str);
+    body->show(values, symbols, str);
 }
 
-void ExprOpNot::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprOpNot::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(! ";
-    e->show(state, symbols, str);
+    e->show(values, symbols, str);
     str << ")";
 }
 
-void ExprConcatStrings::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprConcatStrings::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     bool first = true;
     str << "(";
@@ -251,17 +251,17 @@ void ExprConcatStrings::show(EvalState & state, const SymbolTable & symbols, std
             first = false;
         else
             str << " + ";
-        i.second->show(state, symbols, str);
+        i.second->show(values, symbols, str);
     }
     str << ")";
 }
 
-void ExprPos::show(EvalState & state, const SymbolTable & symbols, std::ostream & str) const
+void ExprPos::show(Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "__curPos";
 }
 
-std::string showAttrPath(EvalState & state, const SymbolTable & symbols, const AttrPath & attrPath)
+std::string showAttrPath(Values & values, const SymbolTable & symbols, const AttrPath & attrPath)
 {
     std::ostringstream out;
     bool first = true;
@@ -274,7 +274,7 @@ std::string showAttrPath(EvalState & state, const SymbolTable & symbols, const A
             out << symbols[i.symbol];
         else {
             out << "\"${";
-            i.expr->show(state, symbols, out);
+            i.expr->show(values, symbols, out);
             out << "}\"";
         }
     }

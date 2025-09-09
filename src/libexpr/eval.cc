@@ -1024,34 +1024,34 @@ void ValueRef::mkPath(Values & values, const SourcePath & path)
 }
 
 // XXX [speed]: return these to their homes
-ExprInt::ExprInt(EvalState & state, NixInt n)
+ExprInt::ExprInt(Values & values, NixInt n)
 {
-    v = state.allocValue();
-    v.mkInt(state.values, n);
+    v = values.create();
+    v.mkInt(values, n);
 };
 
-ExprInt::ExprInt(EvalState & state, NixInt::Inner n)
+ExprInt::ExprInt(Values & values, NixInt::Inner n)
 {
-    v = state.allocValue();
-    v.mkInt(state.values, n);
+    v = values.create();
+    v.mkInt(values, n);
 };
-ExprFloat::ExprFloat(EvalState & state, NixFloat nf)
+ExprFloat::ExprFloat(Values & values, NixFloat nf)
 {
-    v = state.allocValue();
-    v.mkFloat(state.values, nf);
+    v = values.create();
+    v.mkFloat(values, nf);
 };
-ExprString::ExprString(EvalState & state, std::string && s)
+ExprString::ExprString(Values & values, std::string && s)
     : s(std::move(s))
 {
-    v = state.allocValue();
-    v.mkString(state.values, this->s.data());
+    v = values.create();
+    v.mkString(values, this->s.data());
 };
-ExprPath::ExprPath(EvalState & state, ref<SourceAccessor> accessor, std::string s)
+ExprPath::ExprPath(Values & values, ref<SourceAccessor> accessor, std::string s)
     : accessor(accessor)
     , s(std::move(s))
 {
-    v = state.allocValue();
-    v.mkPath(state.values, &*accessor, this->s.c_str());
+    v = values.create();
+    v.mkPath(values, &*accessor, this->s.c_str());
 }
 ValueRef ValueRef::null{0};
 SymbolRef SymbolRef::null{ValueRef::null};
@@ -1703,7 +1703,7 @@ static std::string showAttrPath(EvalState & state, Env & env, const AttrPath & a
         } catch (Error & e) {
             assert(!i.symbol);
             out << "\"${";
-            i.expr->show(state, state.symbols, out);
+            i.expr->show(state.values, state.symbols, out);
             out << "}\"";
         }
     }
@@ -2160,7 +2160,7 @@ void ExprAssert::eval(EvalState & state, Env & env, ValueRef v)
 {
     if (!state.evalBool(env, cond, pos, "in the condition of the assert statement")) {
         std::ostringstream out;
-        cond->show(state, state.symbols, out);
+        cond->show(state.values, state.symbols, out);
         auto exprStr = toView(out);
 
         if (auto eq = dynamic_cast<ExprOpEq *>(cond)) {
@@ -3532,7 +3532,7 @@ Expr * EvalState::parse(
     }
 
     auto result = parseExprFromBuf(
-        text, length, origin, basePath, symbols, settings, *this, positions, *docComments, rootFS, exprSymbols);
+        text, length, origin, basePath, symbols, settings, values, positions, *docComments, rootFS, exprSymbols);
 
     result->bindVars(*this, staticEnv);
 

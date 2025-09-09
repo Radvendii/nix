@@ -109,7 +109,7 @@ TEST_F(ValuePrintingTests, vLambda)
     Env env{.up = nullptr, .values = {}};
     PosTable::Origin origin = state.positions.addOrigin(std::monostate(), 1);
     auto posIdx = state.positions.add(origin, 0);
-    auto body = ExprInt(state, 0);
+    auto body = ExprInt(state.values, 0);
     auto formals = Formals{};
 
     ExprLambda eLambda(posIdx, createSymbol("a"), &formals, &body);
@@ -464,7 +464,7 @@ TEST_F(ValuePrintingTests, ansiColorsAssert)
 {
     ExprVar eFalse(state.symbols.create("false"));
     eFalse.bindVars(state, state.staticBaseEnv);
-    ExprInt eInt(state, 1);
+    ExprInt eInt(state.values, 1);
 
     ExprAssert expr(noPos, &eFalse, &eInt);
 
@@ -499,7 +499,7 @@ TEST_F(ValuePrintingTests, ansiColorsLambda)
     Env env{.up = nullptr, .values = {}};
     PosTable::Origin origin = state.positions.addOrigin(std::monostate(), 1);
     auto posIdx = state.positions.add(origin, 0);
-    auto body = ExprInt(state, 0);
+    auto body = ExprInt(state.values, 0);
     auto formals = Formals{};
 
     ExprLambda eLambda(posIdx, createSymbol("a"), &formals, &body);
