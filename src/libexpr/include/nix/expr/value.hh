@@ -1165,6 +1165,8 @@ inline K ValueRef::getStorage(Values & values) const noexcept       \
 #define IF_NONEMPTY_IMPL(x, ...) __VA_OPT__(x)
 #define IF_NONEMPTY(c, x) IF_NONEMPTY_IMPL(x, c)
 
+// XXX [speed]: freeing on a hot path. this should go away
+//              when we idxify Env and Expr
 #define NIX_VALUE_REF_SET_IMPL(K, PTR, FIELD_NAME, DISCRIMINATOR)   \
 [[gnu::always_inline]]                                              \
 inline void ValueRef::setStorage(Values & values, K val) noexcept   \
@@ -1173,6 +1175,8 @@ inline void ValueRef::setStorage(Values & values, K val) noexcept   \
         values.stackValuePtr(*this)->setStorage(val);               \
         return;                                                     \
     }                                                               \
+    if (values.typeOf(*this) == tThunk)                             \
+        free(values.payloadOf(*this).thunk);                        \
     values.typeOf(*this) = DISCRIMINATOR;                           \
     IF_NONEMPTY(PTR,                                                \
     values.payloadOf(*this).FIELD_NAME =                            \
