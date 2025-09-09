@@ -52,11 +52,27 @@ namespace detail {
     struct List;
     using SmallList = std::array<ValueRef, 2>;
     struct Path;
-    union Payload;
+    union StackPayload;
+    union RefPayload;
 }
 
-// XXX [speed]: this might not be needed when we're done
-inline void * allocBytes(size_t n);
+// XXX [speed]: move this to its own util file?
+/**
+ * Note: Various places expect the allocated memory to be zeroed.
+ */
+[[gnu::always_inline]]
+inline void * allocBytes(size_t n)
+{
+    void * p;
+#if NIX_USE_BOEHMGC
+    p = GC_MALLOC(n);
+#else
+    p = calloc(n, 1);
+#endif
+    if (!p)
+        throw std::bad_alloc();
+    return p;
+}
 
 class BindingsBuilder;
 
@@ -121,23 +137,24 @@ using NixFloat = double;
  * overload resolution in setStorage. This ensures there's a bijection from
  * InternalType <-> C++ type.
  */
+// MACRO(TYPE, EXTRA_PTR, FIELD_NAME, DISCRIMINATOR)
+// XXX [speed]: Value refs have to turn some fields into pointers so they fit in 8 bytes. We don't want to transform stack values in this way because it allocates 16 bytes on the heap for each one.
 #define NIX_VALUE_FOR_EACH_FIELD(MACRO)                             \
-    MACRO(NixInt, integer, tInt)                                    \
-    MACRO(bool, boolean, tBool)                                     \
-    MACRO(detail::StringWithContext, string, tString)               \
-    MACRO(detail::Path, path, tPath)                                \
-    MACRO(detail::Null, null_, tNull)                               \
-    MACRO(Bindings *, attrs, tAttrs)                                \
-    MACRO(detail::List, bigList, tListN)                            \
-    MACRO(detail::SmallList, smallList, tListSmall)                 \
-    MACRO(detail::ClosureThunk, thunk, tThunk)                      \
-    MACRO(detail::FunctionApplicationThunk, app, tApp)              \
-    MACRO(detail::Lambda, lambda, tLambda)                          \
-    MACRO(PrimOp *, primOp, tPrimOp)                                \
-    MACRO(detail::PrimOpApplicationThunk, primOpApp, tPrimOpApp)    \
-    MACRO(ExternalValueBase *, external, tExternal)                 \
-    MACRO(NixFloat, fpoint, tFloat)
-
+    MACRO(NixInt, , integer, tInt)                                  \
+    MACRO(bool, , boolean, tBool)                                   \
+    MACRO(detail::StringWithContext, *, string, tString)            \
+    MACRO(detail::Path, *, path, tPath)                             \
+    MACRO(detail::Null, , null_, tNull)                             \
+    MACRO(Bindings *, , attrs, tAttrs)                              \
+    MACRO(detail::List, *, bigList, tListN)                         \
+    MACRO(detail::SmallList, , smallList, tListSmall)               \
+    MACRO(detail::ClosureThunk, *, thunk, tThunk)                   \
+    MACRO(detail::FunctionApplicationThunk, , app, tApp)            \
+    MACRO(detail::Lambda, *, lambda, tLambda)                       \
+    MACRO(PrimOp *, , primOp, tPrimOp)                              \
+    MACRO(detail::PrimOpApplicationThunk, , primOpApp, tPrimOpApp)  \
+    MACRO(ExternalValueBase *, , external, tExternal)               \
+    MACRO(NixFloat, , fpoint, tFloat)
 
 class ValueRef {
     public:
@@ -236,6 +253,11 @@ class ValueRef {
     /** Get internal type currently occupying the storage. */
     InternalType getInternalType(Values & values) const noexcept;
 
+    inline bool isOnStack() const noexcept
+    {
+        return this->ref & 0x1;
+    }
+
     void set(Values & values, ValueRef other) noexcept;
     void setFromStack(Values & values, Value const & v) noexcept;
     Value toStack(Values & values) const;
@@ -244,7 +266,7 @@ class ValueRef {
     [[gnu::always_inline]]
     inline T getStorage(Values & values) const noexcept;
 
-#define NIX_VALUE_REF_SET_DECL(K, FIELD_NAME, DISCRIMINATOR) \
+#define NIX_VALUE_REF_SET_DECL(K, PTR, FIELD_NAME, DISCRIMINATOR) \
     [[gnu::always_inline]]                                   \
     inline void setStorage(Values & values, K val) noexcept;
 
@@ -440,12 +462,27 @@ struct List
     ValueRef const * elems;
 };
 
-union Payload
+#define NIX_STACK_PAYLOAD_DEFINE_FIELD(T, PTR, FIELD_NAME, DISCRIMINATOR) T FIELD_NAME;
+#define NIX_REF_PAYLOAD_DEFINE_FIELD(T, PTR, FIELD_NAME, DISCRIMINATOR) T PTR FIELD_NAME;
+
+union StackPayload
 {
-#define NIX_VALUE_STORAGE_DEFINE_FIELD(T, FIELD_NAME, DISCRIMINATOR) T FIELD_NAME;
-    NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_DEFINE_FIELD)
-#undef NIX_VALUE_STORAGE_DEFINE_FIELD
+    NIX_VALUE_FOR_EACH_FIELD(NIX_STACK_PAYLOAD_DEFINE_FIELD)
 };
+
+union RefPayload
+{
+    NIX_VALUE_FOR_EACH_FIELD(NIX_REF_PAYLOAD_DEFINE_FIELD)
+};
+
+static_assert(
+    sizeof(RefPayload) == 2 * sizeof(uint32_t),
+    "All variants of RefPayload must be 8 bytes in size. If you need more space "
+    "than that, you can store a pointer to your data. Though you should first "
+    "think long and hard about whether you can fit it in 8 bytes.");
+
+#undef NIX_STACK_PAYLOAD_DEFINE_FIELD
+#undef NIX_REF_PAYLOAD_DEFINE_FIELD
 
 } // namespace detail
 
@@ -649,7 +686,7 @@ struct Value
     friend class ValueRef;
     friend class Values;
 private:
-    using Payload = detail::Payload;
+    using Payload = detail::StackPayload;
     InternalType internalType = tUninitialized;
     Payload payload;
     InternalType getInternalType() const noexcept
@@ -670,21 +707,21 @@ public:
     T getStorage() const noexcept;
 
     // XXX [speed]: this could take in InternalType as the template parameter and return auto
-#define NIX_VALUE_STORAGE_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
-    template<>                                                   \
-    K getStorage<K>() const noexcept                             \
-    {                                                            \
-        assert(internalType == DISCRIMINATOR);                   \
-        return payload.FIELD_NAME;                               \
+#define NIX_VALUE_STORAGE_GET_IMPL(K, PTR, FIELD_NAME, DISCRIMINATOR) \
+    template<>                                                        \
+    K getStorage<K>() const noexcept                                  \
+    {                                                                 \
+        assert(internalType == DISCRIMINATOR);                        \
+        return payload.FIELD_NAME;                                    \
     }
     NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_GET_IMPL)
 #undef NIX_VALUE_STORAGE_GET_IMPL
 
-#define NIX_VALUE_STORAGE_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR) \
-    void setStorage(K val) noexcept                              \
-    {                                                            \
-        payload.FIELD_NAME = val;                                \
-        internalType = DISCRIMINATOR;                            \
+#define NIX_VALUE_STORAGE_SET_IMPL(K, PTR, FIELD_NAME, DISCRIMINATOR) \
+    void setStorage(K val) noexcept                                   \
+    {                                                                 \
+        payload.FIELD_NAME = val;                                     \
+        internalType = DISCRIMINATOR;                                 \
     }
 
     NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_STORAGE_SET_IMPL)
@@ -1051,7 +1088,7 @@ class Values {
     public:
 
     std::vector<InternalType> types;
-    std::vector<detail::Payload> payloads;
+    std::vector<detail::RefPayload> payloads;
 
     /**
      * In order to refer to Values allocated on the stack in a ValueRef (32
@@ -1070,30 +1107,33 @@ class Values {
         stackPtr = (size_t) &stackValue;
     }
 
+    inline Value * stackValuePtr(ValueRef ref) noexcept {
+        if (!ref || !ref.isOnStack())
+            unreachable();
+        // use arithmetic shift to preserve sign bit
+        int32_t offset = (int32_t)ref.ref >> 1;
+        return (Value *)(stackPtr + offset);
+
+    }
+
     [[gnu::always_inline]]
     inline InternalType & typeOf(ValueRef ref) noexcept
     {
         if (!ref)
             unreachable();
         // XXX [speed] make sure this branching statement gets optimzied out
-        if (ref.ref & 0x1) {
-            // use arithmetic shift to preserve sign bit
-            int32_t offset = (int32_t)ref.ref >> 1;
-            return ((Value *)(stackPtr + offset))->internalType;
-        }
+        if (ref.isOnStack())
+            return stackValuePtr(ref)->internalType;
         // XXX [speed]: we could save a pointer to &Values.front() - 1, so we don't have to offset by 1 every time
         return types[(ref.ref >> 1) - 1];
     }
 
+    // XXX: cannot be used on refs to stack values!
     [[gnu::always_inline]]
-    inline detail::Payload & payloadOf(ValueRef ref) noexcept
+    inline detail::RefPayload & payloadOf(ValueRef ref) noexcept
     {
-        if (!ref)
+        if (!ref || ref.isOnStack())
             unreachable();
-        if (ref.ref & 0x1) {
-            int32_t offset = (int32_t)ref.ref >> 1;
-            return ((Value *)(stackPtr + offset))->payload;
-        }
         return payloads[(ref.ref >> 1) - 1];
     }
     template<InternalType... discriminator>
@@ -1111,28 +1151,40 @@ class Values {
     }
 };
 
-#define NIX_VALUE_REF_GET_IMPL(K, FIELD_NAME, DISCRIMINATOR)        \
+#define NIX_VALUE_REF_GET_IMPL(K, PTR, FIELD_NAME, DISCRIMINATOR)   \
 template<>                                                          \
 [[gnu::always_inline]]                                              \
 inline K ValueRef::getStorage(Values & values) const noexcept       \
 {                                                                   \
-    return values.payloadOf(*this).FIELD_NAME;                      \
+    if (isOnStack())                                                \
+        return values.stackValuePtr(*this)->payload.FIELD_NAME;     \
+    return PTR values.payloadOf(*this).FIELD_NAME;                  \
 }
 
-#define NIX_VALUE_REF_SET_IMPL(K, FIELD_NAME, DISCRIMINATOR)        \
+// XXX [speed]: this is naughty. COND adds the text x if c has any text in it.
+#define COND_IMPL(x, ...) __VA_OPT__(x)
+#define COND(c, x) COND_IMPL(x, c)
+
+#define NIX_VALUE_REF_SET_IMPL(K, PTR, FIELD_NAME, DISCRIMINATOR)   \
 [[gnu::always_inline]]                                              \
 inline void ValueRef::setStorage(Values & values, K val) noexcept   \
 {                                                                   \
-    values.payloadOf(*this).FIELD_NAME = val;                       \
+    if (isOnStack()) {                                              \
+        values.stackValuePtr(*this)->setStorage(val);               \
+        return;                                                     \
+    }                                                               \
     values.typeOf(*this) = DISCRIMINATOR;                           \
+    COND(PTR,                                                       \
+    values.payloadOf(*this).FIELD_NAME =                            \
+      (K PTR) allocBytes(sizeof(K));                                \
+    )                                                               \
+    PTR values.payloadOf(*this).FIELD_NAME = val;                   \
 }
 
 NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_GET_IMPL)
 NIX_VALUE_FOR_EACH_FIELD(NIX_VALUE_REF_SET_IMPL)
 #undef NIX_VALUE_REF_GET_IMPL
 #undef NIX_VALUE_REF_SET_IMPL
-
-
 
 // type() == nThunk
 inline bool ValueRef::isThunk(Values & values) const

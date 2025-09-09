@@ -8,23 +8,6 @@
 
 namespace nix {
 
-/**
- * Note: Various places expect the allocated memory to be zeroed.
- */
-[[gnu::always_inline]]
-inline void * allocBytes(size_t n)
-{
-    void * p;
-#if NIX_USE_BOEHMGC
-    p = GC_MALLOC(n);
-#else
-    p = calloc(n, 1);
-#endif
-    if (!p)
-        throw std::bad_alloc();
-    return p;
-}
-
 [[gnu::always_inline]]
 ValueRef EvalState::allocValue()
 {

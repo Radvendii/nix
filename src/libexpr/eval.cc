@@ -1174,17 +1174,57 @@ InternalType ValueRef::getInternalType(Values & values) const noexcept
 }
 void ValueRef::set(Values & values, ValueRef other) noexcept
 {
+    if (isOnStack()) {
+        *values.stackValuePtr(*this) = other.toStack(values);
+        return;
+    }
+    if (other.isOnStack()) {
+        setFromStack(values, *values.stackValuePtr(other));
+        return;
+    }
     values.typeOf(*this) = values.typeOf(other);
     values.payloadOf(*this) = values.payloadOf(other);
 }
 void ValueRef::setFromStack(Values & values, Value const & v) noexcept
 {
+    if (isOnStack()) {
+        *values.stackValuePtr(*this) = v;
+        return;
+    }
     values.typeOf(*this) = v.internalType;
-    values.payloadOf(*this) = v.payload;
+    switch (v.internalType) {
+    case tUninitialized:
+        unreachable();
+        break;
+#define NIX_SWITCH_BRANCH(K, PTR, FIELD_NAME, DISCRIMINATOR) \
+    case DISCRIMINATOR:                                      \
+        setStorage(values, v.getStorage<K>());               \
+        break;
+
+    NIX_VALUE_FOR_EACH_FIELD(NIX_SWITCH_BRANCH)
+#undef NIX_SWITCH_BRANCH
+    }
 }
 Value ValueRef::toStack(Values & values) const
 {
-    return {values.typeOf(*this), values.payloadOf(*this)};
+    if (isOnStack()) {
+        return *values.stackValuePtr(*this);
+    }
+    Value ret;
+    ret.internalType = values.typeOf(*this);
+    switch (ret.internalType) {
+    case tUninitialized:
+        unreachable();
+        break;
+#define NIX_SWITCH_BRANCH(K, PTR, FIELD_NAME, DISCRIMINATOR) \
+    case DISCRIMINATOR:                                      \
+        ret.setStorage(getStorage<K>(values));               \
+        break;
+
+    NIX_VALUE_FOR_EACH_FIELD(NIX_SWITCH_BRANCH)
+#undef NIX_SWITCH_BRANCH
+    }
+    return ret;
 }
 // XXX [speed]
 
