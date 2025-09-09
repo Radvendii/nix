@@ -2868,7 +2868,6 @@ static void prim_attrNames(EvalState & state, const PosIdx pos, ValueRef * args,
     auto list = state.buildList(args[0].attrs(state.values)->size());
 
     for (const auto & [n, i] : enumerate(*args[0].attrs(state.values)))
-        // XXX [speed]: can't this just be list[n] = i.name;?
         list[n] = i.name;
 
     std::sort(list.begin(), list.end(), [&state](ValueRef v1, ValueRef v2) { return strcmp(v1.c_str(state.values), v2.c_str(state.values)) < 0; });
@@ -4038,7 +4037,6 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, ValueRef * args,
 
     // List of returned lists before concatenation. It is illegal to create a ValueRef to these Values.
     // XXX [speed]: this is a misuse of conservativeStackReservation. it's meant to be multiplied by sizeof(Value) not sizeof(ListView)
-    // XXX [speed]: does this makes GC harder, since we can't cleanup a Value's auxillary data necessarily when we clean up the Value. But maybe that was alread true? We always run the risk of holding onto the pointer to the data without the Value being live.
     SmallListViewVector<conservativeStackReservation> lists(nrLists);
     size_t len = 0;
 

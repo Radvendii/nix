@@ -86,7 +86,6 @@ struct Expr
 {
     struct AstSymbols
     {
-        // XXX [speed]: These get initialized in EvalState::EvalState()
         SymbolRef sub, lessThan, mul, div, or_, findFile, nixPath, body;
     };
 

@@ -126,7 +126,6 @@ Symbol::Symbol(const Key & key)
     // XXX [speed]: had to remove a special-case for empty string that didn't require any allocation. I'm not sure if that impacts e.g. string comparison times, but the c_str pointer must point back to the SymbolData.
     memcpy(data->c_str, key.str.data(), size);
     data->c_str[size] = '\0';
-    // XXX [speed]: there should either be a tSymbol Value type that fits in 8 bytes, or at least a contextless string type that does
     v.mkString(key.es.values, data->c_str, nullptr);
     this->data = data;
 }
@@ -567,8 +566,7 @@ void EvalState::addConstant(const std::string & name, Value v, Constant info)
 void EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 {
     // Can't pass in a reference to value-on-the-stack. Pass in the stack value directly!
-    // XXX [speed]: factor this out into a onStack() function
-    if (v.ref & 0x1) [[unlikely]]
+    if (v.isOnStack()) [[unlikely]]
         unreachable();
 
     auto name2 = name.substr(0, 2) == "__" ? name.substr(2) : name;
@@ -2208,24 +2206,23 @@ void ExprOpNEq::eval(EvalState & state, Env & env, ValueRef v)
 
 void ExprOpAnd::eval(EvalState & state, Env & env, ValueRef v)
 {
-    auto b = state.evalBool(env, e1, pos, "in the left operand of the AND (&&) operator")
-             && state.evalBool(env, e2, pos, "in the right operand of the AND (&&) operator");
-    v.mkBool(state.values, b);
+    v.mkBool(state.values,
+         state.evalBool(env, e1, pos, "in the left operand of the AND (&&) operator")
+         && state.evalBool(env, e2, pos, "in the right operand of the AND (&&) operator"));
 }
 
 void ExprOpOr::eval(EvalState & state, Env & env, ValueRef v)
 {
-    // XXX [speed]: cursed. we can't put this expression inside mkBool() or it might allocValue() thus invalidating the return from VRtoV(v). This should get cleaned up when we make mkBool() act directly on ValueRefs.
-    auto b = state.evalBool(env, e1, pos, "in the left operand of the OR (||) operator")
-             || state.evalBool(env, e2, pos, "in the right operand of the OR (||) operator");
-    v.mkBool(state.values, b);
+    v.mkBool(state.values,
+         state.evalBool(env, e1, pos, "in the left operand of the OR (||) operator")
+         || state.evalBool(env, e2, pos, "in the right operand of the OR (||) operator"));
 }
 
 void ExprOpImpl::eval(EvalState & state, Env & env, ValueRef v)
 {
-    auto b = !state.evalBool(env, e1, pos, "in the left operand of the IMPL (->) operator")
-             || state.evalBool(env, e2, pos, "in the right operand of the IMPL (->) operator");
-    v.mkBool(state.values, b);
+    v.mkBool(state.values,
+         !state.evalBool(env, e1, pos, "in the left operand of the IMPL (->) operator")
+         || state.evalBool(env, e2, pos, "in the right operand of the IMPL (->) operator"));
 }
 
 void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)

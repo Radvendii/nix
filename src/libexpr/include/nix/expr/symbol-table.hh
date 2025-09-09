@@ -269,7 +269,6 @@ public:
         return symbols.insert(Symbol::Key{es, s, stringAlloc}).first->data->ref;
     }
 
-    // XXX [speed]: these don't actually need a SymbolTable, just an EvalState
     Symbol operator[](SymbolRef ref) const;
 
     std::vector<Symbol> resolve(const std::vector<SymbolRef> & symbols) const

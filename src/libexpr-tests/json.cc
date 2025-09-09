@@ -7,7 +7,6 @@ namespace nix {
 class JSONValueTest : public LibExprTest
 {
 protected:
-    // XXX [speed]: this one can stay a Value. In the future it will refer to a StackValue
     std::string getJSONValue(Value value)
     {
         std::stringstream ss;
