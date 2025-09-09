@@ -1161,9 +1161,9 @@ inline K ValueRef::getStorage(Values & values) const noexcept       \
     return PTR values.payloadOf(*this).FIELD_NAME;                  \
 }
 
-// XXX [speed]: this is naughty. COND adds the text x if c has any text in it.
-#define COND_IMPL(x, ...) __VA_OPT__(x)
-#define COND(c, x) COND_IMPL(x, c)
+// XXX [speed]: this is naughty. IF_NONEMPTY adds the text x if c has any text in it.
+#define IF_NONEMPTY_IMPL(x, ...) __VA_OPT__(x)
+#define IF_NONEMPTY(c, x) IF_NONEMPTY_IMPL(x, c)
 
 #define NIX_VALUE_REF_SET_IMPL(K, PTR, FIELD_NAME, DISCRIMINATOR)   \
 [[gnu::always_inline]]                                              \
@@ -1174,7 +1174,7 @@ inline void ValueRef::setStorage(Values & values, K val) noexcept   \
         return;                                                     \
     }                                                               \
     values.typeOf(*this) = DISCRIMINATOR;                           \
-    COND(PTR,                                                       \
+    IF_NONEMPTY(PTR,                                                \
     values.payloadOf(*this).FIELD_NAME =                            \
       (K PTR) allocBytes(sizeof(K));                                \
     )                                                               \
