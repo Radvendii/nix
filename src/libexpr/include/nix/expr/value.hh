@@ -307,6 +307,9 @@ struct Env
 class Envs {
     public:
     // Env has both EnvRef and an array of ValueRefs, so it must be cast explicitly
+    // XXX [speed]: measure how much, and how far, we traverse up pointers, then consider:
+    // 1. storing an "upN" pointer in addition that points up N (counting from 0 to 7 then looping back to 0). this would allow us to traverse 8 at a time until we get close
+    // 2. storing oversized lists separately. then we could SoA it and bring the up refs much closer together. since traversal doesn't touch the values, this might help caching and make it faster.
     std::vector<uint32_t> data;
     Envs()
     {
