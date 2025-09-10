@@ -260,15 +260,15 @@ static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path,
 {
     state.forceAttrs(vScope, pos, "while evaluating the first argument passed to builtins.scopedImport");
 
-    Env * env = &state.allocEnv(vScope.attrs(state.values)->size());
-    env->up = &state.baseEnv;
+    EnvRef env = state.allocEnv(vScope.attrs(state.values)->size());
+    env.up(state.envs) = state.baseEnv;
 
     auto staticEnv = std::make_shared<StaticEnv>(nullptr, state.staticBaseEnv, vScope.attrs(state.values)->size());
 
     unsigned int displ = 0;
     for (auto & attr : *vScope.attrs(state.values)) {
         staticEnv->vars.emplace_back(attr.name, displ);
-        env->values[displ++] = attr.value;
+        env.values(state.envs)[displ++] = attr.value;
     }
 
     // No need to call staticEnv.sort(), because
@@ -277,7 +277,7 @@ static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path,
     printTalkative("evaluating file '%1%'", path);
     Expr * e = state.parseExprFromFile(resolveExprPath(path), staticEnv);
 
-    e->eval(state, *env, v);
+    e->eval(state, env, v);
 }
 
 /* Load and evaluate an expression from path specified by the
@@ -4954,7 +4954,7 @@ RegisterPrimOp::RegisterPrimOp(PrimOp && primOp)
 
 void EvalState::createBaseEnv(const EvalSettings & evalSettings)
 {
-    baseEnv.up = 0;
+    baseEnv.up(envs) = EnvRef::null;
 
     /* Add global constants such as `true' to the base environment. */
     Value v;

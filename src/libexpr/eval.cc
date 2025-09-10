@@ -250,7 +250,7 @@ bool ValueRef::isTrivial(Values & values) const
                || dynamic_cast<ExprLambda *>(thunk(values).expr) || dynamic_cast<ExprList *>(thunk(values).expr));
 }
 
-static SymbolRef getName(const AttrName & name, EvalState & state, Env & env)
+static SymbolRef getName(const AttrName & name, EvalState & state, EnvRef env)
 {
     if (name.symbol) {
         return name.symbol;
@@ -401,8 +401,8 @@ EvalState::EvalState(
     , regexCache(makeRegexCache())
 #if NIX_USE_BOEHMGC
     , env1AllocCache(std::allocate_shared<void *>(traceable_allocator<void *>(), nullptr))
-    , baseEnvP(std::allocate_shared<Env *>(traceable_allocator<Env *>(), &allocEnv(BASE_ENV_SIZE)))
-    , baseEnv(**baseEnvP)
+    , baseEnvP(std::allocate_shared<EnvRef>(traceable_allocator<EnvRef>(), allocEnv(BASE_ENV_SIZE)))
+    , baseEnv(*baseEnvP)
 #else
     , baseEnv(allocEnv(BASE_ENV_SIZE))
 #endif
@@ -415,6 +415,7 @@ EvalState::EvalState(
 
     assertGCInitialized();
 
+    // XXX [speed]: why? huh? why is this here?
     static_assert(sizeof(Env) <= 16, "environment must be <= 16 bytes");
 
     (vEmptyList = allocValue()).mkList(values, buildList(0));
@@ -583,7 +584,7 @@ void EvalState::addConstant(const std::string & name, ValueRef v, Constant info)
 
         /* Install value the base environment. */
         staticBaseEnv->vars.emplace_back(symbols.create(name), baseEnvDispl);
-        baseEnv.values[baseEnvDispl++] = v;
+        baseEnv.values(envs)[baseEnvDispl++] = v;
         const_cast<Bindings *>(getBuiltins().attrs(values))->push_back(Attr(symbols.create(name2), v));
     }
 }
@@ -671,14 +672,14 @@ void EvalState::addPrimOp(PrimOp && primOp)
         internalPrimOps.emplace(primOp.name, v);
     else {
         staticBaseEnv->vars.emplace_back(envName, baseEnvDispl);
-        baseEnv.values[baseEnvDispl++] = v;
+        baseEnv.values(envs)[baseEnvDispl++] = v;
         const_cast<Bindings *>(getBuiltins().attrs(values))->push_back(Attr(symbols.create(primOp.name), v));
     }
 }
 
 ValueRef EvalState::getBuiltins()
 {
-    return baseEnv.values[0];
+    return baseEnv.values(envs)[0];
 }
 
 ValueRef EvalState::getBuiltin(const std::string & name)
@@ -776,13 +777,13 @@ void printStaticEnvBindings(const SymbolTable & st, const StaticEnv & se)
 }
 
 // just for the current level of Env, not the whole chain.
-void printWithBindings(EvalState & state, const SymbolTable & st, const Env & env)
+void printWithBindings(EvalState & state, const SymbolTable & st, /* XXX [speed] const */ EnvRef env)
 {
-    if (!env.values[0].isThunk(state.values)) {
+    if (!env.values(state.envs)[0].isThunk(state.values)) {
         std::cout << "with: ";
         std::cout << ANSI_MAGENTA;
-        auto j = env.values[0].attrs(state.values)->begin();
-        while (j != env.values[0].attrs(state.values)->end()) {
+        auto j = env.values(state.envs)[0].attrs(state.values)->begin();
+        while (j != env.values(state.envs)[0].attrs(state.values)->end()) {
             std::cout << st[j->name] << " ";
             ++j;
         }
@@ -791,17 +792,17 @@ void printWithBindings(EvalState & state, const SymbolTable & st, const Env & en
     }
 }
 
-void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, const Env & env, int lvl)
+void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, /* XXX [speed] const */ EnvRef env, int lvl)
 {
     std::cout << "Env level " << lvl << std::endl;
 
-    if (se.up && env.up) {
+    if (se.up && env.up(es.envs)) {
         std::cout << "static: ";
         printStaticEnvBindings(st, se);
         if (se.isWith)
             printWithBindings(es, st, env);
         std::cout << std::endl;
-        printEnvBindings(es, st, *se.up, *env.up, ++lvl);
+        printEnvBindings(es, st, *se.up, env.up(es.envs), ++lvl);
     } else {
         std::cout << ANSI_MAGENTA;
         // for the top level, don't print the double underscore ones;
@@ -817,7 +818,7 @@ void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & 
     }
 }
 
-void printEnvBindings(EvalState & es, const Expr & expr, const Env & env)
+void printEnvBindings(EvalState & es, const Expr & expr, const EnvRef env)
 {
     // just print the names for now
     auto se = es.getStaticEnv(expr);
@@ -825,27 +826,27 @@ void printEnvBindings(EvalState & es, const Expr & expr, const Env & env)
         printEnvBindings(es, es.symbols, *se, env, 0);
 }
 
-void mapStaticEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, const Env & env, ValMap & vm)
+void mapStaticEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, /* XXX [speed] const */ EnvRef env, ValMap & vm)
 {
     // add bindings for the next level up first, so that the bindings for this level
     // override the higher levels.
     // The top level bindings (builtins) are skipped since they are added for us by initEnv()
-    if (env.up && se.up) {
-        mapStaticEnvBindings(es, st, *se.up, *env.up, vm);
+    if (env.up(es.envs) && se.up) {
+        mapStaticEnvBindings(es, st, *se.up, env.up(es.envs), vm);
 
-        if (se.isWith && !env.values[0].isThunk(es.values)) {
+        if (se.isWith && !env.values(es.envs)[0].isThunk(es.values)) {
             // add 'with' bindings.
-            for (auto & j : *env.values[0].attrs(es.values))
+            for (auto & j : *env.values(es.envs)[0].attrs(es.values))
                 vm.insert_or_assign(std::string(st[j.name]), j.value);
         } else {
             // iterate through staticenv bindings and add them.
             for (auto & i : se.vars)
-                vm.insert_or_assign(std::string(st[i.first]), env.values[i.second]);
+                vm.insert_or_assign(std::string(st[i.first]), env.values(es.envs)[i.second]);
         }
     }
 }
 
-std::unique_ptr<ValMap> mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const Env & env)
+std::unique_ptr<ValMap> mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const EnvRef env)
 {
     auto vm = std::make_unique<ValMap>();
     mapStaticEnvBindings(state, st, se, env, *vm);
@@ -883,13 +884,13 @@ void EvalState::runDebugRepl(const Error * error)
 
     assert(!debugTraces.empty());
     const DebugTrace & last = debugTraces.front();
-    const Env & env = last.env;
+    const EnvRef env = last.env;
     const Expr & expr = last.expr;
 
     runDebugRepl(error, env, expr);
 }
 
-void EvalState::runDebugRepl(const Error * error, const Env & env, const Expr & expr)
+void EvalState::runDebugRepl(const Error * error, const EnvRef env, const Expr & expr)
 {
     // Make sure we have a debugger to run and we're not already in a debugger.
     if (!debugRepl || inDebugger)
@@ -957,7 +958,7 @@ void EvalState::addErrorTrace(Error & e, const PosIdx pos, const Args &... forma
 
 template<typename... Args>
 static std::unique_ptr<DebugTraceStacker> makeDebugTraceStacker(
-    EvalState & state, Expr & expr, Env & env, std::variant<Pos, PosIdx> pos, const Args &... formatArgs)
+    EvalState & state, Expr & expr, EnvRef env, std::variant<Pos, PosIdx> pos, const Args &... formatArgs)
 {
     return std::make_unique<DebugTraceStacker>(
         state,
@@ -1053,6 +1054,7 @@ ExprPath::ExprPath(Values & values, ref<SourceAccessor> accessor, std::string s)
     v = values.create();
     v.mkPath(values, &*accessor, this->s.c_str());
 }
+EnvRef EnvRef::null{0};
 ValueRef ValueRef::null{0};
 SymbolRef SymbolRef::null{ValueRef::null};
 
@@ -1227,13 +1229,13 @@ Value ValueRef::toStack(Values & values) const
 // XXX [speed]
 
 
-inline ValueRef EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
+inline ValueRef EvalState::lookupVar(EnvRef env, const ExprVar & var, bool noEval)
 {
-    for (auto l = var.level; l; --l, env = env->up)
+    for (auto l = var.level; l; --l, env = env.up(envs))
         ;
 
     if (!var.fromWith)
-        return env->values[var.displ];
+        return env.values(envs)[var.displ];
 
     // This early exit defeats the `maybeThunk` optimization for variables from `with`,
     // The added complexity of handling this appears to be similarly in cost, or
@@ -1243,8 +1245,8 @@ inline ValueRef EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval
 
     auto * fromWith = var.fromWith;
     while (1) {
-        forceAttrs(env->values[0], fromWith->pos, "while evaluating the first subexpression of a with expression");
-        if (auto j = env->values[0].attrs(values)->get(var.name)) {
+        forceAttrs(env.values(envs)[0], fromWith->pos, "while evaluating the first subexpression of a with expression");
+        if (auto j = env.values(envs)[0].attrs(values)->get(var.name)) {
             if (countCalls)
                 attrSelects[j->pos]++;
             return j->value;
@@ -1252,9 +1254,9 @@ inline ValueRef EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval
         if (!fromWith->parentWith)
             error<UndefinedVarError>("undefined variable '%1%'", symbols[var.name])
                 .atPos(var.pos)
-                .withFrame(*env, var)
+                .withFrame(env, var)
                 .debugThrow();
-        for (size_t l = fromWith->prevWith; l; --l, env = env->up)
+        for (size_t l = fromWith->prevWith; l; --l, env = env.up(envs))
             ;
         fromWith = fromWith->parentWith;
     }
@@ -1274,9 +1276,9 @@ ValueRef EvalState::getBool(bool b)
 
 unsigned long nrThunks = 0;
 
-static inline void mkThunk(EvalState & state, ValueRef v, Env & env, Expr * expr)
+static inline void mkThunk(EvalState & state, ValueRef v, EnvRef env, Expr * expr)
 {
-    v.mkThunk(state.values, &env, expr);
+    v.mkThunk(state.values, env, expr);
     nrThunks++;
 }
 
@@ -1369,16 +1371,16 @@ void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef 
    in the given environment.  But if the expression is a variable,
    then look it up right away.  This significantly reduces the number
    of thunks allocated. */
-ValueRef Expr::maybeThunk(EvalState & state, Env & env)
+ValueRef Expr::maybeThunk(EvalState & state, EnvRef env)
 {
     ValueRef v = state.allocValue();
     mkThunk(state, v, env, this);
     return v;
 }
 
-ValueRef ExprVar::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprVar::maybeThunk(EvalState & state, EnvRef env)
 {
-    ValueRef v = state.lookupVar(&env, *this, true);
+    ValueRef v = state.lookupVar(env, *this, true);
     /* The value might not be initialised in the environment yet.
        In that case, ignore it. */
     if (v) {
@@ -1388,25 +1390,25 @@ ValueRef ExprVar::maybeThunk(EvalState & state, Env & env)
     return Expr::maybeThunk(state, env);
 }
 
-ValueRef ExprString::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprString::maybeThunk(EvalState & state, EnvRef env)
 {
     state.nrAvoided++;
     return v;
 }
 
-ValueRef ExprInt::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprInt::maybeThunk(EvalState & state, EnvRef env)
 {
     state.nrAvoided++;
     return v;
 }
 
-ValueRef ExprFloat::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprFloat::maybeThunk(EvalState & state, EnvRef env)
 {
     state.nrAvoided++;
     return v;
 }
 
-ValueRef ExprPath::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprPath::maybeThunk(EvalState & state, EnvRef env)
 {
     state.nrAvoided++;
     return v;
@@ -1475,7 +1477,7 @@ void EvalState::eval(Expr * e, ValueRef v)
     e->eval(*this, baseEnv, v);
 }
 
-inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::string_view errorCtx)
+inline bool EvalState::evalBool(EnvRef env, Expr * e, const PosIdx pos, std::string_view errorCtx)
 {
     try {
         Value v;
@@ -1493,7 +1495,7 @@ inline bool EvalState::evalBool(Env & env, Expr * e, const PosIdx pos, std::stri
     }
 }
 
-inline void EvalState::evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx)
+inline void EvalState::evalAttrs(EnvRef env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
         e->eval(*this, env, v);
@@ -1508,56 +1510,56 @@ inline void EvalState::evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx p
     }
 }
 
-void Expr::eval(EvalState & state, Env & env, ValueRef v)
+void Expr::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     unreachable();
 }
 
-void ExprInt::eval(EvalState & state, Env & env, ValueRef v)
+void ExprInt::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.set(state.values, this->v);
 }
 
-void ExprFloat::eval(EvalState & state, Env & env, ValueRef v)
+void ExprFloat::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.set(state.values, this->v);
 }
 
-void ExprString::eval(EvalState & state, Env & env, ValueRef v)
+void ExprString::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.set(state.values, this->v);
 }
 
-void ExprPath::eval(EvalState & state, Env & env, ValueRef v)
+void ExprPath::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.set(state.values, this->v);
 }
 
-Env * ExprAttrs::buildInheritFromEnv(EvalState & state, Env & up)
+EnvRef ExprAttrs::buildInheritFromEnv(EvalState & state, EnvRef up)
 {
-    Env & inheritEnv = state.allocEnv(inheritFromExprs->size());
-    inheritEnv.up = &up;
+    EnvRef inheritEnv = state.allocEnv(inheritFromExprs->size());
+    inheritEnv.up(state.envs) = up;
 
     Displacement displ = 0;
     for (auto from : *inheritFromExprs)
-        inheritEnv.values[displ++] = from->maybeThunk(state, up);
+        inheritEnv.values(state.envs)[displ++] = from->maybeThunk(state, up);
 
-    return &inheritEnv;
+    return inheritEnv;
 }
 
-void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
+void ExprAttrs::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     auto bindings = state.buildBindings(attrs.size() + dynamicAttrs.size());
-    auto dynamicEnv = &env;
+    auto dynamicEnv = env;
     bool sort = false;
 
     if (recursive) {
         /* Create a new environment that contains the attributes in
            this `rec'. */
-        Env & env2(state.allocEnv(attrs.size()));
-        env2.up = &env;
-        dynamicEnv = &env2;
-        Env * inheritEnv = inheritFromExprs ? buildInheritFromEnv(state, env2) : nullptr;
+        EnvRef env2(state.allocEnv(attrs.size()));
+        env2.up(state.envs) = env;
+        dynamicEnv = env2;
+        EnvRef inheritEnv = inheritFromExprs ? buildInheritFromEnv(state, env2) : EnvRef::null;
 
         AttrDefs::iterator overrides = attrs.find(state.sOverrides);
         bool hasOverrides = overrides != attrs.end();
@@ -1570,10 +1572,10 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
             ValueRef vAttr;
             if (hasOverrides && i.second.kind != AttrDef::Kind::Inherited) {
                 vAttr = state.allocValue();
-                mkThunk(state, vAttr, *i.second.chooseByKind(&env2, &env, inheritEnv), i.second.e);
+                mkThunk(state, vAttr, i.second.chooseByKind(env2, env, inheritEnv), i.second.e);
             } else
-                vAttr = i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv));
-            env2.values[displ++] = vAttr;
+                vAttr = i.second.e->maybeThunk(state, i.second.chooseByKind(env2, env, inheritEnv));
+            env2.values(state.envs)[displ++] = vAttr;
             bindings.insert(i.first, vAttr, i.second.pos);
         }
 
@@ -1596,7 +1598,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
                 AttrDefs::iterator j = attrs.find(i.name);
                 if (j != attrs.end()) {
                     (*bindings.bindings)[j->second.displ] = i;
-                    env2.values[j->second.displ] = i.value;
+                    env2.values(state.envs)[j->second.displ] = i.value;
                 } else
                     bindings.push_back(i);
             }
@@ -1605,16 +1607,16 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
     }
 
     else {
-        Env * inheritEnv = inheritFromExprs ? buildInheritFromEnv(state, env) : nullptr;
+        EnvRef inheritEnv = inheritFromExprs ? buildInheritFromEnv(state, env) : EnvRef::null;
         for (auto & i : attrs)
             bindings.insert(
-                i.first, i.second.e->maybeThunk(state, *i.second.chooseByKind(&env, &env, inheritEnv)), i.second.pos);
+                i.first, i.second.e->maybeThunk(state, i.second.chooseByKind(env, env, inheritEnv)), i.second.pos);
     }
 
     /* Dynamic attrs apply *after* rec and __overrides. */
     for (auto & i : dynamicAttrs) {
         Value nameVal;
-        i.nameExpr->eval(state, *dynamicEnv, nameVal.ref(state.values));
+        i.nameExpr->eval(state, dynamicEnv, nameVal.ref(state.values));
         state.forceValue(nameVal.ref(state.values), i.pos);
         if (nameVal.type() == nNull)
             continue;
@@ -1633,7 +1635,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
 
         i.valueExpr->setName(nameSym);
         /* Keep sorted order so find can catch duplicates */
-        bindings.insert(nameSym, i.valueExpr->maybeThunk(state, *dynamicEnv), i.pos);
+        bindings.insert(nameSym, i.valueExpr->maybeThunk(state, dynamicEnv), i.pos);
         sort = true;
     }
 
@@ -1642,21 +1644,21 @@ void ExprAttrs::eval(EvalState & state, Env & env, ValueRef v)
     v.mkAttrs(state.values, sort ? bindings.finish() : bindings.alreadySorted());
 }
 
-void ExprLet::eval(EvalState & state, Env & env, ValueRef v)
+void ExprLet::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     /* Create a new environment that contains the attributes in this
        `let'. */
-    Env & env2(state.allocEnv(attrs->attrs.size()));
-    env2.up = &env;
+    EnvRef env2(state.allocEnv(attrs->attrs.size()));
+    env2.up(state.envs) = env;
 
-    Env * inheritEnv = attrs->inheritFromExprs ? attrs->buildInheritFromEnv(state, env2) : nullptr;
+    EnvRef inheritEnv = attrs->inheritFromExprs ? attrs->buildInheritFromEnv(state, env2) : EnvRef::null;
 
     /* The recursive attributes are evaluated in the new environment,
        while the inherited attributes are evaluated in the original
        environment. */
     Displacement displ = 0;
     for (auto & i : attrs->attrs) {
-        env2.values[displ++] = i.second.e->maybeThunk(state, *i.second.chooseByKind(&env2, &env, inheritEnv));
+        env2.values(state.envs)[displ++] = i.second.e->maybeThunk(state, i.second.chooseByKind(env2, env, inheritEnv));
     }
 
     auto dts = state.debugRepl
@@ -1666,7 +1668,7 @@ void ExprLet::eval(EvalState & state, Env & env, ValueRef v)
     body->eval(state, env2, v);
 }
 
-void ExprList::eval(EvalState & state, Env & env, ValueRef v)
+void ExprList::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     auto list = state.buildList(elems.size());
     for (const auto & [n, v2] : enumerate(list))
@@ -1674,7 +1676,7 @@ void ExprList::eval(EvalState & state, Env & env, ValueRef v)
     v.mkList(state.values, list);
 }
 
-ValueRef ExprList::maybeThunk(EvalState & state, Env & env)
+ValueRef ExprList::maybeThunk(EvalState & state, EnvRef env)
 {
     if (elems.empty()) {
         return state.vEmptyList;
@@ -1682,14 +1684,14 @@ ValueRef ExprList::maybeThunk(EvalState & state, Env & env)
     return Expr::maybeThunk(state, env);
 }
 
-void ExprVar::eval(EvalState & state, Env & env, ValueRef v)
+void ExprVar::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    ValueRef v2 = state.lookupVar(&env, *this, false);
+    ValueRef v2 = state.lookupVar(env, *this, false);
     state.forceValue(v2, pos);
     v.set(state.values, v2);
 }
 
-static std::string showAttrPath(EvalState & state, Env & env, const AttrPath & attrPath)
+static std::string showAttrPath(EvalState & state, EnvRef env, const AttrPath & attrPath)
 {
     std::ostringstream out;
     bool first = true;
@@ -1710,7 +1712,7 @@ static std::string showAttrPath(EvalState & state, Env & env, const AttrPath & a
     return out.str();
 }
 
-void ExprSelect::eval(EvalState & state, Env & env, ValueRef v)
+void ExprSelect::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value vTmp;
     PosIdx pos2;
@@ -1774,7 +1776,7 @@ void ExprSelect::eval(EvalState & state, Env & env, ValueRef v)
     v.set(state.values, vAttrs);
 }
 
-SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, ValueRef attrs)
+SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, EnvRef env, ValueRef attrs)
 {
     Value vTmp;
     SymbolRef name = getName(attrPath[attrPath.size() - 1], state, env);
@@ -1790,7 +1792,7 @@ SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, Env & env, ValueR
     return name;
 }
 
-void ExprOpHasAttr::eval(EvalState & state, Env & env, ValueRef v)
+void ExprOpHasAttr::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value vTmp;
     ValueRef vAttrs = vTmp.ref(state.values);
@@ -1812,9 +1814,9 @@ void ExprOpHasAttr::eval(EvalState & state, Env & env, ValueRef v)
     v.mkBool(state.values, true);
 }
 
-void ExprLambda::eval(EvalState & state, Env & env, ValueRef v)
+void ExprLambda::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.mkLambda(state.values, &env, this);
+    v.mkLambda(state.values, env, this);
 }
 
 void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vRes, const PosIdx pos)
@@ -1852,13 +1854,13 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
             ExprLambda & lambda(*vCur.lambda().fun);
 
             auto size = (!lambda.arg ? 0 : 1) + (lambda.hasFormals() ? lambda.formals->formals.size() : 0);
-            Env & env2(allocEnv(size));
-            env2.up = vCur.lambda().env;
+            EnvRef env2(allocEnv(size));
+            env2.up(envs) = vCur.lambda().env;
 
             Displacement displ = 0;
 
             if (!lambda.hasFormals())
-                env2.values[displ++] = args[0];
+                env2.values(envs)[displ++] = args[0];
             else {
                 try {
                     forceAttrs(args[0], lambda.pos, "while evaluating the value passed for the lambda argument");
@@ -1869,7 +1871,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                 }
 
                 if (lambda.arg)
-                    env2.values[displ++] = args[0];
+                    env2.values(envs)[displ++] = args[0];
 
                 /* For each formal argument, get the actual argument.  If
                    there is no matching actual argument but the formal
@@ -1885,13 +1887,13 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                                 symbols[i.name])
                                 .atPos(lambda.pos)
                                 .withTrace(pos, "from call site")
-                                .withFrame(*vCur.lambda().env, lambda)
+                                .withFrame(vCur.lambda().env, lambda)
                                 .debugThrow();
                         }
-                        env2.values[displ++] = i.def->maybeThunk(*this, env2);
+                        env2.values(envs)[displ++] = i.def->maybeThunk(*this, env2);
                     } else {
                         attrsUsed++;
-                        env2.values[displ++] = j->value;
+                        env2.values(envs)[displ++] = j->value;
                     }
                 }
 
@@ -1913,7 +1915,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                                 .atPos(lambda.pos)
                                 .withTrace(pos, "from call site")
                                 .withSuggestions(suggestions)
-                                .withFrame(*vCur.lambda().env, lambda)
+                                .withFrame(vCur.lambda().env, lambda)
                                 .debugThrow();
                         }
                     unreachable();
@@ -2058,7 +2060,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
     vRes.setFromStack(values, vCur);
 }
 
-void ExprCall::eval(EvalState & state, Env & env, ValueRef v)
+void ExprCall::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     auto dts =
         state.debugRepl ? makeDebugTraceStacker(state, *this, env, getPos(), "while calling a function") : nullptr;
@@ -2130,7 +2132,7 @@ values, or passed explicitly with '--arg' or '--argstr'. See
 https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
                     symbols[i.name])
                     .atPos(i.pos)
-                    .withFrame(*fun.lambda(values).env, *fun.lambda(values).fun)
+                    .withFrame(fun.lambda(values).env, *fun.lambda(values).fun)
                     .debugThrow();
             }
         }
@@ -2141,22 +2143,22 @@ https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
     callFunction(fun, vAttrs, res, pos);
 }
 
-void ExprWith::eval(EvalState & state, Env & env, ValueRef v)
+void ExprWith::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    Env & env2(state.allocEnv(1));
-    env2.up = &env;
-    env2.values[0] = attrs->maybeThunk(state, env);
+    EnvRef env2(state.allocEnv(1));
+    env2.up(state.envs) = env;
+    env2.values(state.envs)[0] = attrs->maybeThunk(state, env);
 
     body->eval(state, env2, v);
 }
 
-void ExprIf::eval(EvalState & state, Env & env, ValueRef v)
+void ExprIf::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     // We cheat in the parser, and pass the position of the condition as the position of the if itself.
     (state.evalBool(env, cond, pos, "while evaluating a branch condition") ? then : else_)->eval(state, env, v);
 }
 
-void ExprAssert::eval(EvalState & state, Env & env, ValueRef v)
+void ExprAssert::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     if (!state.evalBool(env, cond, pos, "in the condition of the assert statement")) {
         std::ostringstream out;
@@ -2181,12 +2183,12 @@ void ExprAssert::eval(EvalState & state, Env & env, ValueRef v)
     body->eval(state, env, v);
 }
 
-void ExprOpNot::eval(EvalState & state, Env & env, ValueRef v)
+void ExprOpNot::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values, !state.evalBool(env, e, getPos(), "in the argument of the not operator")); // XXX: FIXME: !
 }
 
-void ExprOpEq::eval(EvalState & state, Env & env, ValueRef v)
+void ExprOpEq::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value v1;
     e1->eval(state, env, v1.ref(state.values));
@@ -2195,7 +2197,7 @@ void ExprOpEq::eval(EvalState & state, Env & env, ValueRef v)
     v.mkBool(state.values, state.eqValues(v1.ref(state.values), v2.ref(state.values), pos, "while testing two values for equality"));
 }
 
-void ExprOpNEq::eval(EvalState & state, Env & env, ValueRef v)
+void ExprOpNEq::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value v1;
     e1->eval(state, env, v1.ref(state.values));
@@ -2204,28 +2206,28 @@ void ExprOpNEq::eval(EvalState & state, Env & env, ValueRef v)
     v.mkBool(state.values, !state.eqValues(v1.ref(state.values), v2.ref(state.values), pos, "while testing two values for inequality"));
 }
 
-void ExprOpAnd::eval(EvalState & state, Env & env, ValueRef v)
+void ExprOpAnd::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values,
          state.evalBool(env, e1, pos, "in the left operand of the AND (&&) operator")
          && state.evalBool(env, e2, pos, "in the right operand of the AND (&&) operator"));
 }
 
-void ExprOpOr::eval(EvalState & state, Env & env, ValueRef v)
+void ExprOpOr::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values,
          state.evalBool(env, e1, pos, "in the left operand of the OR (||) operator")
          || state.evalBool(env, e2, pos, "in the right operand of the OR (||) operator"));
 }
 
-void ExprOpImpl::eval(EvalState & state, Env & env, ValueRef v)
+void ExprOpImpl::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values,
          !state.evalBool(env, e1, pos, "in the left operand of the IMPL (->) operator")
          || state.evalBool(env, e2, pos, "in the right operand of the IMPL (->) operator"));
 }
 
-void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
+void ExprOpUpdate::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value v1, v2;
     state.evalAttrs(env, e1, v1.ref(state.values), pos, "in the left operand of the update (//) operator");
@@ -2270,7 +2272,7 @@ void ExprOpUpdate::eval(EvalState & state, Env & env, ValueRef v)
     state.nrOpUpdateValuesCopied += v.attrs(state.values)->size();
 }
 
-void ExprOpConcatLists::eval(EvalState & state, Env & env, ValueRef v)
+void ExprOpConcatLists::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value v1;
     e1->eval(state, env, v1.ref(state.values));
@@ -2312,7 +2314,7 @@ void EvalState::concatLists(
     v.mkList(values, list);
 }
 
-void ExprConcatStrings::eval(EvalState & state, Env & env, ValueRef v)
+void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     NixStringContext context;
     std::vector<BackedStringView> s;
@@ -2417,12 +2419,12 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, ValueRef v)
         v.mkStringMove(state.values, c_str(), context);
 }
 
-void ExprPos::eval(EvalState & state, Env & env, ValueRef v)
+void ExprPos::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     state.mkPos(v, pos);
 }
 
-void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] Env & env, ValueRef v)
+void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] EnvRef env, ValueRef v)
 {
     throwInfiniteRecursionError(state, v);
 }
@@ -2467,7 +2469,7 @@ void EvalState::forceValueDeep(ValueRef v)
                     auto dts = debugRepl && i.value.isThunk(values) ? makeDebugTraceStacker(
                                                                      *this,
                                                                      *i.value.thunk(values).expr,
-                                                                     *i.value.thunk(values).env,
+                                                                     i.value.thunk(values).env,
                                                                      i.pos,
                                                                      "while evaluating the attribute '%1%'",
                                                                      symbols[i.name])

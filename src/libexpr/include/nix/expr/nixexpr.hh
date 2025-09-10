@@ -99,8 +99,8 @@ struct Expr
     virtual ~Expr() {};
     virtual void show(Values & values, const SymbolTable & symbols, std::ostream & str) const;
     virtual void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
-    virtual void eval(EvalState & state, Env & env, ValueRef v);
-    virtual ValueRef maybeThunk(EvalState & state, Env & env);
+    virtual void eval(EvalState & state, EnvRef env, ValueRef v);
+    virtual ValueRef maybeThunk(EvalState & state, EnvRef env);
     virtual void setName(SymbolRef name);
     virtual void setDocComment(DocComment docComment) {};
 
@@ -114,9 +114,9 @@ struct Expr
     virtual void warnIfCursedOr(const SymbolTable & symbols, const PosTable & positions) {};
 };
 
-#define COMMON_METHODS                                                                            \
+#define COMMON_METHODS                                                                          \
     void show(Values & values, const SymbolTable & symbols, std::ostream & str) const override; \
-    void eval(EvalState & state, Env & env, ValueRef v) override;                                  \
+    void eval(EvalState & state, EnvRef env, ValueRef v) override;                              \
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override;
 
 struct ExprInt : Expr
@@ -127,7 +127,7 @@ struct ExprInt : Expr
 
     ExprInt(Values & values, NixInt::Inner n);
 
-    ValueRef maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
     COMMON_METHODS
 };
 
@@ -137,7 +137,7 @@ struct ExprFloat : Expr
 
     ExprFloat(Values & values, NixFloat nf);
 
-    ValueRef maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
     COMMON_METHODS
 };
 
@@ -148,7 +148,7 @@ struct ExprString : Expr
 
     ExprString(Values & values, std::string && s);
 
-    ValueRef maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
     COMMON_METHODS
 };
 
@@ -160,7 +160,7 @@ struct ExprPath : Expr
 
     ExprPath(Values & values, ref<SourceAccessor> accessor, std::string s);
 
-    ValueRef maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
     COMMON_METHODS
 };
 
@@ -193,7 +193,7 @@ struct ExprVar : Expr
     ExprVar(const PosIdx & pos, SymbolRef name)
         : pos(pos)
         , name(name) {};
-    ValueRef maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 
     PosIdx getPos() const override
     {
@@ -254,7 +254,7 @@ struct ExprSelect : Expr
      * @note This does *not* evaluate the final attribute, and does not fail if that's the only attribute that does not
      * exist.
      */
-    SymbolRef evalExceptFinalSelect(EvalState & state, Env & env, ValueRef attrs);
+    SymbolRef evalExceptFinalSelect(EvalState & state, EnvRef env, ValueRef attrs);
 
     COMMON_METHODS
 };
@@ -346,7 +346,7 @@ struct ExprAttrs : Expr
     COMMON_METHODS
 
     std::shared_ptr<const StaticEnv> bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
-    Env * buildInheritFromEnv(EvalState & state, Env & up);
+    EnvRef buildInheritFromEnv(EvalState & state, EnvRef up);
     void showBindings(Values & values, const SymbolTable & symbols, std::ostream & str) const;
 };
 
@@ -355,7 +355,7 @@ struct ExprList : Expr
     std::vector<Expr *> elems;
     ExprList() {};
     COMMON_METHODS
-    ValueRef maybeThunk(EvalState & state, Env & env) override;
+    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 
     PosIdx getPos() const override
     {
@@ -572,7 +572,7 @@ struct ExprOpNot : Expr
             e1->bindVars(es, env);                                                                   \
             e2->bindVars(es, env);                                                                   \
         }                                                                                            \
-        void eval(EvalState & state, Env & env, ValueRef v) override;                                 \
+        void eval(EvalState & state, EnvRef env, ValueRef v) override;                                 \
         PosIdx getPos() const override                                                               \
         {                                                                                            \
             return pos;                                                                              \
@@ -619,7 +619,7 @@ struct ExprBlackHole : Expr
 {
     void show(Values & values, const SymbolTable & symbols, std::ostream & str) const override {}
 
-    void eval(EvalState & state, Env & env, ValueRef v) override;
+    void eval(EvalState & state, EnvRef env, ValueRef v) override;
 
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override {}
 

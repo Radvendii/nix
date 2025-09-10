@@ -91,7 +91,7 @@ TEST_F(ValuePrintingTests, tList)
 TEST_F(ValuePrintingTests, vThunk)
 {
     Value vThunk;
-    vThunk.mkThunk(nullptr, nullptr);
+    vThunk.mkThunk(EnvRef::null, nullptr);
 
     test(vThunk, "«thunk»");
 }
@@ -106,7 +106,8 @@ TEST_F(ValuePrintingTests, vApp)
 
 TEST_F(ValuePrintingTests, vLambda)
 {
-    Env env{.up = nullptr, .values = {}};
+    EnvRef env = state.allocEnv(0);
+    env.up(state.envs) = EnvRef::null;
     PosTable::Origin origin = state.positions.addOrigin(std::monostate(), 1);
     auto posIdx = state.positions.add(origin, 0);
     auto body = ExprInt(state.values, 0);
@@ -115,7 +116,7 @@ TEST_F(ValuePrintingTests, vLambda)
     ExprLambda eLambda(posIdx, createSymbol("a"), &formals, &body);
 
     Value vLambda;
-    vLambda.mkLambda(&env, &eLambda);
+    vLambda.mkLambda(env, &eLambda);
 
     test(vLambda, "«lambda @ «none»:1:1»");
 
@@ -496,7 +497,8 @@ TEST_F(ValuePrintingTests, ansiColorsList)
 
 TEST_F(ValuePrintingTests, ansiColorsLambda)
 {
-    Env env{.up = nullptr, .values = {}};
+    EnvRef env = state.allocEnv(0);
+    env.up(state.envs) = EnvRef::null;
     PosTable::Origin origin = state.positions.addOrigin(std::monostate(), 1);
     auto posIdx = state.positions.add(origin, 0);
     auto body = ExprInt(state.values, 0);
@@ -505,7 +507,7 @@ TEST_F(ValuePrintingTests, ansiColorsLambda)
     ExprLambda eLambda(posIdx, createSymbol("a"), &formals, &body);
 
     Value vLambda;
-    vLambda.mkLambda(&env, &eLambda);
+    vLambda.mkLambda(env, &eLambda);
 
     test(vLambda, ANSI_BLUE "«lambda @ «none»:1:1»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 
@@ -538,7 +540,7 @@ TEST_F(ValuePrintingTests, ansiColorsPrimOpApp)
 TEST_F(ValuePrintingTests, ansiColorsThunk)
 {
     Value v;
-    v.mkThunk(nullptr, nullptr);
+    v.mkThunk(EnvRef::null, nullptr);
 
     test(v, ANSI_MAGENTA "«thunk»" ANSI_NORMAL, PrintOptions{.ansiColors = true});
 }

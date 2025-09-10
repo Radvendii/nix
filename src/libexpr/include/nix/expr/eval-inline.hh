@@ -16,47 +16,27 @@ ValueRef EvalState::allocValue()
 }
 
 [[gnu::always_inline]]
-Env & EvalState::allocEnv(size_t size)
+EnvRef EvalState::allocEnv(size_t size)
 {
     nrEnvs++;
     nrValuesInEnvs += size;
 
-    Env * env;
-
-#if NIX_USE_BOEHMGC
-    if (size == 1) {
-        /* see allocValue for explanations. */
-        if (!*env1AllocCache) {
-            *env1AllocCache = GC_malloc_many(sizeof(Env) + sizeof(ValueRef));
-            if (!*env1AllocCache)
-                throw std::bad_alloc();
-        }
-
-        void * p = *env1AllocCache;
-        *env1AllocCache = GC_NEXT(p);
-        GC_NEXT(p) = nullptr;
-        env = (Env *) p;
-    } else
-#endif
-        env = (Env *) allocBytes(sizeof(Env) + size * sizeof(ValueRef));
-
     /* We assume that env->values has been cleared by the allocator; maybeThunk() and lookupVar fromWith expect this. */
-
-    return *env;
+    return envs.create(size);
 }
 
 [[gnu::always_inline]]
 void EvalState::forceValue(ValueRef v, const PosIdx pos)
 {
     if (v.isThunk(values)) {
-        Env * env = v.thunk(values).env;
+        EnvRef env = v.thunk(values).env;
         assert(env || v.isBlackhole(values));
         Expr * expr = v.thunk(values).expr;
         try {
             v.mkBlackhole(values);
             // checkInterrupt();
             if (env) [[likely]]
-                expr->eval(*this, *env, v);
+                expr->eval(*this, env, v);
             else
                 ExprBlackHole::throwInfiniteRecursionError(*this, v);
         } catch (...) {

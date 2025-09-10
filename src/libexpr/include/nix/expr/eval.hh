@@ -165,16 +165,10 @@ typedef std::
 
 typedef std::unordered_map<PosIdx, DocComment> DocCommentMap;
 
-struct Env
-{
-    Env * up;
-    ValueRef values[0];
-};
+void printEnvBindings(EvalState & es, const Expr & expr, const EnvRef env);
+void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, const EnvRef env, int lvl = 0);
 
-void printEnvBindings(EvalState & es, const Expr & expr, const Env & env);
-void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, const Env & env, int lvl = 0);
-
-std::unique_ptr<ValMap> mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const Env & env);
+std::unique_ptr<ValMap> mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const EnvRef env);
 
 void copyContext(
     EvalState & state,
@@ -196,7 +190,7 @@ struct DebugTrace
        due to the fact that operator[] of PosTable is incredibly expensive. */
     std::variant<Pos, PosIdx> pos;
     const Expr & expr;
-    const Env & env;
+    const EnvRef env;
     HintFmt hint;
     bool isError;
 
@@ -228,6 +222,12 @@ public:
      * vector.
      */
     Values values;
+    /**
+     * Vector containing all heap-allocated Envs. Rather than using pointers
+     * to Envs, we use EnvRefs which is a wrapper around indices into this
+     * vector.
+     */
+    Envs envs;
 
     SymbolTable symbols;
     PosTable positions;
@@ -360,7 +360,7 @@ public:
      * @param env The environment to debug, matching the expression.
      * @param expr The expression to debug, matching the environment.
      */
-    void runDebugRepl(const Error * error, const Env & env, const Expr & expr);
+    void runDebugRepl(const Error * error, const EnvRef env, const Expr & expr);
 
     template<class T, typename... Args>
     [[nodiscard, gnu::noinline]]
@@ -536,9 +536,9 @@ public:
      * type.
      */
      // YYY [speed]: this version of evalBool is never used?
-    inline bool evalBool(Env & env, Expr * e);
-    inline bool evalBool(Env & env, Expr * e, const PosIdx pos, std::string_view errorCtx);
-    inline void evalAttrs(Env & env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx);
+    inline bool evalBool(EnvRef env, Expr * e);
+    inline bool evalBool(EnvRef env, Expr * e, const PosIdx pos, std::string_view errorCtx);
+    inline void evalAttrs(EnvRef env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx);
 
     /**
      * If `v` is a thunk, enter it and overwrite `v` with the result
@@ -665,7 +665,7 @@ public:
 
 #if NIX_USE_BOEHMGC
     /** A GC root for the baseEnv reference. */
-    std::shared_ptr<Env *> baseEnvP;
+    std::shared_ptr<EnvRef> baseEnvP;
 #endif
 
 public:
@@ -674,7 +674,7 @@ public:
      * The base environment, containing the builtin functions and
      * values.
      */
-    Env & baseEnv;
+    EnvRef baseEnv;
 
     /**
      * The same, but used during parsing to resolve variables.
@@ -750,7 +750,7 @@ public:
 
 private:
 
-    inline ValueRef lookupVar(Env * env, const ExprVar & var, bool noEval);
+    inline ValueRef lookupVar(EnvRef env, const ExprVar & var, bool noEval);
 
     friend struct ExprVar;
     friend struct ExprAttrs;
@@ -811,7 +811,7 @@ public:
      * Allocation primitives.
      */
     inline ValueRef allocValue();
-    inline Env & allocEnv(size_t size);
+    inline EnvRef allocEnv(size_t size);
 
     Bindings * allocBindings(size_t capacity);
 

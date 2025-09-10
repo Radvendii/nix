@@ -116,6 +116,7 @@ typedef enum {
 
 class Bindings;
 struct Env;
+class EnvRef;
 struct Expr;
 struct ExprLambda;
 struct ExprBlackHole;
@@ -214,9 +215,9 @@ class ValueRef {
     inline void mkAttrs(Values & values, Bindings * a) noexcept;
     void mkAttrs(Values & values, BindingsBuilder & bindings);
     void mkList(Values & values, const ListBuilder & builder) noexcept;
-    inline void mkThunk(Values & values, Env * e, Expr * ex) noexcept;
+    inline void mkThunk(Values & values, EnvRef e, Expr * ex) noexcept;
     inline void mkApp(Values & values, ValueRef l, ValueRef r) noexcept;
-    inline void mkLambda(Values & values, Env * e, ExprLambda * f) noexcept;
+    inline void mkLambda(Values & values, EnvRef e, ExprLambda * f) noexcept;
     inline void mkBlackhole(Values & values);
     void mkPrimOp(Values & values, PrimOp * p);
     inline void mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept;
@@ -279,6 +280,61 @@ class ValueRef {
         return ((getInternalType(values) == discriminator) || ...);
     }
 };
+
+// XXX [speed]: moved all the Env stuff here from eval.hh because it has to go after ValueRef and before Value
+class Envs;
+
+class EnvRef {
+    public:
+    uint32_t ref;
+
+    static EnvRef null;
+    [[gnu::always_inline]]
+    constexpr explicit operator bool() const noexcept {
+        return ref;
+    }
+
+    inline EnvRef & up(Envs & envs);
+    inline ValueRef * values(Envs & envs);
+};
+
+struct Env
+{
+    EnvRef up;
+    ValueRef values[0];
+};
+
+class Envs {
+    public:
+    // Env has both EnvRef and an array of ValueRefs, so it must be cast explicitly
+    std::vector<uint32_t> data;
+    Envs()
+    {
+        // data.reserve(10000000);
+    }
+    Env & get(EnvRef ref) {
+        if (!ref)
+            unreachable();
+        return (Env &) data[ref.ref - 1];
+    }
+    EnvRef create(uint32_t size) {
+        // intentionally off-by-one to avoid null
+        auto idx = data.size() + 1;
+        // XXX [speed]: is this the best way to insert size + 1 0s?
+        for (uint32_t i = 0; i < size + 1; i++)
+            data.emplace_back(0);
+        return (EnvRef) idx;
+    }
+};
+inline EnvRef & EnvRef::up(Envs & envs)
+{
+    return envs.get(*this).up;
+}
+inline ValueRef * EnvRef::values(Envs & envs)
+{
+    return envs.get(*this).values;
+}
+// XXX [speed]
 
 /**
  * External values must descend from ExternalValueBase, so that
@@ -426,7 +482,7 @@ struct Null
 // XXX [speed]: we gotta pt Envs and Exprs in arrays so we can use 32 bit indices
 struct ClosureThunk
 {
-    Env * env;
+    EnvRef env;
     Expr * expr;
 };
 
@@ -448,7 +504,7 @@ struct PrimOpApplicationThunk
 // XXX [speed]: we gotta pt Envs and Exprs in arrays so we can use 32 bit indices
 struct Lambda
 {
-    Env * env;
+    EnvRef env;
     ExprLambda * fun;
 };
 
@@ -899,7 +955,7 @@ public:
         }
     }
 
-    inline void mkThunk(Env * e, Expr * ex) noexcept
+    inline void mkThunk(EnvRef e, Expr * ex) noexcept
     {
         setStorage(detail::ClosureThunk{.env = e, .expr = ex});
         nrThunk++;
@@ -912,7 +968,7 @@ public:
     }
 
 
-    inline void mkLambda(Env * e, ExprLambda * f) noexcept
+    inline void mkLambda(EnvRef e, ExprLambda * f) noexcept
     {
         setStorage(detail::Lambda{.env = e, .fun = f});
         nrLambda++;
@@ -1060,7 +1116,7 @@ bool Value::isBlackhole() const
 
 void Value::mkBlackhole()
 {
-    mkThunk(nullptr, (Expr *) &eBlackHole);
+    mkThunk(EnvRef::null, (Expr *) &eBlackHole);
 }
 
 typedef std::vector<ValueRef, traceable_allocator<ValueRef>> ValueVector;
@@ -1307,7 +1363,7 @@ inline void ValueRef::mkAttrs(Values & values, Bindings * a) noexcept
     nrAttrs++;
 }
 
-inline void ValueRef::mkThunk(Values & values, Env * e, Expr * ex) noexcept
+inline void ValueRef::mkThunk(Values & values, EnvRef e, Expr * ex) noexcept
 {
     setStorage(values, detail::ClosureThunk{.env = e, .expr = ex});
     nrThunk++;
@@ -1320,7 +1376,7 @@ inline void ValueRef::mkApp(Values & values, ValueRef l, ValueRef r) noexcept
 }
 
 
-inline void ValueRef::mkLambda(Values & values, Env * e, ExprLambda * f) noexcept
+inline void ValueRef::mkLambda(Values & values, EnvRef e, ExprLambda * f) noexcept
 {
     setStorage(values, detail::Lambda{.env = e, .fun = f});
     nrLambda++;
@@ -1328,7 +1384,7 @@ inline void ValueRef::mkLambda(Values & values, Env * e, ExprLambda * f) noexcep
 
 inline void ValueRef::mkBlackhole(Values & values)
 {
-    mkThunk(values, nullptr, (Expr *) &eBlackHole);
+    mkThunk(values, EnvRef::null, (Expr *) &eBlackHole);
 }
 
 inline void ValueRef::mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept

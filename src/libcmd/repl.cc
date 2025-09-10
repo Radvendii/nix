@@ -69,7 +69,7 @@ struct NixRepl : AbstractNixRepl, detail::ReplCompleterMixin, gc
     // This ValueRef is static for the lifetime of the repl but its contents
     // change so it should never be referenced by another Value.
     ValueRef lastLoaded;
-    Env * env;
+    EnvRef env;
     int displ;
     StringSet varNames;
 
@@ -287,7 +287,7 @@ StringSet NixRepl::completePrefix(const std::string & prefix)
 
             Expr * e = parseString(expr);
             Value v;
-            e->eval(*state, *env, v.ref(state->values));
+            e->eval(*state, env, v.ref(state->values));
             state->forceAttrs(
                 v.ref(state->values),
                 noPos,
@@ -624,7 +624,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         DocComment fallbackDoc;
         if (auto select = dynamic_cast<ExprSelect *>(expr)) {
             Value vAttrs;
-            auto name = select->evalExceptFinalSelect(*state, *env, vAttrs.ref(state->values));
+            auto name = select->evalExceptFinalSelect(*state, env, vAttrs.ref(state->values));
             fallbackName = state->symbols[name];
 
             state->forceAttrs(vAttrs.ref(state->values), noPos, "while evaluating an attribute set to look for documentation");
@@ -763,8 +763,8 @@ void NixRepl::loadFlake(const std::string & flakeRefS)
 
 void NixRepl::initEnv()
 {
-    env = &state->allocEnv(envSize);
-    env->up = &state->baseEnv;
+    env = state->allocEnv(envSize);
+    env.up(state->envs) = state->baseEnv;
     displ = 0;
     staticEnv->vars.clear();
 
@@ -829,7 +829,7 @@ void NixRepl::addAttrsToScope(ValueRef attrs)
 
     for (auto & i : *attrs.attrs(state->values)) {
         staticEnv->vars.emplace_back(i.name, displ);
-        env->values[displ++] = i.value;
+        env.values(state->envs)[displ++] = i.value;
         varNames.emplace(state->symbols[i.name]);
     }
     staticEnv->sort();
@@ -866,7 +866,7 @@ void NixRepl::addVarToScope(const SymbolRef name, ValueRef v)
         staticEnv->vars.erase(oldVar);
     staticEnv->vars.emplace_back(name, displ);
     staticEnv->sort();
-    env->values[displ++] = v;
+    env.values(state->envs)[displ++] = v;
     varNames.emplace(state->symbols[name]);
 }
 
@@ -888,7 +888,7 @@ void NixRepl::evalString(std::string s, ValueRef v)
         else
             throw;
     }
-    e->eval(*state, *env, v);
+    e->eval(*state, env, v);
     state->forceValue(v, v.determinePos(state->values, noPos));
 }
 

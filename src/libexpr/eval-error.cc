@@ -39,7 +39,7 @@ EvalErrorBuilder<T> & EvalErrorBuilder<T>::withSuggestions(Suggestions & s)
 }
 
 template<class T>
-EvalErrorBuilder<T> & EvalErrorBuilder<T>::withFrame(const Env & env, const Expr & expr)
+EvalErrorBuilder<T> & EvalErrorBuilder<T>::withFrame(const EnvRef env, const Expr & expr)
 {
     // NOTE: This is abusing side-effects.
     // TODO: check compatibility with nested debugger calls.

@@ -5,7 +5,7 @@
 
 namespace nix {
 
-struct Env;
+class EnvRef;
 struct Expr;
 struct Value;
 
@@ -98,7 +98,7 @@ public:
 
     [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & withSuggestions(Suggestions & s);
 
-    [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & withFrame(const Env & e, const Expr & ex);
+    [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & withFrame(const EnvRef e, const Expr & ex);
 
     [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & addTrace(PosIdx pos, HintFmt hint);
 
