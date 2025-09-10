@@ -1161,6 +1161,9 @@ class Values {
         // XXX [speed] if we make this a (Value *), we can maybe use alignment to make the indexable space even larger
         char *stackValue;
         stackPtr = (size_t) &stackValue;
+
+        // types.reserve(100000000);
+        // payloads.reserve(100000000);
     }
 
     inline Value * stackValuePtr(ValueRef ref) noexcept {
