@@ -110,12 +110,12 @@ static void setDocPosition(const LexerState & lexerState, ExprLambda * lambda, P
     }
 }
 
-static Expr * makeCall(PosIdx pos, Expr * fn, Expr * arg) {
+static Expr * makeCall(Exprs & exprs, PosIdx pos, Expr * fn, Expr * arg) {
     if (auto e2 = dynamic_cast<ExprCall *>(fn)) {
         e2->args.push_back(arg);
         return fn;
     }
-    return new ExprCall(pos, fn, {arg});
+    return exprs.ERtoEP(exprs.add(ExprCall(pos, fn, {arg})));
 }
 
 
@@ -238,13 +238,13 @@ expr_if
   ;
 
 expr_pipe_from
-  : expr_op PIPE_FROM expr_pipe_from { $$ = makeCall(state->at(@2), $1, $3); }
-  | expr_op PIPE_FROM expr_op        { $$ = makeCall(state->at(@2), $1, $3); }
+  : expr_op PIPE_FROM expr_pipe_from { $$ = makeCall(state->exprs, state->at(@2), $1, $3); }
+  | expr_op PIPE_FROM expr_op        { $$ = makeCall(state->exprs, state->at(@2), $1, $3); }
   ;
 
 expr_pipe_into
-  : expr_pipe_into PIPE_INTO expr_op { $$ = makeCall(state->at(@2), $3, $1); }
-  | expr_op        PIPE_INTO expr_op { $$ = makeCall(state->at(@2), $3, $1); }
+  : expr_pipe_into PIPE_INTO expr_op { $$ = makeCall(state->exprs, state->at(@2), $3, $1); }
+  | expr_op        PIPE_INTO expr_op { $$ = makeCall(state->exprs, state->at(@2), $3, $1); }
   ;
 
 expr_op
@@ -271,7 +271,7 @@ expr_op
   ;
 
 expr_app
-  : expr_app expr_select { $$ = makeCall(CUR_POS, $1, $2); $2->warnIfCursedOr(state->symbols, state->positions); }
+  : expr_app expr_select { $$ = makeCall(state->exprs, CUR_POS, $1, $2); $2->warnIfCursedOr(state->symbols, state->positions); }
   | /* Once a ‘cursed or’ reaches this nonterminal, it is no longer cursed,
        because the uncursed parse would also produce an expr_app. But we need
        to remove the cursed status in order to prevent valid things like
