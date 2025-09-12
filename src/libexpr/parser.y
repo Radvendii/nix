@@ -460,7 +460,8 @@ attrs
       ExprString * str = dynamic_cast<ExprString *>($2);
       if (str) {
           $$->emplace_back(AttrName(state->symbols.create(str->s)), state->at(@2));
-          delete str;
+          // XXX [speed]: we're leaking more memory
+          // delete str;
       } else
           throw ParseError({
               .msg = HintFmt("dynamic attributes not allowed in inherit"),
@@ -477,7 +478,8 @@ attrpath
       ExprString * str = dynamic_cast<ExprString *>($3);
       if (str) {
           $$->push_back(AttrName(state->symbols.create(str->s)));
-          delete str;
+          // XXX [speed]: we're leaking more memory
+          // delete str;
       } else
           $$->push_back(AttrName($3));
     }
@@ -487,7 +489,8 @@ attrpath
       ExprString *str = dynamic_cast<ExprString *>($1);
       if (str) {
           $$->push_back(AttrName(state->symbols.create(str->s)));
-          delete str;
+          // XXX [speed]: we're leaking more memory
+          // delete str;
       } else
           $$->push_back(AttrName($1));
     }
