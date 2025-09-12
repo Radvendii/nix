@@ -837,17 +837,23 @@ std::vector<TYPE> VECTOR;
     ExprCallRef addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args)
     {
         calls.emplace_back(pos, fun, std::move(args));
+        if(calls.size() > 999000)
+            std::cout << "we're in trouble ExprCall\n";
         return ExprCallRef(calls.size() - 1);
     }
     ExprCallRef addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args, PosIdx && cursedOrEndPos)
     {
         calls.emplace_back(pos, fun, std::move(args), std::move(cursedOrEndPos));
+        if(calls.size() > 999000)
+            std::cout << "we're in trouble ExprCall\n";
         return ExprCallRef(calls.size() - 1);
     }
 
 #define NIX_DEFINE_ADD(TYPE, DISCRIMINANT, VECTOR)              \
 TYPE##Ref add##TYPE(auto && ...args) {                          \
     VECTOR.emplace_back(std::forward<decltype(args)>(args)...); \
+    if(VECTOR.size() > 999000) \
+        std::cout << "we're in trouble " #TYPE "\n"; \
     return TYPE##Ref(VECTOR.size() - 1);                        \
 }
     NIX_FOR_EACH_EXPR(NIX_DEFINE_ADD)
