@@ -832,11 +832,22 @@ std::vector<TYPE> VECTOR;
     NIX_FOR_EACH_EXPR(NIX_DEFINE_VEC)
 #undef NIX_DEFINE_VEC
 
+    // XXX [speed]: we define addExprCall() explicitly so that the args argument can be passed in as an initializer list
+    ExprCallRef addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args)
+    {
+        calls.emplace_back(pos, fun, std::move(args));
+        return ExprCallRef(calls.size() - 1);
+    }
+    ExprCallRef addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args, PosIdx && cursedOrEndPos)
+    {
+        calls.emplace_back(pos, fun, std::move(args), std::move(cursedOrEndPos));
+        return ExprCallRef(calls.size() - 1);
+    }
 
-#define NIX_DEFINE_ADD(TYPE, DISCRIMINANT, VECTOR) \
-TYPE##Ref add(TYPE && expr) {                      \
-    VECTOR.push_back(std::move(expr));             \
-    return TYPE##Ref(VECTOR.size() - 1);           \
+#define NIX_DEFINE_ADD(TYPE, DISCRIMINANT, VECTOR)              \
+TYPE##Ref add##TYPE(auto && ...args) {                          \
+    VECTOR.emplace_back(std::forward<decltype(args)>(args)...); \
+    return TYPE##Ref(VECTOR.size() - 1);                        \
 }
     NIX_FOR_EACH_EXPR(NIX_DEFINE_ADD)
 #undef NIX_DEFINE_ADD
