@@ -678,6 +678,7 @@ struct StaticEnv
 
 struct Exprs;
 
+// XXX [speed]: using 8 bits for the tag is convenient, but if it's too limiting (> 4 million of any one expr type), we can make do with 5 bits. We could even fine tune it even more by splitting up the address space into a sequence of intervals, one assigned to each type.
 enum Type : uint8_t {
     // 0 reserved for null
     teWith = 1,
