@@ -158,7 +158,7 @@ struct ExprPath : Expr
     std::string s;
     ValueRef v;
 
-    ExprPath(Values & values, ref<SourceAccessor> accessor, std::string s);
+    ExprPath(Values & values, ref<SourceAccessor> accessor, std::string && s);
 
     ValueRef maybeThunk(EvalState & state, EnvRef env) override;
     COMMON_METHODS

@@ -1045,9 +1045,9 @@ ExprString::ExprString(Values & values, std::string && s)
     : s(std::move(s))
 {
     v = values.create();
-    v.mkString(values, this->s.data());
+    v.mkString(values, this->s.c_str());
 };
-ExprPath::ExprPath(Values & values, ref<SourceAccessor> accessor, std::string s)
+ExprPath::ExprPath(Values & values, ref<SourceAccessor> accessor, std::string && s)
     : accessor(accessor)
     , s(std::move(s))
 {
