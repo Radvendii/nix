@@ -676,4 +676,204 @@ struct StaticEnv
     }
 };
 
+struct Exprs;
+
+enum Type : uint8_t {
+    // 0 reserved for null
+    teWith = 1,
+    teLet,
+    teIf,
+    teVar,
+    teAttrs,
+    teCall,
+    teFloat,
+    teInt,
+    tePath,
+    teSelect,
+    teLambda,
+    teList,
+    teString,
+    teAssert,
+    tePos,
+    teConcatStrings,
+    teOpHasAttr,
+    teOpConcatLists,
+    teOpNot,
+    teOpEq,
+    teOpNEq,
+    teOpAnd,
+    teOpOr,
+    teOpImpl,
+    teOpUpdate,
+    teInheritFrom,
+    teBlackHole,
+};
+
+#define NIX_FOR_EACH_EXPR(MACRO)                          \
+MACRO(ExprWith, teWith, withs)                            \
+MACRO(ExprLet, teLet, lets)                               \
+MACRO(ExprIf, teIf, ifs)                                  \
+MACRO(ExprVar, teVar, vars)                               \
+MACRO(ExprAttrs, teAttrs, attrss)                         \
+MACRO(ExprCall, teCall, calls)                            \
+MACRO(ExprFloat, teFloat, floats)                         \
+MACRO(ExprInt, teInt, ints)                               \
+MACRO(ExprPath, tePath, paths)                            \
+MACRO(ExprSelect, teSelect, selects)                      \
+MACRO(ExprLambda, teLambda, lambdas)                      \
+MACRO(ExprList, teList, lists)                            \
+MACRO(ExprString, teString, strings)                      \
+MACRO(ExprAssert, teAssert, asserts)                      \
+MACRO(ExprPos, tePos, poss)                               \
+MACRO(ExprConcatStrings, teConcatStrings, concatStringss) \
+MACRO(ExprOpHasAttr, teOpHasAttr, opHasAttrs)             \
+MACRO(ExprOpConcatLists, teOpConcatLists, opConcatListss) \
+MACRO(ExprOpNot, teOpNot, opNots)                         \
+MACRO(ExprOpEq, teOpEq, opEqs)                            \
+MACRO(ExprOpNEq, teOpNEq, opNEqs)                         \
+MACRO(ExprOpAnd, teOpAnd, opAnds)                         \
+MACRO(ExprOpOr, teOpOr, opOrs)                            \
+MACRO(ExprOpImpl, teOpImpl, opImpls)                      \
+MACRO(ExprOpUpdate, teOpUpdate, opUpdates)                \
+MACRO(ExprInheritFrom, teInheritFrom, inheritFroms)       \
+MACRO(ExprBlackHole, teBlackHole, blackHoles)
+
+struct ExprRef {
+    public:
+    static ExprRef null;
+
+    uint32_t ref;
+
+    // constexpr ExprRef() = default;
+
+    constexpr explicit ExprRef(Type type, uint32_t idx)
+        : ref((type << 24) + idx)
+    {
+        // XXX [speed]: better error messaging
+        if (idx > 0x00FFFFFF) [[unlikely]]
+            std::cout << "Too many " << type << "s!\n";
+    }
+
+    constexpr explicit ExprRef(uint32_t ref)
+        : ref(ref)
+    {
+    }
+
+    [[gnu::always_inline]]
+    constexpr explicit operator bool() const noexcept {
+        return ref;
+    }
+
+    constexpr auto operator<=>(const ExprRef & other) const noexcept = default;
+    template<typename T>
+    inline T dyn_cast() const noexcept;
+};
+
+// struct ExprWithRef {
+//     public:
+//     static ExprWithRef null;
+//     uint32_t ref;
+//     operator ExprRef() noexcept
+//     {
+//         return ExprRef(ref);
+//     }
+
+// };
+
+// XXX [speed]: addd error reporting like in ExprRef
+// XXX [speed]: should this be defined using templates e.g. ExprRef<ExprWith> or ExprRef<teWith>?
+// XXX [speed]: the 0 constructor should not be publicly accessible
+#define NIX_EXPR_REF(TYPE, DISCRIMINANT, VECTOR)           \
+struct TYPE##Ref {                                         \
+    public:                                                \
+    static TYPE##Ref null;                                 \
+    uint32_t ref;                                          \
+                                                           \
+    constexpr explicit TYPE##Ref(uint32_t idx)             \
+        : ref((DISCRIMINANT << 24) + idx)                  \
+    {                                                      \
+    }                                                      \
+    constexpr explicit TYPE##Ref()                         \
+        : ref(0)                                           \
+    {                                                      \
+    }                                                      \
+                                                           \
+    operator ExprRef() noexcept                            \
+    {                                                      \
+        return ExprRef(ref);                               \
+    }                                                      \
+};
+
+NIX_FOR_EACH_EXPR(NIX_EXPR_REF)
+#undef NIX_EXPR_REF
+
+// XXX [speed]: return here does unnecessary conversion back and forth
+#define NIX_DYN_CAST(TYPE, DISCRIMINANT, VECTOR)      \
+template<>                                            \
+inline TYPE##Ref ExprRef::dyn_cast() const noexcept { \
+    if (Type (ref >> 24) != DISCRIMINANT)             \
+        return TYPE##Ref::null;                       \
+    return TYPE##Ref(ref & 0x00FFFFFF);               \
+}
+    NIX_FOR_EACH_EXPR(NIX_DYN_CAST)
+#undef NIX_DYN_CAST
+
+struct Exprs {
+
+    Exprs() {
+#define NIX_EXPR_RESERVE(TYPE, DISCRIMINANT, VECTOR) \
+VECTOR.reserve(1000000);
+    NIX_FOR_EACH_EXPR(NIX_EXPR_RESERVE)
+#undef NIX_EXPR_RESERVE
+    }
+
+#define NIX_DEFINE_VEC(TYPE, DISCRIMINANT, VECTOR) \
+std::vector<TYPE> VECTOR;
+    NIX_FOR_EACH_EXPR(NIX_DEFINE_VEC)
+#undef NIX_DEFINE_VEC
+
+
+#define NIX_DEFINE_ADD(TYPE, DISCRIMINANT, VECTOR) \
+TYPE##Ref add(TYPE && expr) {                      \
+    VECTOR.push_back(std::move(expr));             \
+    return TYPE##Ref(VECTOR.size() - 1);           \
+}
+    NIX_FOR_EACH_EXPR(NIX_DEFINE_ADD)
+#undef NIX_DEFINE_ADD
+
+#define NIX_DEFINE_GET(TYPE, DISCRIMINANT, VECTOR)  \
+TYPE * ERtoEP(TYPE##Ref ref) {                      \
+    assert((Type) (ref.ref >> 24) == DISCRIMINANT); \
+    return &VECTOR[ref.ref & 0x00FFFFFF];           \
+}
+    NIX_FOR_EACH_EXPR(NIX_DEFINE_GET)
+#undef NIX_DEFINE_GET
+
+    ExprRef EPtoER(Expr * p) {
+        if (!p)
+            return ExprRef::null;
+#define NIX_EXPR_LOOK_FOR_POINTER(TYPE, DISCRIMINANT, VECTOR) \
+    if (p > &VECTOR.front() && p < &VECTOR.back()) {          \
+        return TYPE##Ref((TYPE *)p - &VECTOR.front());        \
+    }
+    NIX_FOR_EACH_EXPR(NIX_EXPR_LOOK_FOR_POINTER)
+#undef NIX_EXPR_LOOK_FOR_POINTER
+    // this would mean this is pointing to an Expr outside this struct
+    unreachable();
+    }
+
+    Expr * ERtoEP(ExprRef ref) {
+        if (!ref)
+            return nullptr;
+        switch ((Type) ref.ref >> 24) {
+#define NIX_EXPR_SWITCH_GET_REF(TYPE, DISCRIMINANT, VECTOR) \
+        case DISCRIMINANT:                                  \
+            return &VECTOR[ref.ref & 0x00FFFFFF];
+        NIX_FOR_EACH_EXPR(NIX_EXPR_SWITCH_GET_REF)
+#undef NIX_EXPR_SWITCH_GET_REF
+        }
+        unreachable();
+    }
+};
+
 } // namespace nix

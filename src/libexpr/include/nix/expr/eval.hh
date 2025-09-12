@@ -229,6 +229,8 @@ public:
      */
     Envs envs;
 
+    Exprs exprs;
+
     SymbolTable symbols;
     PosTable positions;
 

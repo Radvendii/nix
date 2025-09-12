@@ -1057,6 +1057,12 @@ ExprPath::ExprPath(Values & values, ref<SourceAccessor> accessor, std::string s)
 EnvRef EnvRef::null{0};
 ValueRef ValueRef::null{0};
 SymbolRef SymbolRef::null{ValueRef::null};
+ExprRef ExprRef::null{0};
+#define NIX_EXPR_REF_NULL(TYPE, DISCRIMINANT, VECTOR) \
+TYPE##Ref TYPE##Ref::null{};
+NIX_FOR_EACH_EXPR(NIX_EXPR_REF_NULL)
+#undef NIX_EXPR_REF_NULL
+
 
 void ValueRef::mkList(Values & values, const ListBuilder & builder) noexcept
 {
@@ -3534,7 +3540,7 @@ Expr * EvalState::parse(
     }
 
     auto result = parseExprFromBuf(
-        text, length, origin, basePath, symbols, settings, values, positions, *docComments, rootFS, exprSymbols);
+        text, length, origin, basePath, symbols, settings, values, exprs, positions, *docComments, rootFS, exprSymbols);
 
     result->bindVars(*this, staticEnv);
 

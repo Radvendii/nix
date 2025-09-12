@@ -83,6 +83,7 @@ struct ParserState
 {
     const LexerState & lexerState;
     Values & values;
+    Exprs & exprs;
     SymbolTable & symbols;
     PosTable & positions;
     Expr * result;

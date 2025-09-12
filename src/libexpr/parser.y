@@ -67,6 +67,7 @@ Expr * parseExprFromBuf(
     SymbolTable & symbols,
     const EvalSettings & settings,
 	Values & values,
+	Exprs & exprs,
     PosTable & positions,
     DocCommentMap & docComments,
     const ref<SourceAccessor> rootFS,
@@ -542,6 +543,7 @@ Expr * parseExprFromBuf(
     SymbolTable & symbols,
     const EvalSettings & settings,
 	Values & values,
+	Exprs & exprs,
     PosTable & positions,
     DocCommentMap & docComments,
     const ref<SourceAccessor> rootFS,
@@ -556,6 +558,7 @@ Expr * parseExprFromBuf(
     ParserState state {
         .lexerState = lexerState,
 	    .values = values,
+		.exprs = exprs,
         .symbols = symbols,
         .positions = positions,
         .basePath = basePath,
