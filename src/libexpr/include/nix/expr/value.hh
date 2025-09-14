@@ -344,6 +344,7 @@ inline ValueRef * EnvRef::values(Envs & envs)
 struct Exprs;
 
 // XXX [speed]: using 8 bits for the tag is convenient, but if it's too limiting (> 4 million of any one expr type), we can make do with 5 bits. We could even fine tune it even more by splitting up the address space into a sequence of intervals, one assigned to each type.
+// XXX [speed]: in particular, it's very silly to dedicate an entire section of the address space to null and teBlackHole
 enum Type : uint8_t {
     // 0 reserved for null
     teWith = 1,
@@ -400,8 +401,9 @@ MACRO(ExprOpAnd, teOpAnd, opAnds)                         \
 MACRO(ExprOpOr, teOpOr, opOrs)                            \
 MACRO(ExprOpImpl, teOpImpl, opImpls)                      \
 MACRO(ExprOpUpdate, teOpUpdate, opUpdates)                \
-MACRO(ExprInheritFrom, teInheritFrom, inheritFroms)       \
-MACRO(ExprBlackHole, teBlackHole, blackHoles)
+MACRO(ExprInheritFrom, teInheritFrom, inheritFroms)
+// XXX [speed]: ExprBlackHole behaves differently than all the rest and must be special-cased.
+// MACRO(ExprBlackHole, teBlackHole, blackHoles)
 
 struct ExprRef {
     public:
@@ -461,6 +463,7 @@ struct TYPE##Ref {                                         \
 };
 
 NIX_FOR_EACH_EXPR(NIX_EXPR_REF)
+NIX_EXPR_REF(ExprBlackHole, teBlackHole, )
 #undef NIX_EXPR_REF
 
 // XXX [speed]: return here does unnecessary conversion back and forth
@@ -472,11 +475,13 @@ inline TYPE##Ref ExprRef::dyn_cast() const noexcept { \
     return TYPE##Ref(ref & 0x00FFFFFF);               \
 }
     NIX_FOR_EACH_EXPR(NIX_DYN_CAST)
+    NIX_DYN_CAST(ExprBlackHole, teBlackHole, )
 #undef NIX_DYN_CAST
 
 #define NIX_PREDECL_TYPE(TYPE, DISCRIMINANT, VECTOR) \
 struct TYPE;
 NIX_FOR_EACH_EXPR(NIX_PREDECL_TYPE)
+NIX_PREDECL_TYPE(ExprlackHole, teBlackHole, )
 #undef NIX_PREDECL_TYPE
 
 struct Exprs {
@@ -486,6 +491,7 @@ struct Exprs {
 #define NIX_DEFINE_VEC(TYPE, DISCRIMINANT, VECTOR) \
 std::vector<TYPE> VECTOR;
     NIX_FOR_EACH_EXPR(NIX_DEFINE_VEC)
+// No blackHoles vector!
 #undef NIX_DEFINE_VEC
 
 // XXX [speed]: we define addExprCall() explicitly so that the args argument can be passed in as an initializer list
@@ -496,10 +502,12 @@ ExprCallRef addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && a
 TYPE##Ref add##TYPE(auto && ...args);
     NIX_FOR_EACH_EXPR(NIX_DECLARE_ADD)
 #undef NIX_DECLARE_ADD
+// No addExprBlackHole()!
 
 #define NIX_DECLARE_GET(TYPE, DISCRIMINANT, VECTOR) \
 TYPE * ERtoEP(TYPE##Ref ref);
     NIX_FOR_EACH_EXPR(NIX_DECLARE_GET)
+    NIX_DECLARE_GET(ExprBlackHole, teBlackhole, )
 #undef NIX_DECLARE_GET
 
     ExprRef EPtoER(Expr * p);

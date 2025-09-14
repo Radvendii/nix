@@ -1061,6 +1061,7 @@ ExprRef ExprRef::null{0};
 #define NIX_EXPR_REF_NULL(TYPE, DISCRIMINANT, VECTOR) \
 TYPE##Ref TYPE##Ref::null{};
 NIX_FOR_EACH_EXPR(NIX_EXPR_REF_NULL)
+NIX_EXPR_REF_NULL(ExprBlackHole, teBlackHole, )
 #undef NIX_EXPR_REF_NULL
 
 

@@ -45,9 +45,17 @@ TYPE * Exprs::ERtoEP(TYPE##Ref ref) {               \
     NIX_FOR_EACH_EXPR(NIX_DEFINE_GET)
 #undef NIX_DEFINE_GET
 
+ExprBlackHole * Exprs::ERtoEP(ExprBlackHoleRef ref) {
+    assert((Type) (ref.ref >> 24) == teBlackHole);
+    return &eBlackHole;
+}
+
 ExprRef Exprs::EPtoER(Expr * p) {
     if (!p)
         return ExprRef::null;
+    if (p == &eBlackHole) {
+        return ExprBlackHoleRef(0);
+    }
 #define NIX_EXPR_LOOK_FOR_POINTER(TYPE, DISCRIMINANT, VECTOR)         \
 if (!VECTOR.empty() && p >= &VECTOR.front() && p <= &VECTOR.back()) { \
     return TYPE##Ref((TYPE *)p - &VECTOR.front());                    \
@@ -67,6 +75,8 @@ Expr * Exprs::ERtoEP(ExprRef ref) {
         return &VECTOR[ref.ref & 0x00FFFFFF];
     NIX_FOR_EACH_EXPR(NIX_EXPR_SWITCH_GET_REF)
 #undef NIX_EXPR_SWITCH_GET_REF
+    case teBlackHole:
+        return &eBlackHole;
     }
     unreachable();
 }
