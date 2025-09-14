@@ -191,7 +191,7 @@ std::string showType(EvalState & state, const ValueRef v)
     case tExternal:
         return v.external(state.values)->showType();
     case tThunk:
-        return v.isBlackhole(state.values) ? "a black hole" : "a thunk";
+        return v.isBlackhole(state.exprs, state.values) ? "a black hole" : "a thunk";
     case tApp:
         return "a function application";
     default:
@@ -235,19 +235,19 @@ PosIdx ValueRef::determinePos(Values & values, const PosIdx pos) const
 #pragma GCC diagnostic pop
 }
 
-bool Value::isTrivial() const
+bool Value::isTrivial(Exprs & exprs) const
 {
     return !isa<tApp, tPrimOpApp>()
            && (!isa<tThunk>()
-               || (dynamic_cast<ExprAttrs *>(thunk().expr) && ((ExprAttrs *) thunk().expr)->dynamicAttrs.empty())
-               || dynamic_cast<ExprLambda *>(thunk().expr) || dynamic_cast<ExprList *>(thunk().expr));
+               || (dynamic_cast<ExprAttrs *>(exprs.ERtoEP(thunk().expr)) && ((ExprAttrs *) exprs.ERtoEP(thunk().expr))->dynamicAttrs.empty())
+               || dynamic_cast<ExprLambda *>(exprs.ERtoEP(thunk().expr)) || dynamic_cast<ExprList *>(exprs.ERtoEP(thunk().expr)));
 }
-bool ValueRef::isTrivial(Values & values) const
+bool ValueRef::isTrivial(Exprs & exprs, Values & values) const
 {
     return !isa<tApp, tPrimOpApp>(values)
            && (!isa<tThunk>(values)
-               || (dynamic_cast<ExprAttrs *>(thunk(values).expr) && ((ExprAttrs *) thunk(values).expr)->dynamicAttrs.empty())
-               || dynamic_cast<ExprLambda *>(thunk(values).expr) || dynamic_cast<ExprList *>(thunk(values).expr));
+               || (dynamic_cast<ExprAttrs *>(exprs.ERtoEP(thunk(values).expr)) && ((ExprAttrs *) exprs.ERtoEP(thunk(values).expr))->dynamicAttrs.empty())
+               || dynamic_cast<ExprLambda *>(exprs.ERtoEP(thunk(values).expr)) || dynamic_cast<ExprList *>(exprs.ERtoEP(thunk(values).expr)));
 }
 
 static SymbolRef getName(const AttrName & name, EvalState & state, EnvRef env)
@@ -1284,7 +1284,7 @@ unsigned long nrThunks = 0;
 
 static inline void mkThunk(EvalState & state, ValueRef v, EnvRef env, Expr * expr)
 {
-    v.mkThunk(state.values, env, expr);
+    v.mkThunk(state.exprs, state.values, env, expr);
     nrThunks++;
 }
 
@@ -2445,7 +2445,7 @@ void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] EnvRef env, ValueRe
 [[gnu::noinline]]
 void EvalState::tryFixupBlackHolePos(ValueRef v, PosIdx pos)
 {
-    if (!v.isBlackhole(values))
+    if (!v.isBlackhole(exprs, values))
         return;
     auto e = std::current_exception();
     try {
@@ -2474,7 +2474,7 @@ void EvalState::forceValueDeep(ValueRef v)
                     // If the value is a thunk, we're evaling. Otherwise no trace necessary.
                     auto dts = debugRepl && i.value.isThunk(values) ? makeDebugTraceStacker(
                                                                      *this,
-                                                                     *i.value.thunk(values).expr,
+                                                                     *exprs.ERtoEP(i.value.thunk(values).expr),
                                                                      i.value.thunk(values).env,
                                                                      i.pos,
                                                                      "while evaluating the attribute '%1%'",

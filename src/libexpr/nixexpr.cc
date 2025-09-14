@@ -15,6 +15,62 @@ unsigned long Expr::nrExprs = 0;
 
 ExprBlackHole eBlackHole;
 
+
+Exprs::Exprs() {
+#define NIX_EXPR_RESERVE(TYPE, DISCRIMINANT, VECTOR) \
+VECTOR.reserve(1000000);
+    NIX_FOR_EACH_EXPR(NIX_EXPR_RESERVE)
+#undef NIX_EXPR_RESERVE
+}
+ExprCallRef Exprs::addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args)
+{
+    calls.emplace_back(pos, fun, std::move(args));
+    if(calls.size() > 999000)
+        std::cout << "we're in trouble ExprCall\n";
+    return ExprCallRef(calls.size() - 1);
+}
+ExprCallRef Exprs::addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args, PosIdx && cursedOrEndPos)
+{
+    calls.emplace_back(pos, fun, std::move(args), std::move(cursedOrEndPos));
+    if(calls.size() > 999000)
+        std::cout << "we're in trouble ExprCall\n";
+    return ExprCallRef(calls.size() - 1);
+}
+
+#define NIX_DEFINE_GET(TYPE, DISCRIMINANT, VECTOR)  \
+TYPE * Exprs::ERtoEP(TYPE##Ref ref) {               \
+    assert((Type) (ref.ref >> 24) == DISCRIMINANT); \
+    return &VECTOR[ref.ref & 0x00FFFFFF];           \
+}
+    NIX_FOR_EACH_EXPR(NIX_DEFINE_GET)
+#undef NIX_DEFINE_GET
+
+ExprRef Exprs::EPtoER(Expr * p) {
+    if (!p)
+        return ExprRef::null;
+#define NIX_EXPR_LOOK_FOR_POINTER(TYPE, DISCRIMINANT, VECTOR) \
+if (p > &VECTOR.front() && p < &VECTOR.back()) {              \
+    return TYPE##Ref((TYPE *)p - &VECTOR.front());            \
+}
+NIX_FOR_EACH_EXPR(NIX_EXPR_LOOK_FOR_POINTER)
+#undef NIX_EXPR_LOOK_FOR_POINTER
+// this would mean this is pointing to an Expr outside this struct
+unreachable();
+}
+
+Expr * Exprs::ERtoEP(ExprRef ref) {
+    if (!ref)
+        return nullptr;
+    switch ((Type) ref.ref >> 24) {
+#define NIX_EXPR_SWITCH_GET_REF(TYPE, DISCRIMINANT, VECTOR) \
+    case DISCRIMINANT:                                      \
+        return &VECTOR[ref.ref & 0x00FFFFFF];
+    NIX_FOR_EACH_EXPR(NIX_EXPR_SWITCH_GET_REF)
+#undef NIX_EXPR_SWITCH_GET_REF
+    }
+    unreachable();
+}
+
 // FIXME: remove, because *symbols* are abstract and do not have a single
 //        textual representation; see printIdentifier()
 std::ostream & operator<<(std::ostream & str, const Symbol & symbol)

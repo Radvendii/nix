@@ -487,7 +487,7 @@ private:
 
     void printThunk(ValueRef v)
     {
-        if (v.isBlackhole(state.values)) {
+        if (v.isBlackhole(state.exprs, state.values)) {
             // Although we know for sure that it's going to be an infinite recursion
             // when this value is accessed _in the current context_, it's likely
             // that the user will misinterpret a simpler «infinite recursion» output

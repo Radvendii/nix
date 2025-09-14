@@ -63,7 +63,7 @@ void printAmbiguous(
         }
         break;
     case nThunk:
-        if (!v.isBlackhole(state.values)) {
+        if (!v.isBlackhole(state.exprs, state.values)) {
             str << "<CODE>";
         } else {
             // Although we know for sure that it's going to be an infinite recursion

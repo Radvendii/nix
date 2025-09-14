@@ -91,7 +91,7 @@ TEST_F(ValuePrintingTests, tList)
 TEST_F(ValuePrintingTests, vThunk)
 {
     Value vThunk;
-    vThunk.mkThunk(EnvRef::null, nullptr);
+    vThunk.mkThunk(state.exprs, EnvRef::null, nullptr);
 
     test(vThunk, "«thunk»");
 }
@@ -185,7 +185,7 @@ TEST_F(ValuePrintingTests, vFloat)
 TEST_F(ValuePrintingTests, vBlackhole)
 {
     Value vBlackhole;
-    vBlackhole.mkBlackhole();
+    vBlackhole.mkBlackhole(state.exprs);
     test(vBlackhole, "«potential infinite recursion»");
 }
 
@@ -540,7 +540,7 @@ TEST_F(ValuePrintingTests, ansiColorsPrimOpApp)
 TEST_F(ValuePrintingTests, ansiColorsThunk)
 {
     Value v;
-    v.mkThunk(EnvRef::null, nullptr);
+    v.mkThunk(state.exprs, EnvRef::null, nullptr);
 
     test(v, ANSI_MAGENTA "«thunk»" ANSI_NORMAL, PrintOptions{.ansiColors = true});
 }
@@ -548,7 +548,7 @@ TEST_F(ValuePrintingTests, ansiColorsThunk)
 TEST_F(ValuePrintingTests, ansiColorsBlackhole)
 {
     Value v;
-    v.mkBlackhole();
+    v.mkBlackhole(state.exprs);
 
     test(v, ANSI_RED "«potential infinite recursion»" ANSI_NORMAL, PrintOptions{.ansiColors = true});
 }

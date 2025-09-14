@@ -41,7 +41,7 @@ static StorePath copyInputToStore(
 
 static void forceTrivialValue(EvalState & state, ValueRef value, const PosIdx pos)
 {
-    if (value.isThunk(state.values) && value.isTrivial(state.values))
+    if (value.isThunk(state.values) && value.isTrivial(state.exprs, state.values))
         state.forceValue(value, pos);
 }
 

@@ -157,6 +157,8 @@ using NixFloat = double;
     MACRO(ExternalValueBase *, , external, tExternal)               \
     MACRO(NixFloat, , fpoint, tFloat)
 
+struct Exprs;
+
 class ValueRef {
     public:
 
@@ -187,11 +189,11 @@ class ValueRef {
 
     inline bool isThunk(Values & values) const;
     inline bool isApp(Values & values) const;
-    inline bool isBlackhole(Values & values) const;
+    inline bool isBlackhole(Exprs & exprs, Values & values) const;
     inline bool isLambda(Values & values) const;
     inline bool isPrimOp(Values & values) const;
     inline bool isPrimOpApp(Values & values) const;
-    bool isTrivial(Values & values) const;
+    bool isTrivial(Exprs & exprs, Values & values) const;
 
     /**
      * Returns the normal type of a Value. This only returns nThunk if
@@ -215,10 +217,10 @@ class ValueRef {
     inline void mkAttrs(Values & values, Bindings * a) noexcept;
     void mkAttrs(Values & values, BindingsBuilder & bindings);
     void mkList(Values & values, const ListBuilder & builder) noexcept;
-    inline void mkThunk(Values & values, EnvRef e, Expr * ex) noexcept;
+    inline void mkThunk(Exprs & exprs, Values & values, EnvRef e, Expr * ex) noexcept;
     inline void mkApp(Values & values, ValueRef l, ValueRef r) noexcept;
     inline void mkLambda(Values & values, EnvRef e, ExprLambda * f) noexcept;
-    inline void mkBlackhole(Values & values);
+    inline void mkBlackhole(Exprs & exprs, Values & values);
     void mkPrimOp(Values & values, PrimOp * p);
     inline void mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept;
     /**
@@ -337,6 +339,175 @@ inline ValueRef * EnvRef::values(Envs & envs)
 {
     return envs.get(*this).values;
 }
+// XXX [speed]
+// XXX [speed] moved Expr stuff in here
+struct Exprs;
+
+// XXX [speed]: using 8 bits for the tag is convenient, but if it's too limiting (> 4 million of any one expr type), we can make do with 5 bits. We could even fine tune it even more by splitting up the address space into a sequence of intervals, one assigned to each type.
+enum Type : uint8_t {
+    // 0 reserved for null
+    teWith = 1,
+    teLet,
+    teIf,
+    teVar,
+    teAttrs,
+    teCall,
+    teFloat,
+    teInt,
+    tePath,
+    teSelect,
+    teLambda,
+    teList,
+    teString,
+    teAssert,
+    tePos,
+    teConcatStrings,
+    teOpHasAttr,
+    teOpConcatLists,
+    teOpNot,
+    teOpEq,
+    teOpNEq,
+    teOpAnd,
+    teOpOr,
+    teOpImpl,
+    teOpUpdate,
+    teInheritFrom,
+    teBlackHole,
+};
+#define NIX_FOR_EACH_EXPR(MACRO)                          \
+MACRO(ExprWith, teWith, withs)                            \
+MACRO(ExprLet, teLet, lets)                               \
+MACRO(ExprIf, teIf, ifs)                                  \
+MACRO(ExprVar, teVar, vars)                               \
+MACRO(ExprAttrs, teAttrs, attrss)                         \
+MACRO(ExprCall, teCall, calls)                            \
+MACRO(ExprFloat, teFloat, floats)                         \
+MACRO(ExprInt, teInt, ints)                               \
+MACRO(ExprPath, tePath, paths)                            \
+MACRO(ExprSelect, teSelect, selects)                      \
+MACRO(ExprLambda, teLambda, lambdas)                      \
+MACRO(ExprList, teList, lists)                            \
+MACRO(ExprString, teString, strings)                      \
+MACRO(ExprAssert, teAssert, asserts)                      \
+MACRO(ExprPos, tePos, poss)                               \
+MACRO(ExprConcatStrings, teConcatStrings, concatStringss) \
+MACRO(ExprOpHasAttr, teOpHasAttr, opHasAttrs)             \
+MACRO(ExprOpConcatLists, teOpConcatLists, opConcatListss) \
+MACRO(ExprOpNot, teOpNot, opNots)                         \
+MACRO(ExprOpEq, teOpEq, opEqs)                            \
+MACRO(ExprOpNEq, teOpNEq, opNEqs)                         \
+MACRO(ExprOpAnd, teOpAnd, opAnds)                         \
+MACRO(ExprOpOr, teOpOr, opOrs)                            \
+MACRO(ExprOpImpl, teOpImpl, opImpls)                      \
+MACRO(ExprOpUpdate, teOpUpdate, opUpdates)                \
+MACRO(ExprInheritFrom, teInheritFrom, inheritFroms)       \
+MACRO(ExprBlackHole, teBlackHole, blackHoles)
+
+struct ExprRef {
+    public:
+    static ExprRef null;
+
+    ExprRef() = default;
+
+    uint32_t ref;
+
+    // constexpr ExprRef() = default;
+
+    constexpr explicit ExprRef(Type type, uint32_t idx)
+        : ref((type << 24) + idx)
+    {
+        // XXX [speed]: better error messaging
+        if (idx > 0x00FFFFFF) [[unlikely]]
+            std::cout << "Too many " << type << "s!\n";
+    }
+
+    constexpr explicit ExprRef(uint32_t ref)
+        : ref(ref)
+    {
+    }
+
+    [[gnu::always_inline]]
+    constexpr explicit operator bool() const noexcept {
+        return ref;
+    }
+
+    constexpr auto operator<=>(const ExprRef & other) const noexcept = default;
+    template<typename T>
+    inline T dyn_cast() const noexcept;
+};
+
+// XXX [speed]: addd error reporting like in ExprRef
+// XXX [speed]: should this be defined using templates e.g. ExprRef<ExprWith> or ExprRef<teWith>?
+// XXX [speed]: the 0 constructor should not be publicly accessible
+#define NIX_EXPR_REF(TYPE, DISCRIMINANT, VECTOR)           \
+struct TYPE##Ref {                                         \
+    public:                                                \
+    static TYPE##Ref null;                                 \
+    uint32_t ref;                                          \
+                                                           \
+    constexpr explicit TYPE##Ref(uint32_t idx)             \
+        : ref((DISCRIMINANT << 24) + idx)                  \
+    {                                                      \
+    }                                                      \
+    constexpr explicit TYPE##Ref()                         \
+        : ref(0)                                           \
+    {                                                      \
+    }                                                      \
+                                                           \
+    operator ExprRef() noexcept                            \
+    {                                                      \
+        return ExprRef(ref);                               \
+    }                                                      \
+};
+
+NIX_FOR_EACH_EXPR(NIX_EXPR_REF)
+#undef NIX_EXPR_REF
+
+// XXX [speed]: return here does unnecessary conversion back and forth
+#define NIX_DYN_CAST(TYPE, DISCRIMINANT, VECTOR)      \
+template<>                                            \
+inline TYPE##Ref ExprRef::dyn_cast() const noexcept { \
+    if (Type (ref >> 24) != DISCRIMINANT)             \
+        return TYPE##Ref::null;                       \
+    return TYPE##Ref(ref & 0x00FFFFFF);               \
+}
+    NIX_FOR_EACH_EXPR(NIX_DYN_CAST)
+#undef NIX_DYN_CAST
+
+#define NIX_PREDECL_TYPE(TYPE, DISCRIMINANT, VECTOR) \
+struct TYPE;
+NIX_FOR_EACH_EXPR(NIX_PREDECL_TYPE)
+#undef NIX_PREDECL_TYPE
+
+struct Exprs {
+
+    Exprs();
+
+#define NIX_DEFINE_VEC(TYPE, DISCRIMINANT, VECTOR) \
+std::vector<TYPE> VECTOR;
+    NIX_FOR_EACH_EXPR(NIX_DEFINE_VEC)
+#undef NIX_DEFINE_VEC
+
+// XXX [speed]: we define addExprCall() explicitly so that the args argument can be passed in as an initializer list
+ExprCallRef addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args);
+ExprCallRef addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args, PosIdx && cursedOrEndPos);
+
+#define NIX_DECLARE_ADD(TYPE, DISCRIMINANT, VECTOR) \
+TYPE##Ref add##TYPE(auto && ...args);
+    NIX_FOR_EACH_EXPR(NIX_DECLARE_ADD)
+#undef NIX_DECLARE_ADD
+
+#define NIX_DECLARE_GET(TYPE, DISCRIMINANT, VECTOR) \
+TYPE * ERtoEP(TYPE##Ref ref);
+    NIX_FOR_EACH_EXPR(NIX_DECLARE_GET)
+#undef NIX_DECLARE_GET
+
+    ExprRef EPtoER(Expr * p);
+
+    Expr * ERtoEP(ExprRef ref);
+};
+
+
 // XXX [speed]
 
 /**
@@ -486,7 +657,7 @@ struct Null
 struct ClosureThunk
 {
     EnvRef env;
-    Expr * expr;
+    ExprRef expr;
 };
 
 struct FunctionApplicationThunk
@@ -816,7 +987,7 @@ public:
         return isa<tApp>();
     };
 
-    inline bool isBlackhole() const;
+    inline bool isBlackhole(Exprs & exprs) const;
 
     // type() == nFunction
     inline bool isLambda() const
@@ -958,9 +1129,9 @@ public:
         }
     }
 
-    inline void mkThunk(EnvRef e, Expr * ex) noexcept
+    inline void mkThunk(Exprs & exprs, EnvRef e, Expr * ex) noexcept
     {
-        setStorage(detail::ClosureThunk{.env = e, .expr = ex});
+        setStorage(detail::ClosureThunk{.env = e, .expr = exprs.EPtoER(ex)});
         nrThunk++;
     }
 
@@ -977,7 +1148,7 @@ public:
         nrLambda++;
     }
 
-    inline void mkBlackhole();
+    inline void mkBlackhole(Exprs & exprs);
 
     void mkPrimOp(PrimOp * p);
 
@@ -1027,7 +1198,7 @@ public:
      * computation. In particular, function applications are
      * non-trivial.
      */
-    bool isTrivial() const;
+    bool isTrivial(Exprs & exprs) const;
 
     SourcePath path() const
     {
@@ -1112,14 +1283,14 @@ public:
 
 extern ExprBlackHole eBlackHole;
 
-bool Value::isBlackhole() const
+bool Value::isBlackhole(Exprs & exprs) const
 {
-    return isThunk() && thunk().expr == (Expr *) &eBlackHole;
+    return isThunk() && exprs.ERtoEP(thunk().expr) == (Expr *) &eBlackHole;
 }
 
-void Value::mkBlackhole()
+void Value::mkBlackhole(Exprs & exprs)
 {
-    mkThunk(EnvRef::null, (Expr *) &eBlackHole);
+    mkThunk(exprs, EnvRef::null, (Expr *) &eBlackHole);
 }
 
 typedef std::vector<ValueRef, traceable_allocator<ValueRef>> ValueVector;
@@ -1263,9 +1434,9 @@ inline bool ValueRef::isApp(Values & values) const
     return isa<tApp>(values);
 };
 
-bool ValueRef::isBlackhole(Values & values) const
+bool ValueRef::isBlackhole(Exprs & exprs, Values & values) const
 {
-    return isThunk(values) && thunk(values).expr == (Expr *) &eBlackHole;
+    return isThunk(values) && exprs.ERtoEP(thunk(values).expr) == (Expr *) &eBlackHole;
 }
 
 // type() == nFunction
@@ -1369,9 +1540,9 @@ inline void ValueRef::mkAttrs(Values & values, Bindings * a) noexcept
     nrAttrs++;
 }
 
-inline void ValueRef::mkThunk(Values & values, EnvRef e, Expr * ex) noexcept
+inline void ValueRef::mkThunk(Exprs & exprs, Values & values, EnvRef e, Expr * ex) noexcept
 {
-    setStorage(values, detail::ClosureThunk{.env = e, .expr = ex});
+    setStorage(values, detail::ClosureThunk{.env = e, .expr = exprs.EPtoER(ex)});
     nrThunk++;
 }
 
@@ -1388,9 +1559,9 @@ inline void ValueRef::mkLambda(Values & values, EnvRef e, ExprLambda * f) noexce
     nrLambda++;
 }
 
-inline void ValueRef::mkBlackhole(Values & values)
+inline void ValueRef::mkBlackhole(Exprs & exprs, Values & values)
 {
-    mkThunk(values, EnvRef::null, (Expr *) &eBlackHole);
+    mkThunk(exprs, values, EnvRef::null, (Expr *) &eBlackHole);
 }
 
 inline void ValueRef::mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept
