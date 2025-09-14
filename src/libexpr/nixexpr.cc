@@ -61,7 +61,7 @@ unreachable();
 Expr * Exprs::ERtoEP(ExprRef ref) {
     if (!ref)
         return nullptr;
-    switch ((Type) ref.ref >> 24) {
+    switch ((Type) (ref.ref >> 24)) {
 #define NIX_EXPR_SWITCH_GET_REF(TYPE, DISCRIMINANT, VECTOR) \
     case DISCRIMINANT:                                      \
         return &VECTOR[ref.ref & 0x00FFFFFF];
