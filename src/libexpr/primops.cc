@@ -952,7 +952,7 @@ static RegisterPrimOp primop_addErrorContext(
 static void prim_ceil(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     auto value = state.forceFloat(
-        args[0], args[0].determinePos(state.values, pos), "while evaluating the first argument passed to builtins.ceil");
+        args[0], args[0].determinePos(state.exprs, state.values, pos), "while evaluating the first argument passed to builtins.ceil");
     auto ceilValue = ceil(value);
     bool isInt = args[0].type(state.values) == nInt;
     constexpr NixFloat int_min = std::numeric_limits<NixInt::Inner>::min(); // power of 2, so that no rounding occurs
@@ -1007,7 +1007,7 @@ static RegisterPrimOp primop_ceil({
 static void prim_floor(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
 {
     auto value = state.forceFloat(
-        args[0], args[0].determinePos(state.values, pos), "while evaluating the first argument passed to builtins.floor");
+        args[0], args[0].determinePos(state.exprs, state.values, pos), "while evaluating the first argument passed to builtins.floor");
     auto floorValue = floor(value);
     bool isInt = args[0].type(state.values) == nInt;
     constexpr NixFloat int_min = std::numeric_limits<NixInt::Inner>::min(); // power of 2, so that no rounding occurs
@@ -1366,7 +1366,7 @@ static void derivationStrictInternal(EvalState & state, std::string_view drvName
     /* Check whether attributes should be passed as a JSON file. */
     using nlohmann::json;
     std::optional<StructuredAttrs> jsonObject;
-    auto pos = v.determinePos(state.values, noPos);
+    auto pos = v.determinePos(state.exprs, state.values, noPos);
     auto attr = attrs->find(state.sStructuredAttrs);
     if (attr != attrs->end()
         && state.forceBool(
@@ -3293,12 +3293,12 @@ static void prim_functionArgs(EvalState & state, const PosIdx pos, ValueRef * ar
     if (!args[0].isLambda(state.values))
         state.error<TypeError>("'functionArgs' requires a function").atPos(pos).debugThrow();
 
-    if (!args[0].lambda(state.values).fun->hasFormals()) {
+    if (!state.exprs.ERtoEP(args[0].lambda(state.values).fun)->hasFormals()) {
         v.mkAttrs(state.values, &state.emptyBindings);
         return;
     }
 
-    const auto & formals = args[0].lambda(state.values).fun->formals->formals;
+    const auto & formals = state.exprs.ERtoEP(args[0].lambda(state.values).fun)->formals->formals;
     auto attrs = state.buildBindings(formals.size());
     for (auto & i : formals)
         attrs.insert(i.name, state.getBool(i.def), i.pos);
@@ -4046,7 +4046,7 @@ static void prim_concatMap(EvalState & state, const PosIdx pos, ValueRef * args,
         state.callFunction(args[0], vElem, listValue.ref(state.values), pos);
         state.forceList(
             listValue.ref(state.values),
-            listValue.determinePos(state.values, args[0].determinePos(state.values, pos)),
+            listValue.determinePos(state.exprs, state.values, args[0].determinePos(state.exprs, state.values, pos)),
             "while evaluating the return value of the function passed to builtins.concatMap");
         len += listValue.listSize();
         lists[n] = listValue.listView();

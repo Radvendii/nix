@@ -171,7 +171,7 @@ static void enumerateOutputs(
     ValueRef vFlake,
     std::function<void(std::string_view name, ValueRef vProvide, const PosIdx pos)> callback)
 {
-    auto pos = vFlake.determinePos(state.values, noPos);
+    auto pos = vFlake.determinePos(state.exprs, state.values, noPos);
     state.forceAttrs(vFlake, pos, "while evaluating a flake to get its outputs");
 
     auto aOutputs = vFlake.attrs(state.values)->get(state.symbols.create("outputs"));
@@ -470,7 +470,7 @@ struct CmdFlakeCheck : FlakeCommand
                 if (!v.isLambda(state->values)) {
                     throw Error("overlay is not a function, but %s instead", showType(*state, v));
                 }
-                if (v.lambda(state->values).fun->hasFormals() || !argHasName(v.lambda(state->values).fun->arg, "final"))
+                if (state->exprs.ERtoEP(v.lambda(state->values).fun)->hasFormals() || !argHasName(state->exprs.ERtoEP(v.lambda(state->values).fun)->arg, "final"))
                     throw Error("overlay does not take an argument named 'final'");
                 // FIXME: if we have a 'nixpkgs' input, use it to
                 // evaluate the overlay.

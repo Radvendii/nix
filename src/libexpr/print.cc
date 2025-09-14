@@ -321,7 +321,7 @@ private:
         }
 
         // It is ok to force the item(s) here, because they will be printed anyway.
-        state.forceValue(item, item.determinePos(state.values, noPos));
+        state.forceValue(item, item.determinePos(state.exprs, state.values, noPos));
 
         // Pretty-print single-item attrsets only if they contain nested
         // structures.
@@ -399,7 +399,7 @@ private:
         }
 
         // It is ok to force the item(s) here, because they will be printed anyway.
-        state.forceValue(item, item.determinePos(state.values, noPos));
+        state.forceValue(item, item.determinePos(state.exprs, state.values, noPos));
 
         // Pretty-print single-item lists only if they contain nested
         // structures.
@@ -456,12 +456,12 @@ private:
         if (v.isLambda(state.values)) {
             output << "lambda";
             if (v.lambda(state.values).fun) {
-                if (v.lambda(state.values).fun->name) {
-                    output << " " << state.symbols[v.lambda(state.values).fun->name];
+                if (state.exprs.ERtoEP(v.lambda(state.values).fun)->name) {
+                    output << " " << state.symbols[state.exprs.ERtoEP(v.lambda(state.values).fun)->name];
                 }
 
                 std::ostringstream s;
-                s << state.positions[v.lambda(state.values).fun->pos];
+                s << state.positions[state.exprs.ERtoEP(v.lambda(state.values).fun)->pos];
                 output << " @ " << filterANSIEscapes(toView(s));
             }
         } else if (v.isPrimOp(state.values)) {
@@ -540,7 +540,7 @@ private:
 
         try {
             if (options.force) {
-                state.forceValue(v, v.determinePos(state.values, noPos));
+                state.forceValue(v, v.determinePos(state.exprs, state.values, noPos));
             }
 
             switch (v.type(state.values)) {

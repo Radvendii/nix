@@ -786,8 +786,8 @@ TEST_F(PrimOpTest, derivation)
     auto v = eval("derivation");
     ASSERT_EQ(v.type(), nFunction);
     ASSERT_TRUE(v.isLambda());
-    ASSERT_NE(v.lambda().fun, nullptr);
-    ASSERT_TRUE(v.lambda().fun->hasFormals());
+    ASSERT_NE(state.exprs.ERtoEP(v.lambda().fun), nullptr);
+    ASSERT_TRUE(state.exprs.ERtoEP(v.lambda().fun)->hasFormals());
 }
 
 TEST_F(PrimOpTest, currentTime)

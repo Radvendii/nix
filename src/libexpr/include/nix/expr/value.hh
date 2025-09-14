@@ -151,7 +151,7 @@ using NixFloat = double;
     MACRO(detail::SmallList, , smallList, tListSmall)               \
     MACRO(detail::ClosureThunk, , thunk, tThunk)                    \
     MACRO(detail::FunctionApplicationThunk, , app, tApp)            \
-    MACRO(detail::Lambda, *, lambda, tLambda)                       \
+    MACRO(detail::Lambda, , lambda, tLambda)                        \
     MACRO(PrimOp *, , primOp, tPrimOp)                              \
     MACRO(detail::PrimOpApplicationThunk, , primOpApp, tPrimOpApp)  \
     MACRO(ExternalValueBase *, , external, tExternal)               \
@@ -219,7 +219,7 @@ class ValueRef {
     void mkList(Values & values, const ListBuilder & builder) noexcept;
     inline void mkThunk(Exprs & exprs, Values & values, EnvRef e, Expr * ex) noexcept;
     inline void mkApp(Values & values, ValueRef l, ValueRef r) noexcept;
-    inline void mkLambda(Values & values, EnvRef e, ExprLambda * f) noexcept;
+    inline void mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLambda * f) noexcept;
     inline void mkBlackhole(Exprs & exprs, Values & values);
     void mkPrimOp(Values & values, PrimOp * p);
     inline void mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept;
@@ -234,7 +234,7 @@ class ValueRef {
     ListView listView(Values & values) const noexcept;
     size_t listSize(Values & values) const noexcept;
 
-    PosIdx determinePos(Values & values, const PosIdx pos) const;
+    PosIdx determinePos(Exprs & exprs, Values & values, const PosIdx pos) const;
 
     SourcePath path(Values & values) const;
     std::string_view string_view(Values & values) const noexcept;
@@ -409,11 +409,9 @@ struct ExprRef {
     public:
     static ExprRef null;
 
-    ExprRef() = default;
+    constexpr ExprRef() = default;
 
     uint32_t ref;
-
-    // constexpr ExprRef() = default;
 
     constexpr explicit ExprRef(Type type, uint32_t idx)
         : ref((type << 24) + idx)
@@ -440,26 +438,33 @@ struct ExprRef {
 
 // XXX [speed]: addd error reporting like in ExprRef
 // XXX [speed]: should this be defined using templates e.g. ExprRef<ExprWith> or ExprRef<teWith>?
-// XXX [speed]: the 0 constructor should not be publicly accessible
-#define NIX_EXPR_REF(TYPE, DISCRIMINANT, VECTOR)           \
-struct TYPE##Ref {                                         \
-    public:                                                \
-    static TYPE##Ref null;                                 \
-    uint32_t ref;                                          \
-                                                           \
-    constexpr explicit TYPE##Ref(uint32_t idx)             \
-        : ref((DISCRIMINANT << 24) + idx)                  \
-    {                                                      \
-    }                                                      \
-    constexpr explicit TYPE##Ref()                         \
-        : ref(0)                                           \
-    {                                                      \
-    }                                                      \
-                                                           \
-    operator ExprRef() noexcept                            \
-    {                                                      \
-        return ExprRef(ref);                               \
-    }                                                      \
+// XXX [speed]: the ExprRef constructor should not be publicly accessible
+#define NIX_EXPR_REF(TYPE, DISCRIMINANT, VECTOR)        \
+struct TYPE##Ref {                                      \
+    public:                                             \
+    TYPE##Ref() = default;                              \
+                                                        \
+    static TYPE##Ref null;                              \
+    uint32_t ref;                                       \
+                                                        \
+    constexpr explicit TYPE##Ref(uint32_t idx)          \
+        : ref((DISCRIMINANT << 24) + idx)               \
+    {                                                   \
+    }                                                   \
+    constexpr explicit TYPE##Ref(ExprRef ref)           \
+        : ref(ref.ref)                                  \
+    {                                                   \
+    }                                                   \
+                                                        \
+    [[gnu::always_inline]]                              \
+    constexpr explicit operator bool() const noexcept { \
+        return ref;                                     \
+    }                                                   \
+                                                        \
+    operator ExprRef() noexcept                         \
+    {                                                   \
+        return ExprRef(ref);                            \
+    }                                                   \
 };
 
 NIX_FOR_EACH_EXPR(NIX_EXPR_REF)
@@ -509,6 +514,10 @@ TYPE * ERtoEP(TYPE##Ref ref);
     NIX_FOR_EACH_EXPR(NIX_DECLARE_GET)
     NIX_DECLARE_GET(ExprBlackHole, teBlackhole, )
 #undef NIX_DECLARE_GET
+#define NIX_DECLARE_EPTOER(TYPE, DISCRIMINANT, VECTOR) \
+TYPE##Ref EPtoER(TYPE * ref);
+    NIX_FOR_EACH_EXPR(NIX_DECLARE_EPTOER)
+#undef NIX_DECLARE_EPTOER
 
     ExprRef EPtoER(Expr * p);
 
@@ -687,7 +696,7 @@ struct PrimOpApplicationThunk
 struct Lambda
 {
     EnvRef env;
-    ExprLambda * fun;
+    ExprLambdaRef fun;
 };
 
 using SmallList = std::array<ValueRef, 2>;
@@ -1150,9 +1159,9 @@ public:
     }
 
 
-    inline void mkLambda(EnvRef e, ExprLambda * f) noexcept
+    inline void mkLambda(Exprs & exprs, EnvRef e, ExprLambda * f) noexcept
     {
-        setStorage(detail::Lambda{.env = e, .fun = f});
+        setStorage(detail::Lambda{.env = e, .fun = exprs.EPtoER(f)});
         nrLambda++;
     }
 
@@ -1199,7 +1208,7 @@ public:
         return isa<tListSmall>() ? (getStorage<detail::SmallList>()[1] == ValueRef::null ? 1 : 2) : getStorage<detail::List>().size;
     }
 
-    PosIdx determinePos(Values & values, const PosIdx pos) const;
+    PosIdx determinePos(Exprs & exprs, Values & values, const PosIdx pos) const;
 
     /**
      * Check whether forcing this value requires a trivial amount of
@@ -1559,9 +1568,9 @@ inline void ValueRef::mkApp(Values & values, ValueRef l, ValueRef r) noexcept
 }
 
 
-inline void ValueRef::mkLambda(Values & values, EnvRef e, ExprLambda * f) noexcept
+inline void ValueRef::mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLambda * f) noexcept
 {
-    setStorage(values, detail::Lambda{.env = e, .fun = f});
+    setStorage(values, detail::Lambda{.env = e, .fun = exprs.EPtoER(f)});
     nrLambda++;
 }
 

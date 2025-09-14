@@ -142,20 +142,20 @@ static void printValueAsXML(
         }
         XMLAttrs xmlAttrs;
         if (location)
-            posToXML(state, xmlAttrs, state.positions[v.lambda(state.values).fun->pos]);
+            posToXML(state, xmlAttrs, state.positions[state.exprs.ERtoEP(v.lambda(state.values).fun)->pos]);
         XMLOpenElement _(doc, "function", xmlAttrs);
 
-        if (v.lambda(state.values).fun->hasFormals()) {
+        if (state.exprs.ERtoEP(v.lambda(state.values).fun)->hasFormals()) {
             XMLAttrs attrs;
-            if (v.lambda(state.values).fun->arg)
-                attrs["name"] = state.symbols[v.lambda(state.values).fun->arg];
-            if (v.lambda(state.values).fun->formals->ellipsis)
+            if (state.exprs.ERtoEP(v.lambda(state.values).fun)->arg)
+                attrs["name"] = state.symbols[state.exprs.ERtoEP(v.lambda(state.values).fun)->arg];
+            if (state.exprs.ERtoEP(v.lambda(state.values).fun)->formals->ellipsis)
                 attrs["ellipsis"] = "1";
             XMLOpenElement _(doc, "attrspat", attrs);
-            for (auto & i : v.lambda(state.values).fun->formals->lexicographicOrder(state.symbols))
+            for (auto & i : state.exprs.ERtoEP(v.lambda(state.values).fun)->formals->lexicographicOrder(state.symbols))
                 doc.writeEmptyElement("attr", singletonAttrs("name", state.symbols[i.name]));
         } else
-            doc.writeEmptyElement("varpat", singletonAttrs("name", state.symbols[v.lambda(state.values).fun->arg]));
+            doc.writeEmptyElement("varpat", singletonAttrs("name", state.symbols[state.exprs.ERtoEP(v.lambda(state.values).fun)->arg]));
 
         break;
     }

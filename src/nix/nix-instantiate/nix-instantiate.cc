@@ -46,7 +46,7 @@ void processExpr(
 
     for (auto & i : attrPaths) {
         ValueRef v(findAlongAttrPath(state, i, autoArgs, vRoot.ref(state.values)).first);
-        state.forceValue(v, v.determinePos(state.values, noPos));
+        state.forceValue(v, v.determinePos(state.exprs, state.values, noPos));
 
         NixStringContext context;
         if (evalOnly) {
@@ -62,7 +62,7 @@ void processExpr(
             else if (output == okXML)
                 printValueAsXML(state, strict, location, vRes.ref(state.values), std::cout, context, noPos);
             else if (output == okJSON) {
-                printValueAsJSON(state, strict, vRes.ref(state.values), v.determinePos(state.values, noPos), std::cout, context);
+                printValueAsJSON(state, strict, vRes.ref(state.values), v.determinePos(state.exprs, state.values, noPos), std::cout, context);
                 std::cout << std::endl;
             } else {
                 if (strict)

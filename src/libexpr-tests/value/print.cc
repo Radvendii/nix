@@ -116,7 +116,7 @@ TEST_F(ValuePrintingTests, vLambda)
     ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, &body));
 
     Value vLambda;
-    vLambda.mkLambda(env, &eLambda);
+    vLambda.mkLambda(state.exprs, env, &eLambda);
 
     test(vLambda, "«lambda @ «none»:1:1»");
 
@@ -507,7 +507,7 @@ TEST_F(ValuePrintingTests, ansiColorsLambda)
     ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, &body));
 
     Value vLambda;
-    vLambda.mkLambda(env, &eLambda);
+    vLambda.mkLambda(state.exprs, env, &eLambda);
 
     test(vLambda, ANSI_BLUE "«lambda @ «none»:1:1»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 

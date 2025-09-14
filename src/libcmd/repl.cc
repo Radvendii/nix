@@ -498,7 +498,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
                 auto path = state->coerceToPath(noPos, v.ref(state->values), context, "while evaluating the filename to edit");
                 return {path, 0};
             } else if (v.ref(state->values).isLambda(state->values)) {
-                auto pos = state->positions[v.lambda().fun->pos];
+                auto pos = state->positions[state->exprs.ERtoEP(v.lambda().fun)->pos];
                 if (auto path = std::get_if<SourcePath>(&pos.origin))
                     return {*path, pos.line};
                 else
@@ -822,7 +822,7 @@ void NixRepl::addAttrsToScope(ValueRef attrs)
 {
     state->forceAttrs(
         attrs,
-        [&]() { return attrs.determinePos(state->values, noPos); },
+        [&]() { return attrs.determinePos(state->exprs, state->values, noPos); },
         "while evaluating an attribute set to be merged in the global scope");
     if (displ + attrs.attrs(state->values)->size() >= envSize)
         throw Error("environment full; cannot add more variables");
@@ -889,7 +889,7 @@ void NixRepl::evalString(std::string s, ValueRef v)
             throw;
     }
     e->eval(*state, env, v);
-    state->forceValue(v, v.determinePos(state->values, noPos));
+    state->forceValue(v, v.determinePos(state->exprs, state->values, noPos));
 }
 
 void NixRepl::runNix(Path program, const Strings & args, const std::optional<std::string> & input)

@@ -200,7 +200,7 @@ std::string showType(EvalState & state, const ValueRef v)
 #pragma GCC diagnostic pop
 }
 
-PosIdx Value::determinePos(Values & values, const PosIdx pos) const
+PosIdx Value::determinePos(Exprs & exprs, Values & values, const PosIdx pos) const
 {
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
@@ -209,15 +209,15 @@ PosIdx Value::determinePos(Values & values, const PosIdx pos) const
     case tAttrs:
         return attrs()->pos;
     case tLambda:
-        return lambda().fun->pos;
+        return exprs.ERtoEP(lambda().fun)->pos;
     case tApp:
-        return app().left.determinePos(values, pos);
+        return app().left.determinePos(exprs, values, pos);
     default:
         return pos;
     }
 #pragma GCC diagnostic pop
 }
-PosIdx ValueRef::determinePos(Values & values, const PosIdx pos) const
+PosIdx ValueRef::determinePos(Exprs & exprs, Values & values, const PosIdx pos) const
 {
 // Allow selecting a subset of enum values
 #pragma GCC diagnostic push
@@ -226,9 +226,9 @@ PosIdx ValueRef::determinePos(Values & values, const PosIdx pos) const
     case tAttrs:
         return attrs(values)->pos;
     case tLambda:
-        return lambda(values).fun->pos;
+        return exprs.ERtoEP(lambda(values).fun)->pos;
     case tApp:
-        return app(values).left.determinePos(values, pos);
+        return app(values).left.determinePos(exprs, values, pos);
     default:
         return pos;
     }
@@ -704,7 +704,7 @@ std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
             };
     }
     if (v.isLambda(values)) {
-        auto exprLambda = v.lambda(values).fun;
+        auto exprLambda = exprs.ERtoEP(v.lambda(values).fun);
 
         std::ostringstream s;
         std::string name;
@@ -1059,7 +1059,7 @@ ValueRef ValueRef::null{0};
 SymbolRef SymbolRef::null{ValueRef::null};
 ExprRef ExprRef::null{0};
 #define NIX_EXPR_REF_NULL(TYPE, DISCRIMINANT, VECTOR) \
-TYPE##Ref TYPE##Ref::null{};
+TYPE##Ref TYPE##Ref::null{ExprRef::null};
 NIX_FOR_EACH_EXPR(NIX_EXPR_REF_NULL)
 NIX_EXPR_REF_NULL(ExprBlackHole, teBlackHole, )
 #undef NIX_EXPR_REF_NULL
@@ -1598,7 +1598,7 @@ void ExprAttrs::eval(EvalState & state, EnvRef env, ValueRef v)
             ValueRef vOverrides = (*bindings.bindings)[overrides->second.displ].value;
             state.forceAttrs(
                 vOverrides,
-                [&]() { return vOverrides.determinePos(state.values, noPos); },
+                [&]() { return vOverrides.determinePos(state.exprs, state.values, noPos); },
                 "while evaluating the `__overrides` attribute");
             bindings.grow(state.allocBindings(bindings.capacity() + vOverrides.attrs(state.values)->size()));
             for (auto & i : *vOverrides.attrs(state.values)) {
@@ -1825,7 +1825,7 @@ void ExprOpHasAttr::eval(EvalState & state, EnvRef env, ValueRef v)
 
 void ExprLambda::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.mkLambda(state.values, env, this);
+    v.mkLambda(state.exprs, state.values, env, this);
 }
 
 void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vRes, const PosIdx pos)
@@ -1860,7 +1860,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
         if (vCur.isLambda()) {
 
-            ExprLambda & lambda(*vCur.lambda().fun);
+            ExprLambda & lambda(*exprs.ERtoEP(vCur.lambda().fun));
 
             auto size = (!lambda.arg ? 0 : 1) + (lambda.hasFormals() ? lambda.formals->formals.size() : 0);
             EnvRef env2(allocEnv(size));
@@ -1981,7 +1981,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                     primOpCalls[fn->name]++;
 
                 try {
-                    fn->fun(*this, vCur.determinePos(values, noPos), args.data(), vCur.ref(values));
+                    fn->fun(*this, vCur.determinePos(exprs, values, noPos), args.data(), vCur.ref(values));
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
@@ -2031,7 +2031,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                     // 2. Create a fake env (arg1, arg2, etc.) and a fake expr (arg1: arg2: etc: builtins.name arg1 arg2
                     // etc)
                     //    so the debugger allows to inspect the wrong parameters passed to the builtin.
-                    fn->fun(*this, vCur.determinePos(values, noPos), vArgs, vCur.ref(values));
+                    fn->fun(*this, vCur.determinePos(exprs, values, noPos), vArgs, vCur.ref(values));
                 } catch (Error & e) {
                     if (fn->addTrace)
                         addErrorTrace(e, pos, "while calling the '%1%' builtin", fn->name);
@@ -2099,7 +2099,7 @@ void EvalState::incrFunctionCall(ExprLambda * fun)
 
 void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef res)
 {
-    auto pos = fun.determinePos(values, noPos);
+    auto pos = fun.determinePos(exprs, values, noPos);
 
     forceValue(fun, pos);
 
@@ -2113,14 +2113,14 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
         }
     }
 
-    if (!fun.isLambda(values) || !fun.lambda(values).fun->hasFormals()) {
+    if (!fun.isLambda(values) || !exprs.ERtoEP(fun.lambda(values).fun)->hasFormals()) {
         res.set(values, fun);
         return;
     }
 
-    auto attrs = buildBindings(std::max(static_cast<uint32_t>(fun.lambda(values).fun->formals->formals.size()), args.size()));
+    auto attrs = buildBindings(std::max(static_cast<uint32_t>(exprs.ERtoEP(fun.lambda(values).fun)->formals->formals.size()), args.size()));
 
-    if (fun.lambda(values).fun->formals->ellipsis) {
+    if (exprs.ERtoEP(fun.lambda(values).fun)->formals->ellipsis) {
         // If the formals have an ellipsis (eg the function accepts extra args) pass
         // all available automatic arguments (which includes arguments specified on
         // the command line via --arg/--argstr)
@@ -2128,7 +2128,7 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
             attrs.insert(v);
     } else {
         // Otherwise, only pass the arguments that the function accepts
-        for (auto & i : fun.lambda(values).fun->formals->formals) {
+        for (auto & i : exprs.ERtoEP(fun.lambda(values).fun)->formals->formals) {
             auto j = args.get(i.name);
             if (j) {
                 attrs.insert(*j);
@@ -2141,7 +2141,7 @@ values, or passed explicitly with '--arg' or '--argstr'. See
 https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
                     symbols[i.name])
                     .atPos(i.pos)
-                    .withFrame(fun.lambda(values).env, *fun.lambda(values).fun)
+                    .withFrame(fun.lambda(values).env, *exprs.ERtoEP(fun.lambda(values).fun))
                     .debugThrow();
             }
         }
@@ -2440,7 +2440,7 @@ void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] EnvRef env, ValueRe
 
 [[gnu::noinline]] [[noreturn]] void ExprBlackHole::throwInfiniteRecursionError(EvalState & state, ValueRef v)
 {
-    state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(v.determinePos(state.values, noPos)).debugThrow();
+    state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(v.determinePos(state.exprs, state.values, noPos)).debugThrow();
 }
 
 // always force this to be separate, otherwise forceValue may inline it and take
@@ -2469,7 +2469,7 @@ void EvalState::forceValueDeep(ValueRef v)
         if (!seen.insert(v).second)
             return;
 
-        forceValue(v, v.determinePos(values, noPos));
+        forceValue(v, v.determinePos(exprs, values, noPos));
 
         if (v.type(values) == nAttrs) {
             for (auto & i : *v.attrs(values))

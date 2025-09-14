@@ -1,6 +1,7 @@
 #include "nix/expr/nixexpr.hh"
 #include "nix/expr/eval.hh"
 #include "nix/expr/symbol-table.hh"
+#include "nix/expr/value.hh"
 #include "nix/util/util.hh"
 #include "nix/expr/print.hh"
 
@@ -65,6 +66,15 @@ NIX_FOR_EACH_EXPR(NIX_EXPR_LOOK_FOR_POINTER)
 // this would mean this is pointing to an Expr outside this struct
 unreachable();
 }
+
+#define NIX_EXPR_EPTOER(TYPE, DISCRIMINANT, VECTOR) \
+TYPE##Ref Exprs::EPtoER(TYPE * p) { \
+    if (!p) \
+        return TYPE##Ref::null; \
+    return TYPE##Ref(p - &VECTOR.front()); \
+}
+NIX_FOR_EACH_EXPR(NIX_EXPR_EPTOER)
+#undef NIX_EXPR_EPTOER
 
 Expr * Exprs::ERtoEP(ExprRef ref) {
     if (!ref)

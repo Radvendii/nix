@@ -214,7 +214,7 @@ StringSet PackageInfo::queryMetaNames()
 
 bool PackageInfo::checkMeta(ValueRef v)
 {
-    state->forceValue(v, v.determinePos(state->values, noPos));
+    state->forceValue(v, v.determinePos(state->exprs, state->values, noPos));
     if (v.type(state->values) == nList) {
         for (auto elem : v.listView(state->values))
             if (!checkMeta(elem))
@@ -329,7 +329,7 @@ static bool getDerivation(
     bool ignoreAssertionFailures)
 {
     try {
-        state.forceValue(v, v.determinePos(state.values, noPos));
+        state.forceValue(v, v.determinePos(state.exprs, state.values, noPos));
         if (!state.isDerivation(v))
             return true;
 

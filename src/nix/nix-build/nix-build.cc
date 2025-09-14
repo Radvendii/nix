@@ -416,8 +416,8 @@ static void main_nix_build(int argc, char ** argv)
                 return false;
             }
             bool add = false;
-            if (v.type(state->values) == nFunction && v.lambda(state->values).fun->hasFormals()) {
-                for (auto & i : v.lambda(state->values).fun->formals->formals) {
+            if (v.type(state->values) == nFunction && state->exprs.ERtoEP(v.lambda(state->values).fun)->hasFormals()) {
+                for (auto & i : state->exprs.ERtoEP(v.lambda(state->values).fun)->formals->formals) {
                     if (state->symbols[i.name] == "inNixShell") {
                         add = true;
                         break;
@@ -431,7 +431,7 @@ static void main_nix_build(int argc, char ** argv)
             ValueRef v(
                 findAlongAttrPath(*state, i, takesNixShellAttr(vRoot.ref(state->values)) ? *autoArgsWithInNixShell : *autoArgs, vRoot.ref(state->values))
                      .first);
-            state->forceValue(v, v.determinePos(state->values, noPos));
+            state->forceValue(v, v.determinePos(state->exprs, state->values, noPos));
             getDerivations(*state, v, "", takesNixShellAttr(v) ? *autoArgsWithInNixShell : *autoArgs, drvs, false);
         }
     }
