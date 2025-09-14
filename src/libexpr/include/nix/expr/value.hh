@@ -149,7 +149,7 @@ using NixFloat = double;
     MACRO(Bindings *, , attrs, tAttrs)                              \
     MACRO(detail::List, *, bigList, tListN)                         \
     MACRO(detail::SmallList, , smallList, tListSmall)               \
-    MACRO(detail::ClosureThunk, *, thunk, tThunk)                   \
+    MACRO(detail::ClosureThunk, , thunk, tThunk)                    \
     MACRO(detail::FunctionApplicationThunk, , app, tApp)            \
     MACRO(detail::Lambda, *, lambda, tLambda)                       \
     MACRO(PrimOp *, , primOp, tPrimOp)                              \
@@ -1416,8 +1416,6 @@ inline void ValueRef::setStorage(Values & values, K val) noexcept   \
         values.stackValuePtr(*this)->setStorage(val);               \
         return;                                                     \
     }                                                               \
-    if (values.typeOf(*this) == tThunk)                             \
-        free(values.payloadOf(*this).thunk);                        \
     values.typeOf(*this) = DISCRIMINATOR;                           \
     IF_NONEMPTY(PTR,                                                \
     values.payloadOf(*this).FIELD_NAME =                            \
