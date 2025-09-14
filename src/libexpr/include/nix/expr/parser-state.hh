@@ -86,7 +86,7 @@ struct ParserState
     Exprs & exprs;
     SymbolTable & symbols;
     PosTable & positions;
-    Expr * result;
+    ExprRef result;
     SourcePath basePath;
     PosTable::Origin origin;
     const ref<SourceAccessor> rootFS;

@@ -461,6 +461,8 @@ struct TYPE##Ref {                                      \
         return ref;                                     \
     }                                                   \
                                                         \
+    constexpr auto operator<=>(const TYPE##Ref & other) const noexcept = default; \
+                                                        \
     operator ExprRef() noexcept                         \
     {                                                   \
         return ExprRef(ref);                            \

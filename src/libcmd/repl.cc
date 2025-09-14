@@ -102,7 +102,7 @@ struct NixRepl : AbstractNixRepl, detail::ReplCompleterMixin, gc
     void showLastLoaded();
     void addAttrsToScope(ValueRef attrs);
     void addVarToScope(const SymbolRef name, ValueRef v);
-    Expr * parseString(std::string s);
+    ExprRef parseString(std::string s);
     void evalString(std::string s, ValueRef v);
     void loadDebugTraceEnv(DebugTrace & dt);
 
@@ -285,9 +285,9 @@ StringSet NixRepl::completePrefix(const std::string & prefix)
             auto expr = cur.substr(0, dot);
             auto cur2 = cur.substr(dot + 1);
 
-            Expr * e = parseString(expr);
+            ExprRef e = parseString(expr);
             Value v;
-            e->eval(*state, env, v.ref(state->values));
+            state->exprs.ERtoEP(e)->eval(*state, env, v.ref(state->values));
             state->forceAttrs(
                 v.ref(state->values),
                 noPos,
@@ -622,7 +622,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         std::string fallbackName;
         PosIdx fallbackPos;
         DocComment fallbackDoc;
-        if (auto select = dynamic_cast<ExprSelect *>(expr)) {
+        if (auto select = dynamic_cast<ExprSelect *>(state->exprs.ERtoEP(expr))) {
             Value vAttrs;
             auto name = select->evalExceptFinalSelect(*state, env, vAttrs.ref(state->values));
             fallbackName = state->symbols[name];
@@ -699,9 +699,9 @@ ProcessLineResult NixRepl::processLine(std::string line)
         std::string name;
         if (p != std::string::npos && p < line.size() && line[p + 1] != '='
             && isVarName(name = removeWhitespace(line.substr(0, p)))) {
-            Expr * e = parseString(line.substr(p + 1));
+            ExprRef e = parseString(line.substr(p + 1));
             ValueRef v(state->allocValue());
-            v.mkThunk(state->exprs, state->values, env, e);
+            v.mkThunk(state->exprs, state->values, env, state->exprs.ERtoEP(e));
             addVarToScope(state->symbols.create(name), v);
         } else {
             Value v;
@@ -870,14 +870,14 @@ void NixRepl::addVarToScope(const SymbolRef name, ValueRef v)
     varNames.emplace(state->symbols[name]);
 }
 
-Expr * NixRepl::parseString(std::string s)
+ExprRef NixRepl::parseString(std::string s)
 {
     return state->parseExprFromString(std::move(s), state->rootPath("."), staticEnv);
 }
 
 void NixRepl::evalString(std::string s, ValueRef v)
 {
-    Expr * e;
+    ExprRef e;
     try {
         e = parseString(s);
     } catch (ParseError & e) {
@@ -888,7 +888,7 @@ void NixRepl::evalString(std::string s, ValueRef v)
         else
             throw;
     }
-    e->eval(*state, env, v);
+    state->exprs.ERtoEP(e)->eval(*state, env, v);
     state->forceValue(v, v.determinePos(state->exprs, state->values, noPos));
 }
 

@@ -59,7 +59,7 @@ namespace nix {
 
 typedef std::unordered_map<PosIdx, DocComment> DocCommentMap;
 
-Expr * parseExprFromBuf(
+ExprRef parseExprFromBuf(
     char * text,
     size_t length,
     Pos::Origin origin,
@@ -182,7 +182,7 @@ static ExprRef makeCall(Exprs & exprs, PosIdx pos, ExprRef fn, ExprRef arg) {
 %%
 
 start: expr {
-  state->result = state->exprs.ERtoEP($1);
+  state->result = $1;
 
   // This parser does not use yynerrs; suppress the warning.
   (void) yynerrs;
@@ -538,7 +538,7 @@ formal
 
 namespace nix {
 
-Expr * parseExprFromBuf(
+ExprRef parseExprFromBuf(
     char * text,
     size_t length,
     Pos::Origin origin,

@@ -39,14 +39,14 @@ EvalErrorBuilder<T> & EvalErrorBuilder<T>::withSuggestions(Suggestions & s)
 }
 
 template<class T>
-EvalErrorBuilder<T> & EvalErrorBuilder<T>::withFrame(const EnvRef env, const Expr & expr)
+EvalErrorBuilder<T> & EvalErrorBuilder<T>::withFrame(const EnvRef env, const ExprRef expr)
 {
     // NOTE: This is abusing side-effects.
     // TODO: check compatibility with nested debugger calls.
     // TODO: What side-effects??
     error.state.debugTraces.push_front(
         DebugTrace{
-            .pos = expr.getPos(error.state.exprs),
+            .pos = error.state.exprs.ERtoEP(expr)->getPos(error.state.exprs),
             .expr = expr,
             .env = env,
             .hint = HintFmt("Fake frame for debugging purposes"),

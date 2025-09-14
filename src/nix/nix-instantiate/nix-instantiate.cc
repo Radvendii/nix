@@ -42,7 +42,7 @@ void processExpr(
     }
 
     Value vRoot;
-    state.eval(e, vRoot.ref(state.values));
+    state.eval(state.exprs.EPtoER(e), vRoot.ref(state.values));
 
     for (auto & i : attrPaths) {
         ValueRef v(findAlongAttrPath(state, i, autoArgs, vRoot.ref(state.values)).first);
@@ -189,17 +189,17 @@ static int main_nix_instantiate(int argc, char ** argv)
         }
 
         if (readStdin) {
-            Expr * e = state->parseStdin();
+            ExprRef e = state->parseStdin();
             processExpr(
-                *state, attrPaths, parseOnly, strict, autoArgs, evalOnly, outputKind, xmlOutputSourceLocation, e);
+                *state, attrPaths, parseOnly, strict, autoArgs, evalOnly, outputKind, xmlOutputSourceLocation, state->exprs.ERtoEP(e));
         } else if (files.empty() && !fromArgs)
             files.push_back("./default.nix");
 
         for (auto & i : files) {
-            Expr * e = fromArgs ? state->parseExprFromString(i, state->rootPath("."))
+            ExprRef e = fromArgs ? state->parseExprFromString(i, state->rootPath("."))
                                 : state->parseExprFromFile(resolveExprPath(lookupFileArg(*state, i)));
             processExpr(
-                *state, attrPaths, parseOnly, strict, autoArgs, evalOnly, outputKind, xmlOutputSourceLocation, e);
+                *state, attrPaths, parseOnly, strict, autoArgs, evalOnly, outputKind, xmlOutputSourceLocation, state->exprs.ERtoEP(e));
         }
 
         state->maybePrintStats();

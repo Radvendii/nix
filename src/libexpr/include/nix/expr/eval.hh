@@ -165,7 +165,7 @@ typedef std::
 
 typedef std::unordered_map<PosIdx, DocComment> DocCommentMap;
 
-void printEnvBindings(EvalState & es, const Expr & expr, const EnvRef env);
+void printEnvBindings(EvalState & es, const ExprRef expr, const EnvRef env);
 void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & se, const EnvRef env, int lvl = 0);
 
 std::unique_ptr<ValMap> mapStaticEnvBindings(EvalState & state, const SymbolTable & st, const StaticEnv & se, const EnvRef env);
@@ -189,7 +189,7 @@ struct DebugTrace
     /* WARNING: Converting PosIdx -> Pos should be done with extra care. This is
        due to the fact that operator[] of PosTable is incredibly expensive. */
     std::variant<Pos, PosIdx> pos;
-    const Expr & expr;
+    const ExprRef expr;
     const EnvRef env;
     HintFmt hint;
     bool isError;
@@ -201,7 +201,7 @@ struct DebugTrace
                 [&](PosIdx idx) {
                     // Prefer direct pos, but if noPos then try the expr.
                     if (!idx)
-                        idx = expr.getPos(exprs);
+                        idx = exprs.ERtoEP(expr)->getPos(exprs);
                     return table[idx];
                 },
                 [&](Pos pos) { return pos; },
@@ -338,11 +338,11 @@ public:
     bool inDebugger = false;
     int trylevel;
     std::list<DebugTrace> debugTraces;
-    std::map<const Expr *, const std::shared_ptr<const StaticEnv>> exprEnvs;
+    std::map<const ExprRef, const std::shared_ptr<const StaticEnv>> exprEnvs;
 
-    const std::shared_ptr<const StaticEnv> getStaticEnv(const Expr & expr) const
+    const std::shared_ptr<const StaticEnv> getStaticEnv(const ExprRef expr) const
     {
-        auto i = exprEnvs.find(&expr);
+        auto i = exprEnvs.find(expr);
         if (i != exprEnvs.end())
             return i->second;
         else
@@ -362,7 +362,7 @@ public:
      * @param env The environment to debug, matching the expression.
      * @param expr The expression to debug, matching the environment.
      */
-    void runDebugRepl(const Error * error, const EnvRef env, const Expr & expr);
+    void runDebugRepl(const Error * error, const EnvRef env, const ExprRef expr);
 
     template<class T, typename... Args>
     [[nodiscard, gnu::noinline]]
@@ -388,10 +388,10 @@ private:
      */
     typedef std::unordered_map<
         SourcePath,
-        Expr *,
+        ExprRef,
         std::hash<SourcePath>,
         std::equal_to<SourcePath>,
-        traceable_allocator<std::pair<const SourcePath, Expr *>>>
+        traceable_allocator<std::pair<const SourcePath, ExprRef>>>
         FileParseCache;
     FileParseCache fileParseCache;
 
@@ -491,16 +491,16 @@ public:
     /**
      * Parse a Nix expression from the specified file.
      */
-    Expr * parseExprFromFile(const SourcePath & path);
-    Expr * parseExprFromFile(const SourcePath & path, std::shared_ptr<StaticEnv> & staticEnv);
+    ExprRef parseExprFromFile(const SourcePath & path);
+    ExprRef parseExprFromFile(const SourcePath & path, std::shared_ptr<StaticEnv> & staticEnv);
 
     /**
      * Parse a Nix expression from the specified string.
      */
-    Expr * parseExprFromString(std::string s, const SourcePath & basePath, std::shared_ptr<StaticEnv> & staticEnv);
-    Expr * parseExprFromString(std::string s, const SourcePath & basePath);
+    ExprRef parseExprFromString(std::string s, const SourcePath & basePath, std::shared_ptr<StaticEnv> & staticEnv);
+    ExprRef parseExprFromString(std::string s, const SourcePath & basePath);
 
-    Expr * parseStdin();
+    ExprRef parseStdin();
 
     /**
      * Evaluate an expression read from the given file to normal
@@ -531,16 +531,16 @@ public:
      *
      * @param [out] v The resulting is stored here.
      */
-    void eval(Expr * e, ValueRef v);
+    void eval(ExprRef e, ValueRef v);
 
     /**
      * Evaluation the expression, then verify that it has the expected
      * type.
      */
      // YYY [speed]: this version of evalBool is never used?
-    inline bool evalBool(EnvRef env, Expr * e);
-    inline bool evalBool(EnvRef env, Expr * e, const PosIdx pos, std::string_view errorCtx);
-    inline void evalAttrs(EnvRef env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx);
+    inline bool evalBool(EnvRef env, ExprRef e);
+    inline bool evalBool(EnvRef env, ExprRef e, const PosIdx pos, std::string_view errorCtx);
+    inline void evalAttrs(EnvRef env, ExprRef e, ValueRef v, const PosIdx pos, std::string_view errorCtx);
 
     /**
      * If `v` is a thunk, enter it and overwrite `v` with the result
@@ -752,13 +752,13 @@ public:
 
 private:
 
-    inline ValueRef lookupVar(EnvRef env, const ExprVar & var, bool noEval);
+    inline ValueRef lookupVar(EnvRef env, /* const */ ExprVarRef var, bool noEval);
 
     friend struct ExprVar;
     friend struct ExprAttrs;
     friend struct ExprLet;
 
-    Expr * parse(
+    ExprRef parse(
         char * text,
         size_t length,
         Pos::Origin origin,
@@ -832,7 +832,7 @@ public:
      */
     ValueRef getBool(bool b);
 
-    void mkThunk_(ValueRef v, Expr * expr);
+    void mkThunk_(ValueRef v, ExprRef expr);
     void mkPos(ValueRef v, PosIdx pos);
 
     /**
@@ -961,13 +961,13 @@ private:
     typedef std::map<std::string, size_t> PrimOpCalls;
     PrimOpCalls primOpCalls;
 
-    typedef std::map<ExprLambda *, size_t> FunctionCalls;
+    typedef std::map<ExprLambdaRef, size_t> FunctionCalls;
     FunctionCalls functionCalls;
 
     /** Evaluation/call profiler. */
     MultiEvalProfiler profiler;
 
-    void incrFunctionCall(ExprLambda * fun);
+    void incrFunctionCall(ExprLambdaRef fun);
 
     typedef std::map<PosIdx, size_t> AttrSelects;
     AttrSelects attrSelects;

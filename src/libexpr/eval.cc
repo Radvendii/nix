@@ -818,7 +818,7 @@ void printEnvBindings(EvalState & es, const SymbolTable & st, const StaticEnv & 
     }
 }
 
-void printEnvBindings(EvalState & es, const Expr & expr, const EnvRef env)
+void printEnvBindings(EvalState & es, const ExprRef expr, const EnvRef env)
 {
     // just print the names for now
     auto se = es.getStaticEnv(expr);
@@ -885,19 +885,19 @@ void EvalState::runDebugRepl(const Error * error)
     assert(!debugTraces.empty());
     const DebugTrace & last = debugTraces.front();
     const EnvRef env = last.env;
-    const Expr & expr = last.expr;
+    const ExprRef expr = last.expr;
 
     runDebugRepl(error, env, expr);
 }
 
-void EvalState::runDebugRepl(const Error * error, const EnvRef env, const Expr & expr)
+void EvalState::runDebugRepl(const Error * error, const EnvRef env, const ExprRef expr)
 {
     // Make sure we have a debugger to run and we're not already in a debugger.
     if (!debugRepl || inDebugger)
         return;
 
     auto dts = [&]() -> std::unique_ptr<DebugTraceStacker> {
-        if (error && expr.getPos(exprs)) {
+        if (error && exprs.ERtoEP(expr)->getPos(exprs)) {
             auto trace = DebugTrace{
                 .pos = [&]() -> std::variant<Pos, PosIdx> {
                     if (error->info().pos) {
@@ -905,7 +905,7 @@ void EvalState::runDebugRepl(const Error * error, const EnvRef env, const Expr &
                             return *pos;
                         return noPos;
                     }
-                    return expr.getPos(exprs);
+                    return exprs.ERtoEP(expr)->getPos(exprs);
                 }(),
                 .expr = expr,
                 .env = env,
@@ -958,7 +958,7 @@ void EvalState::addErrorTrace(Error & e, const PosIdx pos, const Args &... forma
 
 template<typename... Args>
 static std::unique_ptr<DebugTraceStacker> makeDebugTraceStacker(
-    EvalState & state, Expr & expr, EnvRef env, std::variant<Pos, PosIdx> pos, const Args &... formatArgs)
+    EvalState & state, ExprRef expr, EnvRef env, std::variant<Pos, PosIdx> pos, const Args &... formatArgs)
 {
     return std::make_unique<DebugTraceStacker>(
         state,
@@ -1244,13 +1244,13 @@ NIX_BIND_VARS_DEF(ExprOpEq) NIX_BIND_VARS_DEF(ExprOpNEq) NIX_BIND_VARS_DEF(ExprO
 // XXX [speed]
 
 
-inline ValueRef EvalState::lookupVar(EnvRef env, const ExprVar & var, bool noEval)
+inline ValueRef EvalState::lookupVar(EnvRef env, /* const */ ExprVarRef var, bool noEval)
 {
-    for (auto l = var.level; l; --l, env = env.up(envs))
+    for (auto l = exprs.ERtoEP(var)->level; l; --l, env = env.up(envs))
         ;
 
-    if (!var.fromWith)
-        return env.values(envs)[var.displ];
+    if (!exprs.ERtoEP(var)->fromWith)
+        return env.values(envs)[exprs.ERtoEP(var)->displ];
 
     // This early exit defeats the `maybeThunk` optimization for variables from `with`,
     // The added complexity of handling this appears to be similarly in cost, or
@@ -1258,17 +1258,17 @@ inline ValueRef EvalState::lookupVar(EnvRef env, const ExprVar & var, bool noEva
     if (noEval)
         return ValueRef::null;
 
-    auto * fromWith = exprs.ERtoEP(var.fromWith);
+    auto * fromWith = exprs.ERtoEP(exprs.ERtoEP(var)->fromWith);
     while (1) {
         forceAttrs(env.values(envs)[0], fromWith->pos, "while evaluating the first subexpression of a with expression");
-        if (auto j = env.values(envs)[0].attrs(values)->get(var.name)) {
+        if (auto j = env.values(envs)[0].attrs(values)->get(exprs.ERtoEP(var)->name)) {
             if (countCalls)
                 attrSelects[j->pos]++;
             return j->value;
         }
         if (!fromWith->parentWith)
-            error<UndefinedVarError>("undefined variable '%1%'", symbols[var.name])
-                .atPos(var.pos)
+            error<UndefinedVarError>("undefined variable '%1%'", symbols[exprs.ERtoEP(var)->name])
+                .atPos(exprs.ERtoEP(var)->pos)
                 .withFrame(env, var)
                 .debugThrow();
         for (size_t l = fromWith->prevWith; l; --l, env = env.up(envs))
@@ -1291,13 +1291,13 @@ ValueRef EvalState::getBool(bool b)
 
 unsigned long nrThunks = 0;
 
-static inline void mkThunk(EvalState & state, ValueRef v, EnvRef env, Expr * expr)
+static inline void mkThunk(EvalState & state, ValueRef v, EnvRef env, ExprRef expr)
 {
-    v.mkThunk(state.exprs, state.values, env, expr);
+    v.mkThunk(state.exprs, state.values, env, state.exprs.ERtoEP(expr));
     nrThunks++;
 }
 
-void EvalState::mkThunk_(ValueRef v, Expr * expr)
+void EvalState::mkThunk_(ValueRef v, ExprRef expr)
 {
     mkThunk(*this, v, baseEnv, expr);
 }
@@ -1389,13 +1389,13 @@ void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef 
 ValueRef Expr::maybeThunk(EvalState & state, EnvRef env)
 {
     ValueRef v = state.allocValue();
-    mkThunk(state, v, env, this);
+    mkThunk(state, v, env, state.exprs.EPtoER(this));
     return v;
 }
 
 ValueRef ExprVar::maybeThunk(EvalState & state, EnvRef env)
 {
-    ValueRef v = state.lookupVar(env, *this, true);
+    ValueRef v = state.lookupVar(env, state.exprs.EPtoER(this), true);
     /* The value might not be initialised in the environment yet.
        In that case, ignore it. */
     if (v) {
@@ -1444,7 +1444,7 @@ void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial
     }
 
     printTalkative("evaluating file '%1%'", resolvedPath);
-    Expr * e = nullptr;
+    ExprRef e = ExprRef::null;
 
     auto j = fileParseCache.find(resolvedPath);
     if (j != fileParseCache.end())
@@ -1458,16 +1458,16 @@ void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial
     try {
         auto dts = debugRepl ? makeDebugTraceStacker(
                                    *this,
-                                   *e,
+                                   e,
                                    this->baseEnv,
-                                   e->getPos(exprs),
+                                   exprs.ERtoEP(e)->getPos(exprs),
                                    "while evaluating the file '%1%':",
                                    resolvedPath.to_string())
                              : nullptr;
 
         // Enforce that 'flake.nix' is a direct attrset, not a
         // computation.
-        if (mustBeTrivial && !(dynamic_cast<ExprAttrs *>(e)))
+        if (mustBeTrivial && !(dynamic_cast<ExprAttrs *>(exprs.ERtoEP(e))))
             error<EvalError>("file '%s' must be an attribute set", path).debugThrow();
         eval(e, v);
     } catch (Error & e) {
@@ -1487,21 +1487,21 @@ void EvalState::resetFileCache()
     inputCache->clear();
 }
 
-void EvalState::eval(Expr * e, ValueRef v)
+void EvalState::eval(ExprRef e, ValueRef v)
 {
-    e->eval(*this, baseEnv, v);
+    exprs.ERtoEP(e)->eval(*this, baseEnv, v);
 }
 
-inline bool EvalState::evalBool(EnvRef env, Expr * e, const PosIdx pos, std::string_view errorCtx)
+inline bool EvalState::evalBool(EnvRef env, ExprRef e, const PosIdx pos, std::string_view errorCtx)
 {
     try {
         Value v;
-        e->eval(*this, env, v.ref(values));
+        exprs.ERtoEP(e)->eval(*this, env, v.ref(values));
         if (v.type() != nBool)
             error<TypeError>(
                 "expected a Boolean but found %1%: %2%", showType(*this, v.ref(values)), ValuePrinter(*this, v.ref(values), errorPrintOptions))
                 .atPos(pos)
-                .withFrame(env, *e)
+                .withFrame(env, e)
                 .debugThrow();
         return v.boolean();
     } catch (Error & e) {
@@ -1510,14 +1510,14 @@ inline bool EvalState::evalBool(EnvRef env, Expr * e, const PosIdx pos, std::str
     }
 }
 
-inline void EvalState::evalAttrs(EnvRef env, Expr * e, ValueRef v, const PosIdx pos, std::string_view errorCtx)
+inline void EvalState::evalAttrs(EnvRef env, ExprRef e, ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        e->eval(*this, env, v);
+        exprs.ERtoEP(e)->eval(*this, env, v);
         if (v.type(values) != nAttrs)
             error<TypeError>(
                 "expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
-                .withFrame(env, *e)
+                .withFrame(env, e)
                 .debugThrow();
     } catch (Error & e) {
         e.addTrace(positions[pos], errorCtx);
@@ -1587,7 +1587,7 @@ void ExprAttrs::eval(EvalState & state, EnvRef env, ValueRef v)
             ValueRef vAttr;
             if (hasOverrides && i.second.kind != AttrDef::Kind::Inherited) {
                 vAttr = state.allocValue();
-                mkThunk(state, vAttr, i.second.chooseByKind(env2, env, inheritEnv), state.exprs.ERtoEP(i.second.e));
+                mkThunk(state, vAttr, i.second.chooseByKind(env2, env, inheritEnv), i.second.e);
             } else
                 vAttr = state.exprs.ERtoEP(i.second.e)->maybeThunk(state, i.second.chooseByKind(env2, env, inheritEnv));
             env2.values(state.envs)[displ++] = vAttr;
@@ -1645,7 +1645,7 @@ void ExprAttrs::eval(EvalState & state, EnvRef env, ValueRef v)
                 .error<EvalError>(
                     "dynamic attribute '%1%' already defined at %2%", state.symbols[nameSym], state.positions[j->pos])
                 .atPos(i.pos)
-                .withFrame(env, *this)
+                .withFrame(env, state.exprs.EPtoER(this))
                 .debugThrow();
 
         state.exprs.ERtoEP(i.valueExpr)->setName(state.exprs, nameSym);
@@ -1677,7 +1677,7 @@ void ExprLet::eval(EvalState & state, EnvRef env, ValueRef v)
     }
 
     auto dts = state.debugRepl
-                   ? makeDebugTraceStacker(state, *this, env2, getPos(state.exprs), "while evaluating a '%1%' expression", "let")
+                   ? makeDebugTraceStacker(state, state.exprs.EPtoER(this), env2, getPos(state.exprs), "while evaluating a '%1%' expression", "let")
                    : nullptr;
 
     state.exprs.ERtoEP(body)->eval(state, env2, v);
@@ -1701,7 +1701,7 @@ ValueRef ExprList::maybeThunk(EvalState & state, EnvRef env)
 
 void ExprVar::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    ValueRef v2 = state.lookupVar(env, *this, false);
+    ValueRef v2 = state.lookupVar(env, state.exprs.EPtoER(this), false);
     state.forceValue(v2, pos);
     v.set(state.values, v2);
 }
@@ -1738,7 +1738,7 @@ void ExprSelect::eval(EvalState & state, EnvRef env, ValueRef v)
     try {
         auto dts = state.debugRepl ? makeDebugTraceStacker(
                                          state,
-                                         *this,
+                                         state.exprs.EPtoER(this),
                                          env,
                                          getPos(state.exprs),
                                          "while evaluating the attribute '%1%'",
@@ -1765,7 +1765,7 @@ void ExprSelect::eval(EvalState & state, EnvRef env, ValueRef v)
                     state.error<EvalError>("attribute '%1%' missing", state.symbols[name])
                         .atPos(pos)
                         .withSuggestions(suggestions)
-                        .withFrame(env, *this)
+                        .withFrame(env, state.exprs.EPtoER(this))
                         .debugThrow();
                 }
             }
@@ -1868,41 +1868,41 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
         if (vCur.isLambda()) {
 
-            ExprLambda & lambda(*exprs.ERtoEP(vCur.lambda().fun));
+            ExprLambdaRef lambda(vCur.lambda().fun);
 
-            auto size = (!lambda.arg ? 0 : 1) + (lambda.hasFormals() ? lambda.formals->formals.size() : 0);
+            auto size = (!exprs.ERtoEP(lambda)->arg ? 0 : 1) + (exprs.ERtoEP(lambda)->hasFormals() ? exprs.ERtoEP(lambda)->formals->formals.size() : 0);
             EnvRef env2(allocEnv(size));
             env2.up(envs) = vCur.lambda().env;
 
             Displacement displ = 0;
 
-            if (!lambda.hasFormals())
+            if (!exprs.ERtoEP(lambda)->hasFormals())
                 env2.values(envs)[displ++] = args[0];
             else {
                 try {
-                    forceAttrs(args[0], lambda.pos, "while evaluating the value passed for the lambda argument");
+                    forceAttrs(args[0], exprs.ERtoEP(lambda)->pos, "while evaluating the value passed for the lambda argument");
                 } catch (Error & e) {
                     if (pos)
                         e.addTrace(positions[pos], "from call site");
                     throw;
                 }
 
-                if (lambda.arg)
+                if (exprs.ERtoEP(lambda)->arg)
                     env2.values(envs)[displ++] = args[0];
 
                 /* For each formal argument, get the actual argument.  If
                    there is no matching actual argument but the formal
                    argument has a default, use the default. */
                 size_t attrsUsed = 0;
-                for (auto & i : lambda.formals->formals) {
+                for (auto & i : exprs.ERtoEP(lambda)->formals->formals) {
                     auto j = args[0].attrs(values)->get(i.name);
                     if (!j) {
                         if (!i.def) {
                             error<TypeError>(
                                 "function '%1%' called without required argument '%2%'",
-                                (lambda.name ? std::string(symbols[lambda.name]) : "anonymous lambda"),
+                                (exprs.ERtoEP(lambda)->name ? std::string(symbols[exprs.ERtoEP(lambda)->name]) : "anonymous lambda"),
                                 symbols[i.name])
-                                .atPos(lambda.pos)
+                                .atPos(exprs.ERtoEP(lambda)->pos)
                                 .withTrace(pos, "from call site")
                                 .withFrame(vCur.lambda().env, lambda)
                                 .debugThrow();
@@ -1916,20 +1916,20 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
                 /* Check that each actual argument is listed as a formal
                    argument (unless the attribute match specifies a `...'). */
-                if (!lambda.formals->ellipsis && attrsUsed != args[0].attrs(values)->size()) {
+                if (!exprs.ERtoEP(lambda)->formals->ellipsis && attrsUsed != args[0].attrs(values)->size()) {
                     /* Nope, so show the first unexpected argument to the
                        user. */
                     for (auto & i : *args[0].attrs(values))
-                        if (!lambda.formals->has(i.name)) {
+                        if (!exprs.ERtoEP(lambda)->formals->has(i.name)) {
                             StringSet formalNames;
-                            for (auto & formal : lambda.formals->formals)
+                            for (auto & formal : exprs.ERtoEP(lambda)->formals->formals)
                                 formalNames.insert(std::string(symbols[formal.name]));
                             auto suggestions = Suggestions::bestMatches(formalNames, symbols[i.name]);
                             error<TypeError>(
                                 "function '%1%' called with unexpected argument '%2%'",
-                                (lambda.name ? std::string(symbols[lambda.name]) : "anonymous lambda"),
+                                (exprs.ERtoEP(lambda)->name ? std::string(symbols[exprs.ERtoEP(lambda)->name]) : "anonymous lambda"),
                                 symbols[i.name])
-                                .atPos(lambda.pos)
+                                .atPos(exprs.ERtoEP(lambda)->pos)
                                 .withTrace(pos, "from call site")
                                 .withSuggestions(suggestions)
                                 .withFrame(vCur.lambda().env, lambda)
@@ -1941,28 +1941,28 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
             nrFunctionCalls++;
             if (countCalls)
-                incrFunctionCall(&lambda);
+                incrFunctionCall(lambda);
 
             /* Evaluate the body. */
             try {
                 auto dts = debugRepl
                                ? makeDebugTraceStacker(
                                      *this,
-                                     *exprs.ERtoEP(lambda.body),
+                                     exprs.ERtoEP(lambda)->body,
                                      env2,
-                                     lambda.pos,
+                                     exprs.ERtoEP(lambda)->pos,
                                      "while calling %s",
-                                     lambda.name ? concatStrings("'", symbols[lambda.name], "'") : "anonymous lambda")
+                                     exprs.ERtoEP(lambda)->name ? concatStrings("'", symbols[exprs.ERtoEP(lambda)->name], "'") : "anonymous lambda")
                                : nullptr;
 
-                exprs.ERtoEP(lambda.body)->eval(*this, env2, vCur.ref(values));
+                exprs.ERtoEP(exprs.ERtoEP(lambda)->body)->eval(*this, env2, vCur.ref(values));
             } catch (Error & e) {
                 if (loggerSettings.showTrace.get()) {
                     addErrorTrace(
                         e,
-                        lambda.pos,
+                        exprs.ERtoEP(lambda)->pos,
                         "while calling %s",
-                        lambda.name ? concatStrings("'", symbols[lambda.name], "'") : "anonymous lambda");
+                        exprs.ERtoEP(lambda)->name ? concatStrings("'", symbols[exprs.ERtoEP(lambda)->name], "'") : "anonymous lambda");
                     if (pos)
                         addErrorTrace(e, pos, "from call site");
                 }
@@ -2080,7 +2080,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 void ExprCall::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     auto dts =
-        state.debugRepl ? makeDebugTraceStacker(state, *this, env, getPos(state.exprs), "while calling a function") : nullptr;
+        state.debugRepl ? makeDebugTraceStacker(state, state.exprs.EPtoER(this), env, getPos(state.exprs), "while calling a function") : nullptr;
 
     Value vFun;
     state.exprs.ERtoEP(fun)->eval(state, env, vFun.ref(state.values));
@@ -2100,7 +2100,7 @@ void ExprCall::eval(EvalState & state, EnvRef env, ValueRef v)
 
 // Lifted out of callFunction() because it creates a temporary that
 // prevents tail-call optimisation.
-void EvalState::incrFunctionCall(ExprLambda * fun)
+void EvalState::incrFunctionCall(ExprLambdaRef fun)
 {
     functionCalls[fun]++;
 }
@@ -2149,7 +2149,7 @@ values, or passed explicitly with '--arg' or '--argstr'. See
 https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
                     symbols[i.name])
                     .atPos(i.pos)
-                    .withFrame(fun.lambda(values).env, *exprs.ERtoEP(fun.lambda(values).fun))
+                    .withFrame(fun.lambda(values).env, fun.lambda(values).fun)
                     .debugThrow();
             }
         }
@@ -2172,12 +2172,12 @@ void ExprWith::eval(EvalState & state, EnvRef env, ValueRef v)
 void ExprIf::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     // We cheat in the parser, and pass the position of the condition as the position of the if itself.
-    state.exprs.ERtoEP(state.evalBool(env, state.exprs.ERtoEP(cond), pos, "while evaluating a branch condition") ? then : else_)->eval(state, env, v);
+    state.exprs.ERtoEP(state.evalBool(env, cond, pos, "while evaluating a branch condition") ? then : else_)->eval(state, env, v);
 }
 
 void ExprAssert::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    if (!state.evalBool(env, state.exprs.ERtoEP(cond), pos, "in the condition of the assert statement")) {
+    if (!state.evalBool(env, cond, pos, "in the condition of the assert statement")) {
         std::ostringstream out;
         state.exprs.ERtoEP(cond)->show(state.exprs, state.values, state.symbols, out);
         auto exprStr = toView(out);
@@ -2195,14 +2195,14 @@ void ExprAssert::eval(EvalState & state, EnvRef env, ValueRef v)
             }
         }
 
-        state.error<AssertionError>("assertion '%1%' failed", exprStr).atPos(pos).withFrame(env, *this).debugThrow();
+        state.error<AssertionError>("assertion '%1%' failed", exprStr).atPos(pos).withFrame(env, state.exprs.EPtoER(this)).debugThrow();
     }
     state.exprs.ERtoEP(body)->eval(state, env, v);
 }
 
 void ExprOpNot::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.mkBool(state.values, !state.evalBool(env, state.exprs.ERtoEP(e), getPos(state.exprs), "in the argument of the not operator")); // XXX: FIXME: !
+    v.mkBool(state.values, !state.evalBool(env, e, getPos(state.exprs), "in the argument of the not operator")); // XXX: FIXME: !
 }
 
 void ExprOpEq::eval(EvalState & state, EnvRef env, ValueRef v)
@@ -2226,29 +2226,29 @@ void ExprOpNEq::eval(EvalState & state, EnvRef env, ValueRef v)
 void ExprOpAnd::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values,
-         state.evalBool(env, state.exprs.ERtoEP(e1), pos, "in the left operand of the AND (&&) operator")
-         && state.evalBool(env, state.exprs.ERtoEP(e2), pos, "in the right operand of the AND (&&) operator"));
+         state.evalBool(env, e1, pos, "in the left operand of the AND (&&) operator")
+         && state.evalBool(env, e2, pos, "in the right operand of the AND (&&) operator"));
 }
 
 void ExprOpOr::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values,
-         state.evalBool(env, state.exprs.ERtoEP(e1), pos, "in the left operand of the OR (||) operator")
-         || state.evalBool(env, state.exprs.ERtoEP(e2), pos, "in the right operand of the OR (||) operator"));
+         state.evalBool(env, e1, pos, "in the left operand of the OR (||) operator")
+         || state.evalBool(env, e2, pos, "in the right operand of the OR (||) operator"));
 }
 
 void ExprOpImpl::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values,
-         !state.evalBool(env, state.exprs.ERtoEP(e1), pos, "in the left operand of the IMPL (->) operator")
-         || state.evalBool(env, state.exprs.ERtoEP(e2), pos, "in the right operand of the IMPL (->) operator"));
+         !state.evalBool(env, e1, pos, "in the left operand of the IMPL (->) operator")
+         || state.evalBool(env, e2, pos, "in the right operand of the IMPL (->) operator"));
 }
 
 void ExprOpUpdate::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value v1, v2;
-    state.evalAttrs(env, state.exprs.ERtoEP(e1), v1.ref(state.values), pos, "in the left operand of the update (//) operator");
-    state.evalAttrs(env, state.exprs.ERtoEP(e2), v2.ref(state.values), pos, "in the right operand of the update (//) operator");
+    state.evalAttrs(env, e1, v1.ref(state.values), pos, "in the left operand of the update (//) operator");
+    state.evalAttrs(env, e2, v2.ref(state.values), pos, "in the right operand of the update (//) operator");
 
     state.nrOpUpdates++;
 
@@ -2394,7 +2394,7 @@ void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
             } else
                 state.error<EvalError>("cannot add %1% to an integer", showType(state, vTmp.ref(state.values)))
                     .atPos(i_pos)
-                    .withFrame(env, *this)
+                    .withFrame(env, state.exprs.EPtoER(this))
                     .debugThrow();
         } else if (firstType == nFloat) {
             if (vTmp.type() == nInt) {
@@ -2404,7 +2404,7 @@ void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
             } else
                 state.error<EvalError>("cannot add %1% to a float", showType(state, vTmp.ref(state.values)))
                     .atPos(i_pos)
-                    .withFrame(env, *this)
+                    .withFrame(env, state.exprs.EPtoER(this))
                     .debugThrow();
         } else {
             if (s.empty())
@@ -2429,7 +2429,7 @@ void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
         if (!context.empty())
             state.error<EvalError>("a string that refers to a store path cannot be appended to a path")
                 .atPos(pos)
-                .withFrame(env, *this)
+                .withFrame(env, state.exprs.EPtoER(this))
                 .debugThrow();
         v.mkPath(state.values, state.rootPath(CanonPath(str())));
     } else
@@ -2485,7 +2485,7 @@ void EvalState::forceValueDeep(ValueRef v)
                     // If the value is a thunk, we're evaling. Otherwise no trace necessary.
                     auto dts = debugRepl && i.value.isThunk(values) ? makeDebugTraceStacker(
                                                                      *this,
-                                                                     *exprs.ERtoEP(i.value.thunk(values).expr),
+                                                                     i.value.thunk(values).expr,
                                                                      i.value.thunk(values).env,
                                                                      i.pos,
                                                                      "while evaluating the attribute '%1%'",
@@ -3335,11 +3335,11 @@ void EvalState::printStatistics()
             list = json::array();
             for (auto & [fun, count] : functionCalls) {
                 json obj = json::object();
-                if (fun->name)
-                    obj["name"] = (std::string_view) symbols[fun->name];
+                if (exprs.ERtoEP(fun)->name)
+                    obj["name"] = (std::string_view) symbols[exprs.ERtoEP(fun)->name];
                 else
                     obj["name"] = nullptr;
-                if (auto pos = positions[fun->pos]) {
+                if (auto pos = positions[exprs.ERtoEP(fun)->pos]) {
                     if (auto path = std::get_if<SourcePath>(&pos.origin))
                         obj["file"] = path->to_string();
                     obj["line"] = pos.line;
@@ -3402,12 +3402,12 @@ SourcePath resolveExprPath(SourcePath path, bool addDefaultNix)
     return path;
 }
 
-Expr * EvalState::parseExprFromFile(const SourcePath & path)
+ExprRef EvalState::parseExprFromFile(const SourcePath & path)
 {
     return parseExprFromFile(path, staticBaseEnv);
 }
 
-Expr * EvalState::parseExprFromFile(const SourcePath & path, std::shared_ptr<StaticEnv> & staticEnv)
+ExprRef EvalState::parseExprFromFile(const SourcePath & path, std::shared_ptr<StaticEnv> & staticEnv)
 {
     auto buffer = path.resolveSymlinks().readFile();
     // readFile hopefully have left some extra space for terminators
@@ -3415,7 +3415,7 @@ Expr * EvalState::parseExprFromFile(const SourcePath & path, std::shared_ptr<Sta
     return parse(buffer.data(), buffer.size(), Pos::Origin(path), path.parent(), staticEnv);
 }
 
-Expr *
+ExprRef
 EvalState::parseExprFromString(std::string s_, const SourcePath & basePath, std::shared_ptr<StaticEnv> & staticEnv)
 {
     // NOTE this method (and parseStdin) must take care to *fully copy* their input
@@ -3426,12 +3426,12 @@ EvalState::parseExprFromString(std::string s_, const SourcePath & basePath, std:
     return parse(s_.data(), s_.size(), Pos::String{.source = s}, basePath, staticEnv);
 }
 
-Expr * EvalState::parseExprFromString(std::string s, const SourcePath & basePath)
+ExprRef EvalState::parseExprFromString(std::string s, const SourcePath & basePath)
 {
     return parseExprFromString(std::move(s), basePath, staticBaseEnv);
 }
 
-Expr * EvalState::parseStdin()
+ExprRef EvalState::parseStdin()
 {
     // NOTE this method (and parseExprFromString) must take care to *fully copy* their
     // input into their respective Pos::Origin until the parser stops overwriting its
@@ -3539,7 +3539,7 @@ std::optional<SourcePath> EvalState::resolveLookupPathPath(const LookupPath::Pat
     return finish(std::nullopt);
 }
 
-Expr * EvalState::parse(
+ExprRef EvalState::parse(
     char * text, size_t length, Pos::Origin origin, const SourcePath & basePath, std::shared_ptr<StaticEnv> & staticEnv)
 {
     DocCommentMap tmpDocComments; // Only used when not origin is not a SourcePath
@@ -3553,7 +3553,7 @@ Expr * EvalState::parse(
     auto result = parseExprFromBuf(
         text, length, origin, basePath, symbols, settings, values, exprs, positions, *docComments, rootFS, exprSymbols);
 
-    result->bindVars(*this, staticEnv);
+    exprs.ERtoEP(result)->bindVars(*this, staticEnv);
 
     return result;
 }

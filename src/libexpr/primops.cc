@@ -275,9 +275,9 @@ static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path,
     // args[0]->attrs is already sorted.
 
     printTalkative("evaluating file '%1%'", path);
-    Expr * e = state.parseExprFromFile(resolveExprPath(path), staticEnv);
+    ExprRef e = state.parseExprFromFile(resolveExprPath(path), staticEnv);
 
-    e->eval(state, env, v);
+    state.exprs.ERtoEP(e)->eval(state, env, v);
 }
 
 /* Load and evaluate an expression from path specified by the
@@ -462,7 +462,7 @@ void prim_exec(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v)
     }
 
     auto output = runProgram(program, true, commandArgs);
-    Expr * parsed;
+    ExprRef parsed;
     try {
         parsed = state.parseExprFromString(std::move(output), state.rootPath(CanonPath::root));
     } catch (Error & e) {

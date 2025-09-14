@@ -1,5 +1,6 @@
 #pragma once
 
+#include "nix/expr/value.hh"
 #include "nix/util/error.hh"
 #include "nix/util/pos-idx.hh"
 
@@ -98,7 +99,7 @@ public:
 
     [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & withSuggestions(Suggestions & s);
 
-    [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & withFrame(const EnvRef e, const Expr & ex);
+    [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & withFrame(const EnvRef e, const ExprRef ex);
 
     [[nodiscard, gnu::noinline]] EvalErrorBuilder<T> & addTrace(PosIdx pos, HintFmt hint);
 

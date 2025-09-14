@@ -367,7 +367,7 @@ static void main_nix_build(int argc, char ** argv)
     PackageInfos drvs;
 
     /* Parse the expressions. */
-    std::vector<Expr *> exprs;
+    std::vector<ExprRef> exprs;
 
     if (readStdin)
         exprs = {state->parseStdin()};

@@ -36,7 +36,7 @@ protected:
     Value eval(std::string input, bool forceValue = true)
     {
         Value v;
-        Expr * e = state.parseExprFromString(input, state.rootPath(CanonPath::root));
+        ExprRef e = state.parseExprFromString(input, state.rootPath(CanonPath::root));
         assert(e);
         state.eval(e, v.ref(state.values));
         if (forceValue)
@@ -46,9 +46,9 @@ protected:
 
     ValueRef maybeThunk(std::string input, bool forceValue = true)
     {
-        Expr * e = state.parseExprFromString(input, state.rootPath(CanonPath::root));
+        ExprRef e = state.parseExprFromString(input, state.rootPath(CanonPath::root));
         assert(e);
-        return e->maybeThunk(state, state.baseEnv);
+        return state.exprs.ERtoEP(e)->maybeThunk(state, state.baseEnv);
     }
 
     SymbolRef createSymbol(const char * value)
