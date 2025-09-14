@@ -1790,9 +1790,11 @@ SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, EnvRef env, Value
     if (attrPath.size() == 1) {
         e->eval(state, env, vTmp.ref(state.values));
     } else {
-        ExprSelect init(*this);
-        init.attrPath.pop_back();
-        init.eval(state, env, vTmp.ref(state.values));
+        // XXX [speed]: danger! i've changed this in ways that are highly suspicious
+        AttrName last = attrPath.back();
+        attrPath.pop_back();
+        eval(state, env, vTmp.ref(state.values));
+        attrPath.push_back(last);
     }
     attrs.setFromStack(state.values, vTmp);
     return name;

@@ -113,7 +113,7 @@ TEST_F(ValuePrintingTests, vLambda)
     auto body = ExprInt(state.values, 0);
     auto formals = Formals{};
 
-    ExprLambda eLambda(posIdx, createSymbol("a"), &formals, &body);
+    ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, &body));
 
     Value vLambda;
     vLambda.mkLambda(env, &eLambda);
@@ -463,11 +463,11 @@ TEST_F(ValuePrintingTests, ansiColorsDerivationError)
 
 TEST_F(ValuePrintingTests, ansiColorsAssert)
 {
-    ExprVar eFalse(state.symbols.create("false"));
+    ExprVar & eFalse = *state.exprs.ERtoEP(state.exprs.addExprVar(state.symbols.create("false")));
     eFalse.bindVars(state, state.staticBaseEnv);
-    ExprInt eInt(state.values, 1);
+    ExprInt & eInt = *state.exprs.ERtoEP(state.exprs.addExprInt(state.values, 1));
 
-    ExprAssert expr(noPos, &eFalse, &eInt);
+    ExprAssert & expr = *state.exprs.ERtoEP(state.exprs.addExprAssert(noPos, &eFalse, &eInt));
 
     Value v;
     state.mkThunk_(v.ref(state.values), &expr);
@@ -504,7 +504,7 @@ TEST_F(ValuePrintingTests, ansiColorsLambda)
     auto body = ExprInt(state.values, 0);
     auto formals = Formals{};
 
-    ExprLambda eLambda(posIdx, createSymbol("a"), &formals, &body);
+    ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, &body));
 
     Value vLambda;
     vLambda.mkLambda(env, &eLambda);
