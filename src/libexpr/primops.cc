@@ -263,7 +263,7 @@ static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path,
     EnvRef env = state.allocEnv(vScope.attrs(state.values)->size());
     env.up(state.envs) = state.baseEnv;
 
-    auto staticEnv = std::make_shared<StaticEnv>(nullptr, state.staticBaseEnv, vScope.attrs(state.values)->size());
+    auto staticEnv = std::make_shared<StaticEnv>(ExprWithRef::null, state.staticBaseEnv, vScope.attrs(state.values)->size());
 
     unsigned int displ = 0;
     for (auto & attr : *vScope.attrs(state.values)) {
@@ -3301,7 +3301,7 @@ static void prim_functionArgs(EvalState & state, const PosIdx pos, ValueRef * ar
     const auto & formals = state.exprs.ERtoEP(args[0].lambda(state.values).fun)->formals->formals;
     auto attrs = state.buildBindings(formals.size());
     for (auto & i : formals)
-        attrs.insert(i.name, state.getBool(i.def), i.pos);
+        attrs.insert(i.name, state.getBool((bool)i.def), i.pos);
     /* Optimization: avoid sorting bindings. `formals` must already be sorted according to
        (std::tie(a.name, a.pos) < std::tie(b.name, b.pos)) predicate, so the following assertion
        always holds:

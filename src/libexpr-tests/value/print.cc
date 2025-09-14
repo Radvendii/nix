@@ -110,17 +110,17 @@ TEST_F(ValuePrintingTests, vLambda)
     env.up(state.envs) = EnvRef::null;
     PosTable::Origin origin = state.positions.addOrigin(std::monostate(), 1);
     auto posIdx = state.positions.add(origin, 0);
-    auto body = ExprInt(state.values, 0);
+    auto body = state.exprs.addExprInt(state.values, 0);
     auto formals = Formals{};
 
-    ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, &body));
+    ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, body));
 
     Value vLambda;
     vLambda.mkLambda(state.exprs, env, &eLambda);
 
     test(vLambda, "«lambda @ «none»:1:1»");
 
-    eLambda.setName(createSymbol("puppy"));
+    eLambda.setName(state.exprs, createSymbol("puppy"));
 
     test(vLambda, "«lambda puppy @ «none»:1:1»");
 }
@@ -467,7 +467,7 @@ TEST_F(ValuePrintingTests, ansiColorsAssert)
     eFalse.bindVars(state, state.staticBaseEnv);
     ExprInt & eInt = *state.exprs.ERtoEP(state.exprs.addExprInt(state.values, 1));
 
-    ExprAssert & expr = *state.exprs.ERtoEP(state.exprs.addExprAssert(noPos, &eFalse, &eInt));
+    ExprAssert & expr = *state.exprs.ERtoEP(state.exprs.addExprAssert(noPos, state.exprs.EPtoER(&eFalse), state.exprs.EPtoER(&eInt)));
 
     Value v;
     state.mkThunk_(v.ref(state.values), &expr);
@@ -501,17 +501,17 @@ TEST_F(ValuePrintingTests, ansiColorsLambda)
     env.up(state.envs) = EnvRef::null;
     PosTable::Origin origin = state.positions.addOrigin(std::monostate(), 1);
     auto posIdx = state.positions.add(origin, 0);
-    auto body = ExprInt(state.values, 0);
+    auto body = state.exprs.addExprInt(state.values, 0);
     auto formals = Formals{};
 
-    ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, &body));
+    ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, body));
 
     Value vLambda;
     vLambda.mkLambda(state.exprs, env, &eLambda);
 
     test(vLambda, ANSI_BLUE "«lambda @ «none»:1:1»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 
-    eLambda.setName(createSymbol("puppy"));
+    eLambda.setName(state.exprs, createSymbol("puppy"));
 
     test(vLambda, ANSI_BLUE "«lambda puppy @ «none»:1:1»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 }

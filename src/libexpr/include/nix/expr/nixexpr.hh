@@ -69,16 +69,16 @@ struct DocComment
 struct AttrName
 {
     SymbolRef symbol;
-    Expr * expr = nullptr;
+    ExprRef expr = ExprRef::null;
     AttrName(SymbolRef s)
         : symbol(s) {};
-    AttrName(Expr * e)
+    AttrName(ExprRef e)
         : expr(e) {};
 };
 
 typedef std::vector<AttrName> AttrPath;
 
-std::string showAttrPath(Values & values, const SymbolTable & symbols, const AttrPath & attrPath);
+std::string showAttrPath(Exprs & exprs, Values & values, const SymbolTable & symbols, const AttrPath & attrPath);
 
 /* Abstract syntax of Nix expressions. */
 
@@ -97,14 +97,14 @@ struct Expr
     }
 
     virtual ~Expr() {};
-    virtual void show(Values & values, const SymbolTable & symbols, std::ostream & str) const;
+    virtual void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
     virtual void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     virtual void eval(EvalState & state, EnvRef env, ValueRef v);
     virtual ValueRef maybeThunk(EvalState & state, EnvRef env);
-    virtual void setName(SymbolRef name);
-    virtual void setDocComment(DocComment docComment) {};
+    virtual void setName(Exprs & exprs, SymbolRef name);
+    virtual void setDocComment(Exprs & exprs, DocComment docComment) {};
 
-    virtual PosIdx getPos() const
+    virtual PosIdx getPos(Exprs & exprs) const
     {
         return noPos;
     }
@@ -114,9 +114,9 @@ struct Expr
     virtual void warnIfCursedOr(const SymbolTable & symbols, const PosTable & positions) {};
 };
 
-#define COMMON_METHODS                                                                          \
-    void show(Values & values, const SymbolTable & symbols, std::ostream & str) const override; \
-    void eval(EvalState & state, EnvRef env, ValueRef v) override;                              \
+#define COMMON_METHODS                                                                                         \
+    void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const override; \
+    void eval(EvalState & state, EnvRef env, ValueRef v) override;                                             \
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override;
 
 struct ExprInt : Expr
@@ -177,7 +177,7 @@ struct ExprVar : Expr
 
        `nullptr`: Not from a `with`.
        Valid pointer: the nearest, innermost `with` expression to query first. */
-    ExprWith * fromWith = nullptr;
+    ExprWithRef fromWith = ExprWithRef::null;
 
     /* In the former case, the value is obtained by going `level`
        levels up from the current environment and getting the
@@ -195,7 +195,7 @@ struct ExprVar : Expr
         , name(name) {};
     ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
@@ -215,7 +215,7 @@ struct ExprInheritFrom : ExprVar
     {
         this->level = 0;
         this->displ = displ;
-        this->fromWith = nullptr;
+        this->fromWith = ExprWithRef::null;
     }
 
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override;
@@ -224,15 +224,15 @@ struct ExprInheritFrom : ExprVar
 struct ExprSelect : Expr
 {
     PosIdx pos;
-    Expr *e, *def;
+    ExprRef e, def;
     AttrPath attrPath;
-    ExprSelect(const PosIdx & pos, Expr * e, AttrPath attrPath, Expr * def)
+    ExprSelect(const PosIdx & pos, ExprRef e, AttrPath attrPath, ExprRef def)
         : pos(pos)
         , e(e)
         , def(def)
         , attrPath(std::move(attrPath)) {};
 
-    ExprSelect(const PosIdx & pos, Expr * e, SymbolRef name)
+    ExprSelect(const PosIdx & pos, ExprRef e, SymbolRef name)
         : pos(pos)
         , e(e)
         , def(0)
@@ -240,7 +240,7 @@ struct ExprSelect : Expr
         attrPath.push_back(AttrName(name));
     };
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
@@ -261,15 +261,15 @@ struct ExprSelect : Expr
 
 struct ExprOpHasAttr : Expr
 {
-    Expr * e;
+    ExprRef e;
     AttrPath attrPath;
-    ExprOpHasAttr(Expr * e, AttrPath attrPath)
+    ExprOpHasAttr(ExprRef e, AttrPath attrPath)
         : e(e)
         , attrPath(std::move(attrPath)) {};
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
-        return e->getPos();
+        return exprs.ERtoEP(e)->getPos(exprs);
     }
 
     COMMON_METHODS
@@ -292,10 +292,10 @@ struct ExprAttrs : Expr
         };
 
         Kind kind;
-        Expr * e;
+        ExprRef e;
         PosIdx pos;
         Displacement displ = 0; // displacement
-        AttrDef(Expr * e, const PosIdx & pos, Kind kind = Kind::Plain)
+        AttrDef(ExprRef e, const PosIdx & pos, Kind kind = Kind::Plain)
             : kind(kind)
             , e(e)
             , pos(pos) {};
@@ -318,13 +318,13 @@ struct ExprAttrs : Expr
 
     typedef std::map<SymbolRef, AttrDef> AttrDefs;
     AttrDefs attrs;
-    std::unique_ptr<std::vector<Expr *>> inheritFromExprs;
+    std::unique_ptr<std::vector<ExprRef>> inheritFromExprs;
 
     struct DynamicAttrDef
     {
-        Expr *nameExpr, *valueExpr;
+        ExprRef nameExpr, valueExpr;
         PosIdx pos;
-        DynamicAttrDef(Expr * nameExpr, Expr * valueExpr, const PosIdx & pos)
+        DynamicAttrDef(ExprRef nameExpr, ExprRef valueExpr, const PosIdx & pos)
             : nameExpr(nameExpr)
             , valueExpr(valueExpr)
             , pos(pos) {};
@@ -338,7 +338,7 @@ struct ExprAttrs : Expr
     ExprAttrs()
         : recursive(false) {};
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
@@ -347,19 +347,19 @@ struct ExprAttrs : Expr
 
     std::shared_ptr<const StaticEnv> bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     EnvRef buildInheritFromEnv(EvalState & state, EnvRef up);
-    void showBindings(Values & values, const SymbolTable & symbols, std::ostream & str) const;
+    void showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
 };
 
 struct ExprList : Expr
 {
-    std::vector<Expr *> elems;
+    std::vector<ExprRef> elems;
     ExprList() {};
     COMMON_METHODS
     ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
-        return elems.empty() ? noPos : elems.front()->getPos();
+        return elems.empty() ? noPos : exprs.ERtoEP(elems.front())->getPos(exprs);
     }
 };
 
@@ -367,7 +367,7 @@ struct Formal
 {
     PosIdx pos;
     SymbolRef name;
-    Expr * def;
+    ExprRef def;
 };
 
 struct Formals
@@ -403,23 +403,23 @@ struct ExprLambda : Expr
     SymbolRef name;
     SymbolRef arg;
     Formals * formals;
-    Expr * body;
+    ExprRef body;
     DocComment docComment;
 
-    ExprLambda(PosIdx pos, SymbolRef arg, Formals * formals, Expr * body)
+    ExprLambda(PosIdx pos, SymbolRef arg, Formals * formals, ExprRef body)
         : pos(pos)
         , arg(arg)
         , formals(formals)
         , body(body) {};
 
-    ExprLambda(PosIdx pos, Formals * formals, Expr * body)
+    ExprLambda(PosIdx pos, Formals * formals, ExprRef body)
         : pos(pos)
         , formals(formals)
         , body(body)
     {
     }
 
-    void setName(SymbolRef name) override;
+    void setName(Exprs & exprs, SymbolRef name) override;
     std::string showNamePos(const EvalState & state) const;
 
     inline bool hasFormals() const
@@ -427,23 +427,23 @@ struct ExprLambda : Expr
         return formals != nullptr;
     }
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
 
-    virtual void setDocComment(DocComment docComment) override;
+    virtual void setDocComment(Exprs & exprs, DocComment docComment) override;
     COMMON_METHODS
 };
 
 struct ExprCall : Expr
 {
-    Expr * fun;
-    std::vector<Expr *> args;
+    ExprRef fun;
+    std::vector<ExprRef> args;
     PosIdx pos;
     std::optional<PosIdx> cursedOrEndPos; // used during parsing to warn about https://github.com/NixOS/nix/issues/11118
 
-    ExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args)
+    ExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args)
         : fun(fun)
         , args(args)
         , pos(pos)
@@ -451,7 +451,7 @@ struct ExprCall : Expr
     {
     }
 
-    ExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args, PosIdx && cursedOrEndPos)
+    ExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos)
         : fun(fun)
         , args(args)
         , pos(pos)
@@ -459,7 +459,7 @@ struct ExprCall : Expr
     {
     }
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
@@ -471,9 +471,9 @@ struct ExprCall : Expr
 
 struct ExprLet : Expr
 {
-    ExprAttrs * attrs;
-    Expr * body;
-    ExprLet(ExprAttrs * attrs, Expr * body)
+    ExprAttrsRef attrs;
+    ExprRef body;
+    ExprLet(ExprAttrsRef attrs, ExprRef body)
         : attrs(attrs)
         , body(body) {};
     COMMON_METHODS
@@ -482,15 +482,15 @@ struct ExprLet : Expr
 struct ExprWith : Expr
 {
     PosIdx pos;
-    Expr *attrs, *body;
+    ExprRef attrs, body;
     size_t prevWith;
-    ExprWith * parentWith;
-    ExprWith(const PosIdx & pos, Expr * attrs, Expr * body)
+    ExprWithRef parentWith;
+    ExprWith(const PosIdx & pos, ExprRef attrs, ExprRef body)
         : pos(pos)
         , attrs(attrs)
         , body(body) {};
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
@@ -501,14 +501,14 @@ struct ExprWith : Expr
 struct ExprIf : Expr
 {
     PosIdx pos;
-    Expr *cond, *then, *else_;
-    ExprIf(const PosIdx & pos, Expr * cond, Expr * then, Expr * else_)
+    ExprRef cond, then, else_;
+    ExprIf(const PosIdx & pos, ExprRef cond, ExprRef then, ExprRef else_)
         : pos(pos)
         , cond(cond)
         , then(then)
         , else_(else_) {};
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
@@ -519,13 +519,13 @@ struct ExprIf : Expr
 struct ExprAssert : Expr
 {
     PosIdx pos;
-    Expr *cond, *body;
-    ExprAssert(const PosIdx & pos, Expr * cond, Expr * body)
+    ExprRef cond, body;
+    ExprAssert(const PosIdx & pos, ExprRef cond, ExprRef body)
         : pos(pos)
         , cond(cond)
         , body(body) {};
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
@@ -535,13 +535,13 @@ struct ExprAssert : Expr
 
 struct ExprOpNot : Expr
 {
-    Expr * e;
-    ExprOpNot(Expr * e)
+    ExprRef e;
+    ExprOpNot(ExprRef e)
         : e(e) {};
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
-        return e->getPos();
+        return exprs.ERtoEP(e)->getPos(exprs);
     }
 
     COMMON_METHODS
@@ -551,29 +551,25 @@ struct ExprOpNot : Expr
     struct name : Expr                                                                               \
     {                                                                                                \
         PosIdx pos;                                                                                  \
-        Expr *e1, *e2;                                                                               \
-        name(Expr * e1, Expr * e2)                                                                   \
+        ExprRef e1, e2;                                                                              \
+        name(ExprRef e1, ExprRef e2)                                                                 \
             : e1(e1)                                                                                 \
             , e2(e2) {};                                                                             \
-        name(const PosIdx & pos, Expr * e1, Expr * e2)                                               \
+        name(const PosIdx & pos, ExprRef e1, ExprRef e2)                                             \
             : pos(pos)                                                                               \
             , e1(e1)                                                                                 \
             , e2(e2) {};                                                                             \
-        void show(Values & values, const SymbolTable & symbols, std::ostream & str) const override \
+        void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const override   \
         {                                                                                            \
             str << "(";                                                                              \
-            e1->show(values, symbols, str);                                                           \
+            exprs.ERtoEP(e1)->show(exprs, values, symbols, str);                                     \
             str << " " s " ";                                                                        \
-            e2->show(values, symbols, str);                                                           \
+            exprs.ERtoEP(e2)->show(exprs, values, symbols, str);                                     \
             str << ")";                                                                              \
         }                                                                                            \
-        void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override         \
-        {                                                                                            \
-            e1->bindVars(es, env);                                                                   \
-            e2->bindVars(es, env);                                                                   \
-        }                                                                                            \
-        void eval(EvalState & state, EnvRef env, ValueRef v) override;                                 \
-        PosIdx getPos() const override                                                               \
+        void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override;        \
+        void eval(EvalState & state, EnvRef env, ValueRef v) override;                               \
+        PosIdx getPos(Exprs & exprs) const override                                                  \
         {                                                                                            \
             return pos;                                                                              \
         }                                                                                            \
@@ -586,13 +582,13 @@ struct ExprConcatStrings : Expr
 {
     PosIdx pos;
     bool forceString;
-    std::vector<std::pair<PosIdx, Expr *>> * es;
-    ExprConcatStrings(const PosIdx & pos, bool forceString, std::vector<std::pair<PosIdx, Expr *>> * es)
+    std::vector<std::pair<PosIdx, ExprRef>> * es;
+    ExprConcatStrings(const PosIdx & pos, bool forceString, std::vector<std::pair<PosIdx, ExprRef>> * es)
         : pos(pos)
         , forceString(forceString)
         , es(es) {};
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
@@ -606,7 +602,7 @@ struct ExprPos : Expr
     ExprPos(const PosIdx & pos)
         : pos(pos) {};
 
-    PosIdx getPos() const override
+    PosIdx getPos(Exprs & exprs) const override
     {
         return pos;
     }
@@ -617,7 +613,7 @@ struct ExprPos : Expr
 /* only used to mark thunks as black holes. */
 struct ExprBlackHole : Expr
 {
-    void show(Values & values, const SymbolTable & symbols, std::ostream & str) const override {}
+    void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const override {}
 
     void eval(EvalState & state, EnvRef env, ValueRef v) override;
 
@@ -633,14 +629,14 @@ extern ExprBlackHole eBlackHole;
    runtime. */
 struct StaticEnv
 {
-    ExprWith * isWith;
+    ExprWithRef isWith;
     std::shared_ptr<const StaticEnv> up;
 
     // Note: these must be in sorted order.
     typedef std::vector<std::pair<SymbolRef, Displacement>> Vars;
     Vars vars;
 
-    StaticEnv(ExprWith * isWith, std::shared_ptr<const StaticEnv> up, size_t expectedSize = 0)
+    StaticEnv(ExprWithRef isWith, std::shared_ptr<const StaticEnv> up, size_t expectedSize = 0)
         : isWith(isWith)
         , up(std::move(up))
     {

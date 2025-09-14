@@ -143,7 +143,7 @@ NixRepl::NixRepl(
     : AbstractNixRepl(state)
     , debugTraceIndex(0)
     , getValues(getValues)
-    , staticEnv(new StaticEnv(nullptr, state->staticBaseEnv))
+    , staticEnv(new StaticEnv(ExprWithRef::null, state->staticBaseEnv))
     , lastLoaded(state->allocValue())
     , runNixPtr{runNix}
     , interacter(make_unique<ReadlineLikeInteracter>(getDataDir() + "/repl-history"))
@@ -151,13 +151,13 @@ NixRepl::NixRepl(
     lastLoaded.mkAttrs(state->values, &state->emptyBindings);
 }
 
-static std::ostream & showDebugTrace(std::ostream & out, const PosTable & positions, const DebugTrace & dt)
+static std::ostream & showDebugTrace(Exprs & exprs, std::ostream & out, const PosTable & positions, const DebugTrace & dt)
 {
     if (dt.isError)
         out << ANSI_RED "error: " << ANSI_NORMAL;
     out << dt.hint.str() << "\n";
 
-    auto pos = dt.getPos(positions);
+    auto pos = dt.getPos(exprs, positions);
 
     if (pos) {
         out << pos;
@@ -420,7 +420,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
     else if (state->debugRepl && (command == ":bt" || command == ":backtrace")) {
         for (const auto & [idx, i] : enumerate(state->debugTraces)) {
             std::cout << "\n" << ANSI_BLUE << idx << ANSI_NORMAL << ": ";
-            showDebugTrace(std::cout, state->positions, i);
+            showDebugTrace(state->exprs, std::cout, state->positions, i);
         }
     }
 
@@ -443,7 +443,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         for (const auto & [idx, i] : enumerate(state->debugTraces)) {
             if (idx == debugTraceIndex) {
                 std::cout << "\n" << ANSI_BLUE << idx << ANSI_NORMAL << ": ";
-                showDebugTrace(std::cout, state->positions, i);
+                showDebugTrace(state->exprs, std::cout, state->positions, i);
                 std::cout << std::endl;
                 printEnvBindings(*state, i.expr, i.env);
                 loadDebugTraceEnv(i);

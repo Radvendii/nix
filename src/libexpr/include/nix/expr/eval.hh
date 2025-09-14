@@ -194,14 +194,14 @@ struct DebugTrace
     HintFmt hint;
     bool isError;
 
-    Pos getPos(const PosTable & table) const
+    Pos getPos(Exprs & exprs, const PosTable & table) const
     {
         return std::visit(
             overloaded{
                 [&](PosIdx idx) {
                     // Prefer direct pos, but if noPos then try the expr.
                     if (!idx)
-                        idx = expr.getPos();
+                        idx = expr.getPos(exprs);
                     return table[idx];
                 },
                 [&](Pos pos) { return pos; },

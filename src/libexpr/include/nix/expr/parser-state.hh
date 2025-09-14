@@ -96,17 +96,17 @@ struct ParserState
     void dupAttr(const AttrPath & attrPath, const PosIdx pos, const PosIdx prevPos);
     void dupAttr(SymbolRef attr, const PosIdx pos, const PosIdx prevPos);
     void addAttr(
-        ExprAttrs * attrs, AttrPath && attrPath, const ParserLocation & loc, Expr * e, const ParserLocation & exprLoc);
-    void addAttr(ExprAttrs * attrs, AttrPath & attrPath, const SymbolRef & symbol, ExprAttrs::AttrDef && def);
+        ExprAttrsRef attrs, AttrPath && attrPath, const ParserLocation & loc, ExprRef e, const ParserLocation & exprLoc);
+    void addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & symbol, ExprAttrs::AttrDef && def);
     Formals * validateFormals(Formals * formals, PosIdx pos = noPos, SymbolRef arg = {});
-    Expr * stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, std::variant<Expr *, StringToken>>> && es);
+    ExprRef stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, std::variant<ExprRef, StringToken>>> && es);
     PosIdx at(const ParserLocation & loc);
 };
 
 inline void ParserState::dupAttr(const AttrPath & attrPath, const PosIdx pos, const PosIdx prevPos)
 {
     throw ParseError(
-        {.msg = HintFmt("attribute '%1%' already defined at %2%", showAttrPath(values, symbols, attrPath), positions[prevPos]),
+        {.msg = HintFmt("attribute '%1%' already defined at %2%", showAttrPath(exprs, values, symbols, attrPath), positions[prevPos]),
          .pos = positions[pos]});
 }
 
@@ -118,7 +118,7 @@ inline void ParserState::dupAttr(SymbolRef attr, const PosIdx pos, const PosIdx 
 }
 
 inline void ParserState::addAttr(
-    ExprAttrs * attrs, AttrPath && attrPath, const ParserLocation & loc, Expr * e, const ParserLocation & exprLoc)
+    ExprAttrsRef attrs, AttrPath && attrPath, const ParserLocation & loc, ExprRef e, const ParserLocation & exprLoc)
 {
     AttrPath::iterator i;
     // All attrpaths have at least one attr
@@ -129,34 +129,34 @@ inline void ParserState::addAttr(
     for (i = attrPath.begin(); i + 1 < attrPath.end(); i++) {
         ExprAttrs * nested;
         if (i->symbol) {
-            ExprAttrs::AttrDefs::iterator j = attrs->attrs.find(i->symbol);
-            if (j != attrs->attrs.end()) {
-                nested = dynamic_cast<ExprAttrs *>(j->second.e);
+            ExprAttrs::AttrDefs::iterator j = exprs.ERtoEP(attrs)->attrs.find(i->symbol);
+            if (j != exprs.ERtoEP(attrs)->attrs.end()) {
+                nested = dynamic_cast<ExprAttrs *>(exprs.ERtoEP(j->second.e));
                 if (!nested) {
                     attrPath.erase(i + 1, attrPath.end());
                     dupAttr(attrPath, pos, j->second.pos);
                 }
             } else {
                 nested = exprs.ERtoEP(exprs.addExprAttrs());
-                attrs->attrs[i->symbol] = ExprAttrs::AttrDef(nested, pos);
+                exprs.ERtoEP(attrs)->attrs[i->symbol] = ExprAttrs::AttrDef(exprs.EPtoER(nested), pos);
             }
         } else {
             nested = exprs.ERtoEP(exprs.addExprAttrs());
-            attrs->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, nested, pos));
+            exprs.ERtoEP(attrs)->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, exprs.EPtoER(nested), pos));
         }
-        attrs = nested;
+        attrs = exprs.EPtoER(nested);
     }
     // Expr insertion.
     // ==========================
     if (i->symbol) {
         addAttr(attrs, attrPath, i->symbol, ExprAttrs::AttrDef(e, pos));
     } else {
-        attrs->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, e, pos));
+        exprs.ERtoEP(attrs)->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, e, pos));
     }
 
     auto it = lexerState.positionToDocComment.find(pos);
     if (it != lexerState.positionToDocComment.end()) {
-        e->setDocComment(it->second);
+        exprs.ERtoEP(e)->setDocComment(exprs, it->second);
         lexerState.positionToDocComment.emplace(at(exprLoc), it->second);
     }
 }
@@ -166,16 +166,16 @@ inline void ParserState::addAttr(
  * symbol as its last element.
  */
 inline void
-ParserState::addAttr(ExprAttrs * attrs, AttrPath & attrPath, const SymbolRef & symbol, ExprAttrs::AttrDef && def)
+ParserState::addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & symbol, ExprAttrs::AttrDef && def)
 {
-    ExprAttrs::AttrDefs::iterator j = attrs->attrs.find(symbol);
-    if (j != attrs->attrs.end()) {
+    ExprAttrs::AttrDefs::iterator j = exprs.ERtoEP(attrs)->attrs.find(symbol);
+    if (j != exprs.ERtoEP(attrs)->attrs.end()) {
         // This attr path is already defined. However, if both
         // e and the expr pointed by the attr path are two attribute sets,
         // we want to merge them.
         // Otherwise, throw an error.
-        auto ae = dynamic_cast<ExprAttrs *>(def.e);
-        auto jAttrs = dynamic_cast<ExprAttrs *>(j->second.e);
+        auto ae = dynamic_cast<ExprAttrs *>(exprs.ERtoEP(def.e));
+        auto jAttrs = dynamic_cast<ExprAttrs *>(exprs.ERtoEP(j->second.e));
 
         // N.B. In a world in which we are less bound by our past mistakes, we
         // would also test that jAttrs and ae are not recursive. The effect of
@@ -184,15 +184,15 @@ ParserState::addAttr(ExprAttrs * attrs, AttrPath & attrPath, const SymbolRef & s
         // See https://github.com/NixOS/nix/issues/9020.
         if (jAttrs && ae) {
             if (ae->inheritFromExprs && !jAttrs->inheritFromExprs)
-                jAttrs->inheritFromExprs = std::make_unique<std::vector<Expr *>>();
+                jAttrs->inheritFromExprs = std::make_unique<std::vector<ExprRef>>();
             for (auto & ad : ae->attrs) {
                 if (ad.second.kind == ExprAttrs::AttrDef::Kind::InheritedFrom) {
-                    auto & sel = dynamic_cast<ExprSelect &>(*ad.second.e);
-                    auto & from = dynamic_cast<ExprInheritFrom &>(*sel.e);
+                    auto & sel = dynamic_cast<ExprSelect &>(*exprs.ERtoEP(ad.second.e));
+                    auto & from = dynamic_cast<ExprInheritFrom &>(*exprs.ERtoEP(sel.e));
                     from.displ += jAttrs->inheritFromExprs->size();
                 }
                 attrPath.emplace_back(AttrName(ad.first));
-                addAttr(jAttrs, attrPath, ad.first, std::move(ad.second));
+                addAttr(exprs.EPtoER(jAttrs), attrPath, ad.first, std::move(ad.second));
                 attrPath.pop_back();
             }
             ae->attrs.clear();
@@ -213,8 +213,8 @@ ParserState::addAttr(ExprAttrs * attrs, AttrPath & attrPath, const SymbolRef & s
         }
     } else {
         // This attr path is not defined. Let's create it.
-        attrs->attrs.emplace(symbol, def);
-        def.e->setName(symbol);
+        exprs.ERtoEP(attrs)->attrs.emplace(symbol, def);
+        exprs.ERtoEP(def.e)->setName(exprs, symbol);
     }
 }
 
@@ -243,11 +243,11 @@ inline Formals * ParserState::validateFormals(Formals * formals, PosIdx pos, Sym
     return formals;
 }
 
-inline Expr *
-ParserState::stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, std::variant<Expr *, StringToken>>> && es)
+inline ExprRef
+ParserState::stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, std::variant<ExprRef, StringToken>>> && es)
 {
     if (es.empty())
-        return exprs.ERtoEP(exprs.addExprString(values, ""));
+        return exprs.addExprString(values, "");
 
     /* Figure out the minimum indentation.  Note that by design
        whitespace-only final lines are not taken into account.  (So
@@ -287,12 +287,12 @@ ParserState::stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, st
     }
 
     /* Strip spaces from each line. */
-    auto * es2 = new std::vector<std::pair<PosIdx, Expr *>>;
+    auto * es2 = new std::vector<std::pair<PosIdx, ExprRef>>;
     atStartOfLine = true;
     size_t curDropped = 0;
     size_t n = es.size();
     auto i = es.begin();
-    const auto trimExpr = [&](Expr * e) {
+    const auto trimExpr = [&](ExprRef e) {
         atStartOfLine = false;
         curDropped = 0;
         es2->emplace_back(i->first, e);
@@ -329,7 +329,7 @@ ParserState::stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, st
 
         // Ignore empty strings for a minor optimisation and AST simplification
         if (s2 != "") {
-            es2->emplace_back(i->first, exprs.ERtoEP(exprs.addExprString(values, std::move(s2))));
+            es2->emplace_back(i->first, exprs.addExprString(values, std::move(s2)));
         }
     };
     for (; i != es.end(); ++i, --n) {
@@ -339,18 +339,18 @@ ParserState::stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, st
     // If there is nothing at all, return the empty string directly.
     // This also ensures that equivalent empty strings result in the same ast, which is helpful when testing formatters.
     if (es2->size() == 0) {
-        auto * const result = exprs.ERtoEP(exprs.addExprString(values, ""));
+        auto /* XXX [speed] const */ result = exprs.addExprString(values, "");
         delete es2;
         return result;
     }
 
     /* If this is a single string, then don't do a concatenation. */
-    if (es2->size() == 1 && dynamic_cast<ExprString *>((*es2)[0].second)) {
-        auto * const result = (*es2)[0].second;
+    if (es2->size() == 1 && dynamic_cast<ExprString *>(exprs.ERtoEP((*es2)[0].second))) {
+        auto /* XXX [speed] const */ result = (*es2)[0].second;
         delete es2;
         return result;
     }
-    return exprs.ERtoEP(exprs.addExprConcatStrings(pos, true, es2));
+    return exprs.addExprConcatStrings(pos, true, es2);
 }
 
 inline PosIdx LexerState::at(const ParserLocation & loc)

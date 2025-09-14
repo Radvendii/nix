@@ -500,8 +500,8 @@ std::vector<TYPE> VECTOR;
 #undef NIX_DEFINE_VEC
 
 // XXX [speed]: we define addExprCall() explicitly so that the args argument can be passed in as an initializer list
-ExprCallRef addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args);
-ExprCallRef addExprCall(const PosIdx & pos, Expr * fun, std::vector<Expr *> && args, PosIdx && cursedOrEndPos);
+ExprCallRef addExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args);
+ExprCallRef addExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos);
 
 #define NIX_DECLARE_ADD(TYPE, DISCRIMINANT, VECTOR) \
 TYPE##Ref add##TYPE(auto && ...args);
