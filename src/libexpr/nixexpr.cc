@@ -48,9 +48,9 @@ TYPE * Exprs::ERtoEP(TYPE##Ref ref) {               \
 ExprRef Exprs::EPtoER(Expr * p) {
     if (!p)
         return ExprRef::null;
-#define NIX_EXPR_LOOK_FOR_POINTER(TYPE, DISCRIMINANT, VECTOR) \
-if (p > &VECTOR.front() && p < &VECTOR.back()) {              \
-    return TYPE##Ref((TYPE *)p - &VECTOR.front());            \
+#define NIX_EXPR_LOOK_FOR_POINTER(TYPE, DISCRIMINANT, VECTOR)       \
+if (!VECTOR.empty() && p > &VECTOR.front() && p < &VECTOR.back()) { \
+    return TYPE##Ref((TYPE *)p - &VECTOR.front());                  \
 }
 NIX_FOR_EACH_EXPR(NIX_EXPR_LOOK_FOR_POINTER)
 #undef NIX_EXPR_LOOK_FOR_POINTER
