@@ -55,6 +55,7 @@ public:
     PosIdx pos;
 
 private:
+    // XXX [speed]: why do we need a separate capacity? when are we dynamically inserting things into attrsets?
     size_t size_, capacity_;
     Attr attrs[0];
 
