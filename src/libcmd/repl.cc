@@ -287,7 +287,7 @@ StringSet NixRepl::completePrefix(const std::string & prefix)
 
             ExprRef e = parseString(expr);
             Value v;
-            state->exprs.ERtoEP(e)->eval(*state, env, v.ref(state->values));
+            e.eval(*state, env, v.ref(state->values));
             state->forceAttrs(
                 v.ref(state->values),
                 noPos,
@@ -888,7 +888,7 @@ void NixRepl::evalString(std::string s, ValueRef v)
         else
             throw;
     }
-    state->exprs.ERtoEP(e)->eval(*state, env, v);
+    e.eval(*state, env, v);
     state->forceValue(v, v.determinePos(state->exprs, state->values, noPos));
 }
 

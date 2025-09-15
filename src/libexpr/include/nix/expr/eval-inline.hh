@@ -36,7 +36,7 @@ void EvalState::forceValue(ValueRef v, const PosIdx pos)
             v.mkBlackhole(exprs, values);
             // checkInterrupt();
             if (env) [[likely]]
-                exprs.ERtoEP(expr)->eval(*this, env, v);
+                expr.eval(*this, env, v);
             else
                 ExprBlackHole::throwInfiniteRecursionError(*this, v);
         } catch (...) {

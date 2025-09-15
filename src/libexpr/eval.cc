@@ -250,13 +250,13 @@ bool ValueRef::isTrivial(Exprs & exprs, Values & values) const
                || thunk(values).expr.dyn_cast<ExprLambdaRef>() || thunk(values).expr.dyn_cast<ExprListRef>());
 }
 
-static SymbolRef getName(const AttrName & name, EvalState & state, EnvRef env)
+static SymbolRef getName(/* XXX: const */ AttrName & name, EvalState & state, EnvRef env)
 {
     if (name.symbol) {
         return name.symbol;
     } else {
         Value nameValue;
-        state.exprs.ERtoEP(name.expr)->eval(state, env, nameValue.ref(state.values));
+        name.expr.eval(state, env, nameValue.ref(state.values));
         state.forceStringNoCtx(nameValue.ref(state.values), state.exprs.ERtoEP(name.expr)->getPos(state.exprs), "while evaluating an attribute name");
         return state.symbols.create(nameValue.string_view());
     }
@@ -1489,14 +1489,14 @@ void EvalState::resetFileCache()
 
 void EvalState::eval(ExprRef e, ValueRef v)
 {
-    exprs.ERtoEP(e)->eval(*this, baseEnv, v);
+    e.eval(*this, baseEnv, v);
 }
 
 inline bool EvalState::evalBool(EnvRef env, ExprRef e, const PosIdx pos, std::string_view errorCtx)
 {
     try {
         Value v;
-        exprs.ERtoEP(e)->eval(*this, env, v.ref(values));
+        e.eval(*this, env, v.ref(values));
         if (v.type() != nBool)
             error<TypeError>(
                 "expected a Boolean but found %1%: %2%", showType(*this, v.ref(values)), ValuePrinter(*this, v.ref(values), errorPrintOptions))
@@ -1513,7 +1513,7 @@ inline bool EvalState::evalBool(EnvRef env, ExprRef e, const PosIdx pos, std::st
 inline void EvalState::evalAttrs(EnvRef env, ExprRef e, ValueRef v, const PosIdx pos, std::string_view errorCtx)
 {
     try {
-        exprs.ERtoEP(e)->eval(*this, env, v);
+        e.eval(*this, env, v);
         if (v.type(values) != nAttrs)
             error<TypeError>(
                 "expected a set but found %1%: %2%", showType(*this, v), ValuePrinter(*this, v, errorPrintOptions))
@@ -1525,29 +1525,24 @@ inline void EvalState::evalAttrs(EnvRef env, ExprRef e, ValueRef v, const PosIdx
     }
 }
 
-void Expr::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprIntRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    unreachable();
+    v.set(state.values, state.exprs.ERtoEP(*this)->v);
 }
 
-void ExprInt::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprFloatRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.set(state.values, this->v);
+    v.set(state.values, state.exprs.ERtoEP(*this)->v);
 }
 
-void ExprFloat::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprStringRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.set(state.values, this->v);
+    v.set(state.values, state.exprs.ERtoEP(*this)->v);
 }
 
-void ExprString::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprPathRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.set(state.values, this->v);
-}
-
-void ExprPath::eval(EvalState & state, EnvRef env, ValueRef v)
-{
-    v.set(state.values, this->v);
+    v.set(state.values, state.exprs.ERtoEP(*this)->v);
 }
 
 EnvRef ExprAttrs::buildInheritFromEnv(EvalState & state, EnvRef up)
@@ -1562,30 +1557,30 @@ EnvRef ExprAttrs::buildInheritFromEnv(EvalState & state, EnvRef up)
     return inheritEnv;
 }
 
-void ExprAttrs::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprAttrsRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    auto bindings = state.buildBindings(attrs.size() + dynamicAttrs.size());
+    auto bindings = state.buildBindings(state.exprs.ERtoEP(*this)->attrs.size() + state.exprs.ERtoEP(*this)->dynamicAttrs.size());
     auto dynamicEnv = env;
     bool sort = false;
 
-    if (recursive) {
+    if (state.exprs.ERtoEP(*this)->recursive) {
         /* Create a new environment that contains the attributes in
            this `rec'. */
-        EnvRef env2(state.allocEnv(attrs.size()));
+        EnvRef env2(state.allocEnv(state.exprs.ERtoEP(*this)->attrs.size()));
         env2.up(state.envs) = env;
         dynamicEnv = env2;
-        EnvRef inheritEnv = inheritFromExprs ? buildInheritFromEnv(state, env2) : EnvRef::null;
+        EnvRef inheritEnv = state.exprs.ERtoEP(*this)->inheritFromExprs ? state.exprs.ERtoEP(*this)->buildInheritFromEnv(state, env2) : EnvRef::null;
 
-        AttrDefs::iterator overrides = attrs.find(state.sOverrides);
-        bool hasOverrides = overrides != attrs.end();
+        ExprAttrs::AttrDefs::iterator overrides = state.exprs.ERtoEP(*this)->attrs.find(state.sOverrides);
+        bool hasOverrides = overrides != state.exprs.ERtoEP(*this)->attrs.end();
 
         /* The recursive attributes are evaluated in the new
            environment, while the inherited attributes are evaluated
            in the original environment. */
         Displacement displ = 0;
-        for (auto & i : attrs) {
+        for (auto & i : state.exprs.ERtoEP(*this)->attrs) {
             ValueRef vAttr;
-            if (hasOverrides && i.second.kind != AttrDef::Kind::Inherited) {
+            if (hasOverrides && i.second.kind != ExprAttrs::AttrDef::Kind::Inherited) {
                 vAttr = state.allocValue();
                 mkThunk(state, vAttr, i.second.chooseByKind(env2, env, inheritEnv), i.second.e);
             } else
@@ -1610,8 +1605,8 @@ void ExprAttrs::eval(EvalState & state, EnvRef env, ValueRef v)
                 "while evaluating the `__overrides` attribute");
             bindings.grow(state.allocBindings(bindings.capacity() + vOverrides.attrs(state.values)->size()));
             for (auto & i : *vOverrides.attrs(state.values)) {
-                AttrDefs::iterator j = attrs.find(i.name);
-                if (j != attrs.end()) {
+                ExprAttrs::AttrDefs::iterator j = state.exprs.ERtoEP(*this)->attrs.find(i.name);
+                if (j != state.exprs.ERtoEP(*this)->attrs.end()) {
                     (*bindings.bindings)[j->second.displ] = i;
                     env2.values(state.envs)[j->second.displ] = i.value;
                 } else
@@ -1622,16 +1617,16 @@ void ExprAttrs::eval(EvalState & state, EnvRef env, ValueRef v)
     }
 
     else {
-        EnvRef inheritEnv = inheritFromExprs ? buildInheritFromEnv(state, env) : EnvRef::null;
-        for (auto & i : attrs)
+        EnvRef inheritEnv = state.exprs.ERtoEP(*this)->inheritFromExprs ? state.exprs.ERtoEP(*this)->buildInheritFromEnv(state, env) : EnvRef::null;
+        for (auto & i : state.exprs.ERtoEP(*this)->attrs)
             bindings.insert(
                 i.first, state.exprs.ERtoEP(i.second.e)->maybeThunk(state, i.second.chooseByKind(env, env, inheritEnv)), i.second.pos);
     }
 
     /* Dynamic attrs apply *after* rec and __overrides. */
-    for (auto & i : dynamicAttrs) {
+    for (auto & i : state.exprs.ERtoEP(*this)->dynamicAttrs) {
         Value nameVal;
-        state.exprs.ERtoEP(i.nameExpr)->eval(state, dynamicEnv, nameVal.ref(state.values));
+        i.nameExpr.eval(state, dynamicEnv, nameVal.ref(state.values));
         state.forceValue(nameVal.ref(state.values), i.pos);
         if (nameVal.type() == nNull)
             continue;
@@ -1645,7 +1640,7 @@ void ExprAttrs::eval(EvalState & state, EnvRef env, ValueRef v)
                 .error<EvalError>(
                     "dynamic attribute '%1%' already defined at %2%", state.symbols[nameSym], state.positions[j->pos])
                 .atPos(i.pos)
-                .withFrame(env, state.exprs.EPtoER(this))
+                .withFrame(env, *this)
                 .debugThrow();
 
         state.exprs.ERtoEP(i.valueExpr)->setName(state.exprs, nameSym);
@@ -1654,40 +1649,40 @@ void ExprAttrs::eval(EvalState & state, EnvRef env, ValueRef v)
         sort = true;
     }
 
-    bindings.bindings->pos = pos;
+    bindings.bindings->pos = state.exprs.ERtoEP(*this)->pos;
 
     v.mkAttrs(state.values, sort ? bindings.finish() : bindings.alreadySorted());
 }
 
-void ExprLet::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprLetRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     /* Create a new environment that contains the attributes in this
        `let'. */
-    EnvRef env2(state.allocEnv(state.exprs.ERtoEP(attrs)->attrs.size()));
+    EnvRef env2(state.allocEnv(state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->attrs.size()));
     env2.up(state.envs) = env;
 
-    EnvRef inheritEnv = state.exprs.ERtoEP(attrs)->inheritFromExprs ? state.exprs.ERtoEP(attrs)->buildInheritFromEnv(state, env2) : EnvRef::null;
+    EnvRef inheritEnv = state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->inheritFromExprs ? state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->buildInheritFromEnv(state, env2) : EnvRef::null;
 
     /* The recursive attributes are evaluated in the new environment,
        while the inherited attributes are evaluated in the original
        environment. */
     Displacement displ = 0;
-    for (auto & i : state.exprs.ERtoEP(attrs)->attrs) {
+    for (auto & i : state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->attrs) {
         env2.values(state.envs)[displ++] = state.exprs.ERtoEP(i.second.e)->maybeThunk(state, i.second.chooseByKind(env2, env, inheritEnv));
     }
 
     auto dts = state.debugRepl
-                   ? makeDebugTraceStacker(state, state.exprs.EPtoER(this), env2, getPos(state.exprs), "while evaluating a '%1%' expression", "let")
+                   ? makeDebugTraceStacker(state, *this, env2, state.exprs.ERtoEP(*this)->getPos(state.exprs), "while evaluating a '%1%' expression", "let")
                    : nullptr;
 
-    state.exprs.ERtoEP(body)->eval(state, env2, v);
+    state.exprs.ERtoEP(*this)->body.eval(state, env2, v);
 }
 
-void ExprList::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprListRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    auto list = state.buildList(elems.size());
+    auto list = state.buildList(state.exprs.ERtoEP(*this)->elems.size());
     for (const auto & [n, v2] : enumerate(list))
-        v2 = state.exprs.ERtoEP(elems[n])->maybeThunk(state, env);
+        v2 = state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->elems[n])->maybeThunk(state, env);
     v.mkList(state.values, list);
 }
 
@@ -1699,14 +1694,14 @@ ValueRef ExprList::maybeThunk(EvalState & state, EnvRef env)
     return Expr::maybeThunk(state, env);
 }
 
-void ExprVar::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprVarRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    ValueRef v2 = state.lookupVar(env, state.exprs.EPtoER(this), false);
-    state.forceValue(v2, pos);
+    ValueRef v2 = state.lookupVar(env, *this, false);
+    state.forceValue(v2, state.exprs.ERtoEP(*this)->pos);
     v.set(state.values, v2);
 }
 
-static std::string showAttrPath(EvalState & state, EnvRef env, const AttrPath & attrPath)
+static std::string showAttrPath(EvalState & state, EnvRef env, /* const */ AttrPath & attrPath)
 {
     std::ostringstream out;
     bool first = true;
@@ -1727,45 +1722,45 @@ static std::string showAttrPath(EvalState & state, EnvRef env, const AttrPath & 
     return out.str();
 }
 
-void ExprSelect::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprSelectRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value vTmp;
     PosIdx pos2;
     ValueRef vAttrs = vTmp.ref(state.values);
 
-    state.exprs.ERtoEP(e)->eval(state, env, vTmp.ref(state.values));
+    state.exprs.ERtoEP(*this)->e.eval(state, env, vTmp.ref(state.values));
 
     try {
         auto dts = state.debugRepl ? makeDebugTraceStacker(
                                          state,
-                                         state.exprs.EPtoER(this),
+                                         *this,
                                          env,
-                                         getPos(state.exprs),
+                                         state.exprs.ERtoEP(*this)->getPos(state.exprs),
                                          "while evaluating the attribute '%1%'",
-                                         showAttrPath(state, env, attrPath))
+                                         showAttrPath(state, env, state.exprs.ERtoEP(*this)->attrPath))
                                    : nullptr;
 
-        for (auto & i : attrPath) {
+        for (auto & i : state.exprs.ERtoEP(*this)->attrPath) {
             state.nrLookups++;
             const Attr * j;
             auto name = getName(i, state, env);
-            if (def) {
-                state.forceValue(vAttrs, pos);
+            if (state.exprs.ERtoEP(*this)->def) {
+                state.forceValue(vAttrs, state.exprs.ERtoEP(*this)->pos);
                 if (vAttrs.type(state.values) != nAttrs || !(j = vAttrs.attrs(state.values)->get(name))) {
-                    state.exprs.ERtoEP(def)->eval(state, env, v);
+                    state.exprs.ERtoEP(*this)->def.eval(state, env, v);
                     return;
                 }
             } else {
-                state.forceAttrs(vAttrs, pos, "while selecting an attribute");
+                state.forceAttrs(vAttrs, state.exprs.ERtoEP(*this)->pos, "while selecting an attribute");
                 if (!(j = vAttrs.attrs(state.values)->get(name))) {
                     StringSet allAttrNames;
                     for (auto & attr : *vAttrs.attrs(state.values))
                         allAttrNames.insert(std::string(state.symbols[attr.name]));
                     auto suggestions = Suggestions::bestMatches(allAttrNames, state.symbols[name]);
                     state.error<EvalError>("attribute '%1%' missing", state.symbols[name])
-                        .atPos(pos)
+                        .atPos(state.exprs.ERtoEP(*this)->pos)
                         .withSuggestions(suggestions)
-                        .withFrame(env, state.exprs.EPtoER(this))
+                        .withFrame(env, *this)
                         .debugThrow();
                 }
             }
@@ -1775,7 +1770,7 @@ void ExprSelect::eval(EvalState & state, EnvRef env, ValueRef v)
                 state.attrSelects[pos2]++;
         }
 
-        state.forceValue(vAttrs, (pos2 ? pos2 : this->pos));
+        state.forceValue(vAttrs, (pos2 ? pos2 : state.exprs.ERtoEP(*this)->pos));
 
     } catch (Error & e) {
         if (pos2) {
@@ -1783,7 +1778,7 @@ void ExprSelect::eval(EvalState & state, EnvRef env, ValueRef v)
             auto origin = std::get_if<SourcePath>(&pos2r.origin);
             if (!(origin && *origin == state.derivationInternal))
                 state.addErrorTrace(
-                    e, pos2, "while evaluating the attribute '%1%'", showAttrPath(state, env, attrPath));
+                    e, pos2, "while evaluating the attribute '%1%'", showAttrPath(state, env, state.exprs.ERtoEP(*this)->attrPath));
         }
         throw;
     }
@@ -1797,27 +1792,27 @@ SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, EnvRef env, Value
     SymbolRef name = getName(attrPath[attrPath.size() - 1], state, env);
 
     if (attrPath.size() == 1) {
-        state.exprs.ERtoEP(e)->eval(state, env, vTmp.ref(state.values));
+        e.eval(state, env, vTmp.ref(state.values));
     } else {
         // XXX [speed]: danger! i've changed this in ways that are highly suspicious
         AttrName last = attrPath.back();
         attrPath.pop_back();
-        eval(state, env, vTmp.ref(state.values));
+        state.exprs.EPtoER(this).eval(state, env, vTmp.ref(state.values));
         attrPath.push_back(last);
     }
     attrs.setFromStack(state.values, vTmp);
     return name;
 }
 
-void ExprOpHasAttr::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprOpHasAttrRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value vTmp;
     ValueRef vAttrs = vTmp.ref(state.values);
 
-    state.exprs.ERtoEP(e)->eval(state, env, vTmp.ref(state.values));
+    state.exprs.ERtoEP(*this)->e.eval(state, env, vTmp.ref(state.values));
 
-    for (auto & i : attrPath) {
-        state.forceValue(vAttrs, getPos(state.exprs));
+    for (auto & i : state.exprs.ERtoEP(*this)->attrPath) {
+        state.forceValue(vAttrs, state.exprs.ERtoEP(*this)->getPos(state.exprs));
         const Attr * j;
         auto name = getName(i, state, env);
         if (vAttrs.type(state.values) == nAttrs && (j = vAttrs.attrs(state.values)->get(name))) {
@@ -1831,9 +1826,9 @@ void ExprOpHasAttr::eval(EvalState & state, EnvRef env, ValueRef v)
     v.mkBool(state.values, true);
 }
 
-void ExprLambda::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprLambdaRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.mkLambda(state.exprs, state.values, env, state.exprs.EPtoER(this));
+    v.mkLambda(state.exprs, state.values, env, *this);
 }
 
 void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vRes, const PosIdx pos)
@@ -1955,7 +1950,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                                      exprs.ERtoEP(lambda)->name ? concatStrings("'", symbols[exprs.ERtoEP(lambda)->name], "'") : "anonymous lambda")
                                : nullptr;
 
-                exprs.ERtoEP(exprs.ERtoEP(lambda)->body)->eval(*this, env2, vCur.ref(values));
+                exprs.ERtoEP(lambda)->body.eval(*this, env2, vCur.ref(values));
             } catch (Error & e) {
                 if (loggerSettings.showTrace.get()) {
                     addErrorTrace(
@@ -2077,13 +2072,13 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
     vRes.setFromStack(values, vCur);
 }
 
-void ExprCall::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprCallRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     auto dts =
-        state.debugRepl ? makeDebugTraceStacker(state, state.exprs.EPtoER(this), env, getPos(state.exprs), "while calling a function") : nullptr;
+        state.debugRepl ? makeDebugTraceStacker(state, *this, env, state.exprs.ERtoEP(*this)->getPos(state.exprs), "while calling a function") : nullptr;
 
     Value vFun;
-    state.exprs.ERtoEP(fun)->eval(state, env, vFun.ref(state.values));
+    state.exprs.ERtoEP(*this)->fun.eval(state, env, vFun.ref(state.values));
 
     // Empirical arity of Nixpkgs lambdas by regex e.g. ([a-zA-Z]+:(\s|(/\*.*\/)|(#.*\n))*){5}
     // 2: over 4000
@@ -2091,11 +2086,11 @@ void ExprCall::eval(EvalState & state, EnvRef env, ValueRef v)
     // 4: about 60
     // 5: under 10
     // This excluded attrset lambdas (`{...}:`). Contributions of mixed lambdas appears insignificant at ~150 total.
-    SmallValueVector<4> vArgs(args.size());
-    for (size_t i = 0; i < args.size(); ++i)
-        vArgs[i] = state.exprs.ERtoEP(args[i])->maybeThunk(state, env);
+    SmallValueVector<4> vArgs(state.exprs.ERtoEP(*this)->args.size());
+    for (size_t i = 0; i < state.exprs.ERtoEP(*this)->args.size(); ++i)
+        vArgs[i] = state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->args[i])->maybeThunk(state, env);
 
-    state.callFunction(vFun.ref(state.values), vArgs, v, pos);
+    state.callFunction(vFun.ref(state.values), vArgs, v, state.exprs.ERtoEP(*this)->pos);
 }
 
 // Lifted out of callFunction() because it creates a temporary that
@@ -2160,95 +2155,95 @@ https://nix.dev/manual/nix/stable/language/syntax.html#functions.)",
     callFunction(fun, vAttrs, res, pos);
 }
 
-void ExprWith::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprWithRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     EnvRef env2(state.allocEnv(1));
     env2.up(state.envs) = env;
-    env2.values(state.envs)[0] = state.exprs.ERtoEP(attrs)->maybeThunk(state, env);
+    env2.values(state.envs)[0] = state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->maybeThunk(state, env);
 
-    state.exprs.ERtoEP(body)->eval(state, env2, v);
+    state.exprs.ERtoEP(*this)->body.eval(state, env2, v);
 }
 
-void ExprIf::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprIfRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     // We cheat in the parser, and pass the position of the condition as the position of the if itself.
-    state.exprs.ERtoEP(state.evalBool(env, cond, pos, "while evaluating a branch condition") ? then : else_)->eval(state, env, v);
+    (state.evalBool(env, state.exprs.ERtoEP(*this)->cond, state.exprs.ERtoEP(*this)->pos, "while evaluating a branch condition") ? state.exprs.ERtoEP(*this)->then : state.exprs.ERtoEP(*this)->else_).eval(state, env, v);
 }
 
-void ExprAssert::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprAssertRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    if (!state.evalBool(env, cond, pos, "in the condition of the assert statement")) {
+    if (!state.evalBool(env, state.exprs.ERtoEP(*this)->cond, state.exprs.ERtoEP(*this)->pos, "in the condition of the assert statement")) {
         std::ostringstream out;
-        cond.show(state.exprs, state.values, state.symbols, out);
+        state.exprs.ERtoEP(*this)->cond.show(state.exprs, state.values, state.symbols, out);
         auto exprStr = toView(out);
 
-        if (auto eq = cond.dyn_cast<ExprOpEqRef>()) {
+        if (auto eq = state.exprs.ERtoEP(*this)->cond.dyn_cast<ExprOpEqRef>()) {
             try {
                 Value v1;
-                state.exprs.ERtoEP(state.exprs.ERtoEP(eq)->e1)->eval(state, env, v1.ref(state.values));
+                state.exprs.ERtoEP(eq)->e1.eval(state, env, v1.ref(state.values));
                 Value v2;
-                state.exprs.ERtoEP(state.exprs.ERtoEP(eq)->e2)->eval(state, env, v2.ref(state.values));
+                state.exprs.ERtoEP(eq)->e2.eval(state, env, v2.ref(state.values));
                 state.assertEqValues(v1.ref(state.values), v2.ref(state.values), state.exprs.ERtoEP(eq)->pos, "in an equality assertion");
             } catch (AssertionError & e) {
-                e.addTrace(state.positions[pos], "while evaluating the condition of the assertion '%s'", exprStr);
+                e.addTrace(state.positions[state.exprs.ERtoEP(*this)->pos], "while evaluating the condition of the assertion '%s'", exprStr);
                 throw;
             }
         }
 
-        state.error<AssertionError>("assertion '%1%' failed", exprStr).atPos(pos).withFrame(env, state.exprs.EPtoER(this)).debugThrow();
+        state.error<AssertionError>("assertion '%1%' failed", exprStr).atPos(state.exprs.ERtoEP(*this)->pos).withFrame(env, *this).debugThrow();
     }
-    state.exprs.ERtoEP(body)->eval(state, env, v);
+    state.exprs.ERtoEP(*this)->body.eval(state, env, v);
 }
 
-void ExprOpNot::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprOpNotRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.mkBool(state.values, !state.evalBool(env, e, getPos(state.exprs), "in the argument of the not operator")); // XXX: FIXME: !
+    v.mkBool(state.values, !state.evalBool(env, state.exprs.ERtoEP(*this)->e, state.exprs.ERtoEP(*this)->getPos(state.exprs), "in the argument of the not operator")); // XXX: FIXME: !
 }
 
-void ExprOpEq::eval(EvalState & state, EnvRef env, ValueRef v)
-{
-    Value v1;
-    state.exprs.ERtoEP(e1)->eval(state, env, v1.ref(state.values));
-    Value v2;
-    state.exprs.ERtoEP(e2)->eval(state, env, v2.ref(state.values));
-    v.mkBool(state.values, state.eqValues(v1.ref(state.values), v2.ref(state.values), pos, "while testing two values for equality"));
-}
-
-void ExprOpNEq::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprOpEqRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value v1;
-    state.exprs.ERtoEP(e1)->eval(state, env, v1.ref(state.values));
+    state.exprs.ERtoEP(*this)->e1.eval(state, env, v1.ref(state.values));
     Value v2;
-    state.exprs.ERtoEP(e2)->eval(state, env, v2.ref(state.values));
-    v.mkBool(state.values, !state.eqValues(v1.ref(state.values), v2.ref(state.values), pos, "while testing two values for inequality"));
+    state.exprs.ERtoEP(*this)->e2.eval(state, env, v2.ref(state.values));
+    v.mkBool(state.values, state.eqValues(v1.ref(state.values), v2.ref(state.values), state.exprs.ERtoEP(*this)->pos, "while testing two values for equality"));
 }
 
-void ExprOpAnd::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprOpNEqRef::eval(EvalState & state, EnvRef env, ValueRef v)
+{
+    Value v1;
+    state.exprs.ERtoEP(*this)->e1.eval(state, env, v1.ref(state.values));
+    Value v2;
+    state.exprs.ERtoEP(*this)->e2.eval(state, env, v2.ref(state.values));
+    v.mkBool(state.values, !state.eqValues(v1.ref(state.values), v2.ref(state.values), state.exprs.ERtoEP(*this)->pos, "while testing two values for inequality"));
+}
+
+void ExprOpAndRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values,
-         state.evalBool(env, e1, pos, "in the left operand of the AND (&&) operator")
-         && state.evalBool(env, e2, pos, "in the right operand of the AND (&&) operator"));
+         state.evalBool(env, state.exprs.ERtoEP(*this)->e1, state.exprs.ERtoEP(*this)->pos, "in the left operand of the AND (&&) operator")
+         && state.evalBool(env, state.exprs.ERtoEP(*this)->e2, state.exprs.ERtoEP(*this)->pos, "in the right operand of the AND (&&) operator"));
 }
 
-void ExprOpOr::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprOpOrRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values,
-         state.evalBool(env, e1, pos, "in the left operand of the OR (||) operator")
-         || state.evalBool(env, e2, pos, "in the right operand of the OR (||) operator"));
+         state.evalBool(env, state.exprs.ERtoEP(*this)->e1, state.exprs.ERtoEP(*this)->pos, "in the left operand of the OR (||) operator")
+         || state.evalBool(env, state.exprs.ERtoEP(*this)->e2, state.exprs.ERtoEP(*this)->pos, "in the right operand of the OR (||) operator"));
 }
 
-void ExprOpImpl::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprOpImplRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     v.mkBool(state.values,
-         !state.evalBool(env, e1, pos, "in the left operand of the IMPL (->) operator")
-         || state.evalBool(env, e2, pos, "in the right operand of the IMPL (->) operator"));
+         !state.evalBool(env, state.exprs.ERtoEP(*this)->e1, state.exprs.ERtoEP(*this)->pos, "in the left operand of the IMPL (->) operator")
+         || state.evalBool(env, state.exprs.ERtoEP(*this)->e2, state.exprs.ERtoEP(*this)->pos, "in the right operand of the IMPL (->) operator"));
 }
 
-void ExprOpUpdate::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprOpUpdateRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value v1, v2;
-    state.evalAttrs(env, e1, v1.ref(state.values), pos, "in the left operand of the update (//) operator");
-    state.evalAttrs(env, e2, v2.ref(state.values), pos, "in the right operand of the update (//) operator");
+    state.evalAttrs(env, state.exprs.ERtoEP(*this)->e1, v1.ref(state.values), state.exprs.ERtoEP(*this)->pos, "in the left operand of the update (//) operator");
+    state.evalAttrs(env, state.exprs.ERtoEP(*this)->e2, v2.ref(state.values), state.exprs.ERtoEP(*this)->pos, "in the right operand of the update (//) operator");
 
     state.nrOpUpdates++;
 
@@ -2289,14 +2284,14 @@ void ExprOpUpdate::eval(EvalState & state, EnvRef env, ValueRef v)
     state.nrOpUpdateValuesCopied += v.attrs(state.values)->size();
 }
 
-void ExprOpConcatLists::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprOpConcatListsRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     Value v1;
-    state.exprs.ERtoEP(e1)->eval(state, env, v1.ref(state.values));
+    state.exprs.ERtoEP(*this)->e1.eval(state, env, v1.ref(state.values));
     Value v2;
-    state.exprs.ERtoEP(e2)->eval(state, env, v2.ref(state.values));
+    state.exprs.ERtoEP(*this)->e2.eval(state, env, v2.ref(state.values));
     ValueRef lists[2] = {v1.ref(state.values), v2.ref(state.values)};
-    state.concatLists(v, 2, lists, pos, "while evaluating one of the elements to concatenate");
+    state.concatLists(v, 2, lists, state.exprs.ERtoEP(*this)->pos, "while evaluating one of the elements to concatenate");
 }
 
 void EvalState::concatLists(
@@ -2331,7 +2326,7 @@ void EvalState::concatLists(
     v.mkList(values, list);
 }
 
-void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprConcatStringsRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     NixStringContext context;
     std::vector<BackedStringView> s;
@@ -2339,7 +2334,7 @@ void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
     NixInt n{0};
     NixFloat nf = 0;
 
-    bool first = !forceString;
+    bool first = !state.exprs.ERtoEP(*this)->forceString;
     ValueType firstType = nString;
 
     const auto str = [&] {
@@ -2363,10 +2358,10 @@ void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
         return result;
     };
 
-    for (auto & [i_pos, i] : *es) {
+    for (auto & [i_pos, i] : *state.exprs.ERtoEP(*this)->es) {
         Value vTmp;
 
-        state.exprs.ERtoEP(i)->eval(state, env, vTmp.ref(state.values));
+        i.eval(state, env, vTmp.ref(state.values));
 
         /* If the first element is a path, then the result will also
            be a path, we don't copy anything (yet - that's done later,
@@ -2394,7 +2389,7 @@ void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
             } else
                 state.error<EvalError>("cannot add %1% to an integer", showType(state, vTmp.ref(state.values)))
                     .atPos(i_pos)
-                    .withFrame(env, state.exprs.EPtoER(this))
+                    .withFrame(env, *this)
                     .debugThrow();
         } else if (firstType == nFloat) {
             if (vTmp.type() == nInt) {
@@ -2404,11 +2399,11 @@ void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
             } else
                 state.error<EvalError>("cannot add %1% to a float", showType(state, vTmp.ref(state.values)))
                     .atPos(i_pos)
-                    .withFrame(env, state.exprs.EPtoER(this))
+                    .withFrame(env, *this)
                     .debugThrow();
         } else {
             if (s.empty())
-                s.reserve(es->size());
+                s.reserve(state.exprs.ERtoEP(*this)->es->size());
             /* skip canonization of first path, which would only be not
             canonized in the first place if it's coming from a ./${foo} type
             path */
@@ -2428,22 +2423,22 @@ void ExprConcatStrings::eval(EvalState & state, EnvRef env, ValueRef v)
     else if (firstType == nPath) {
         if (!context.empty())
             state.error<EvalError>("a string that refers to a store path cannot be appended to a path")
-                .atPos(pos)
-                .withFrame(env, state.exprs.EPtoER(this))
+                .atPos(state.exprs.ERtoEP(*this)->pos)
+                .withFrame(env, *this)
                 .debugThrow();
         v.mkPath(state.values, state.rootPath(CanonPath(str())));
     } else
         v.mkStringMove(state.values, c_str(), context);
 }
 
-void ExprPos::eval(EvalState & state, EnvRef env, ValueRef v)
+void ExprPosRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    state.mkPos(v, pos);
+    state.mkPos(v, state.exprs.ERtoEP(*this)->pos);
 }
 
-void ExprBlackHole::eval(EvalState & state, [[maybe_unused]] EnvRef env, ValueRef v)
+void ExprBlackHoleRef::eval(EvalState & state, [[maybe_unused]] EnvRef env, ValueRef v)
 {
-    throwInfiniteRecursionError(state, v);
+    state.exprs.ERtoEP(*this)->throwInfiniteRecursionError(state, v);
 }
 
 [[gnu::noinline]] [[noreturn]] void ExprBlackHole::throwInfiniteRecursionError(EvalState & state, ValueRef v)

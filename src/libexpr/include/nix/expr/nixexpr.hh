@@ -97,7 +97,6 @@ struct Expr
     }
 
     virtual ~Expr() {};
-    virtual void eval(EvalState & state, EnvRef env, ValueRef v);
     virtual ValueRef maybeThunk(EvalState & state, EnvRef env);
     virtual void setName(Exprs & exprs, SymbolRef name);
     virtual void setDocComment(Exprs & exprs, DocComment docComment) {};
@@ -113,7 +112,6 @@ struct Expr
 };
 
 #define COMMON_METHODS                                                                                         \
-    void eval(EvalState & state, EnvRef env, ValueRef v) override;
 
 struct ExprInt : Expr
 {
@@ -562,7 +560,6 @@ struct name : Expr                                                 \
         : pos(pos)                                                 \
         , e1(e1)                                                   \
         , e2(e2) {};                                               \
-    void eval(EvalState & state, EnvRef env, ValueRef v) override; \
     PosIdx getPos(Exprs & exprs) const override                    \
     {                                                              \
         return pos;                                                \
@@ -606,8 +603,6 @@ struct ExprPos : Expr
 /* only used to mark thunks as black holes. */
 struct ExprBlackHole : Expr
 {
-    void eval(EvalState & state, EnvRef env, ValueRef v) override;
-
     [[noreturn]] static void throwInfiniteRecursionError(EvalState & state, ValueRef v);
 };
 

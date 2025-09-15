@@ -27,6 +27,11 @@ DYNAMIC_DISPATCH_CASE(ExprVar, teVar, vars, FUN)         \
 DYNAMIC_DISPATCH_CASE(ExprBlackHole, teBlackHole, , FUN) \
 }
 
+void ExprRef::eval(EvalState & state, EnvRef env, ValueRef v)
+{
+DYNAMIC_DISPATCH(eval(state, env, v))
+}
+
 void ExprRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
 DYNAMIC_DISPATCH(bindVars(es, env))
@@ -35,6 +40,11 @@ DYNAMIC_DISPATCH(bindVars(es, env))
 void ExprRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
 DYNAMIC_DISPATCH(show(exprs, values, symbols, str))
+}
+
+void ExprInheritFromRef::eval(EvalState & state, EnvRef env, ValueRef v)
+{
+    ExprVarRef(*this).eval(state, env, v);
 }
 
 void ExprInheritFromRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const

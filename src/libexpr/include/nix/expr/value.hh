@@ -441,6 +441,7 @@ struct ExprRef {
     inline T dyn_cast() const noexcept;
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
+    void eval(EvalState & state, EnvRef env, ValueRef v);
 };
 
 
@@ -469,6 +470,7 @@ operator ExprRef() noexcept                                                   \
     return ExprRef(ref);                                                      \
 }                                                                             \
                                                                               \
+void eval(EvalState & state, EnvRef env, ValueRef v);                         \
 void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);  \
 void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
 

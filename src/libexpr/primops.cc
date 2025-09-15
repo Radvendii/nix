@@ -277,7 +277,7 @@ static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path,
     printTalkative("evaluating file '%1%'", path);
     ExprRef e = state.parseExprFromFile(resolveExprPath(path), staticEnv);
 
-    state.exprs.ERtoEP(e)->eval(state, env, v);
+    e.eval(state, env, v);
 }
 
 /* Load and evaluate an expression from path specified by the

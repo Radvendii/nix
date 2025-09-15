@@ -757,6 +757,9 @@ private:
     friend struct ExprVar;
     friend struct ExprAttrs;
     friend struct ExprLet;
+    friend struct ExprVarRef;
+    friend struct ExprAttrsRef;
+    friend struct ExprLetRef;
 
     ExprRef parse(
         char * text,
@@ -973,6 +976,7 @@ private:
     AttrSelects attrSelects;
 
     friend struct ExprOpUpdate;
+    friend struct ExprOpUpdateRef;
     friend struct ExprOpConcatLists;
     friend struct ExprVar;
     friend struct ExprString;
@@ -980,6 +984,12 @@ private:
     friend struct ExprFloat;
     friend struct ExprPath;
     friend struct ExprSelect;
+    friend struct ExprVarRef;
+    friend struct ExprStringRef;
+    friend struct ExprIntRef;
+    friend struct ExprFloatRef;
+    friend struct ExprPathRef;
+    friend struct ExprSelectRef;
     friend void prim_getAttr(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
     friend void prim_match(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
     friend void prim_split(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
