@@ -16,17 +16,6 @@ unsigned long Expr::nrExprs = 0;
 
 ExprBlackHole eBlackHole;
 
-#define DYNAMIC_DISPATCH_CASE(TYPE, DISCRIMINANT, VECTOR, FUN) \
-case DISCRIMINANT:                                             \
-    TYPE##Ref(*this).FUN;                                      \
-    break;
-#define DYNAMIC_DISPATCH(FUN)                            \
-switch((Type) (ref >> 24)) {                             \
-NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH_CASE, FUN)            \
-DYNAMIC_DISPATCH_CASE(ExprVar, teVar, vars, FUN)         \
-DYNAMIC_DISPATCH_CASE(ExprBlackHole, teBlackHole, , FUN) \
-}
-
 void ExprRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
 DYNAMIC_DISPATCH(eval(state, env, v))

@@ -442,6 +442,7 @@ struct ExprRef {
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
     void eval(EvalState & state, EnvRef env, ValueRef v);
+    ValueRef maybeThunk(EvalState & state, EnvRef env);
 };
 
 
@@ -588,7 +589,15 @@ struct ExprVarRef {
 };
 #undef COMMON_DEFS
 
-
+#define DYNAMIC_DISPATCH_CASE(TYPE, DISCRIMINANT, VECTOR, FUN) \
+case DISCRIMINANT:                                             \
+    return TYPE##Ref(*this).FUN;
+#define DYNAMIC_DISPATCH(FUN)                            \
+switch((Type) (ref >> 24)) {                             \
+NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH_CASE, FUN)            \
+DYNAMIC_DISPATCH_CASE(ExprVar, teVar, vars, FUN)         \
+DYNAMIC_DISPATCH_CASE(ExprBlackHole, teBlackHole, , FUN) \
+}
 
 // XXX [speed]: return here does unnecessary conversion back and forth
 #define NIX_DYN_CAST(TYPE, DISCRIMINANT, VECTOR)      \

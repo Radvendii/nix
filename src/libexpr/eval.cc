@@ -1386,47 +1386,42 @@ void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef 
    in the given environment.  But if the expression is a variable,
    then look it up right away.  This significantly reduces the number
    of thunks allocated. */
-ValueRef Expr::maybeThunk(EvalState & state, EnvRef env)
+ValueRef ExprRef::maybeThunk(EvalState & state, EnvRef env)
 {
-    ValueRef v = state.allocValue();
-    mkThunk(state, v, env, state.exprs.EPtoER(this));
-    return v;
-}
-
-ValueRef ExprVar::maybeThunk(EvalState & state, EnvRef env)
-{
-    ValueRef v = state.lookupVar(env, state.exprs.EPtoER(this), true);
-    /* The value might not be initialised in the environment yet.
-       In that case, ignore it. */
-    if (v) {
-        state.nrAvoided++;
-        return v;
+    ValueRef ret = ValueRef::null;
+    switch ((Type) (ref >> 24)) {
+        case teInheritFrom:
+        case teVar:
+            ret = state.lookupVar(env, ExprVarRef(*this), true);
+            break;
+        // XXX [speed]: simplify this with a .value() function that returns ValueRef::null on other types
+        case teInt:
+            ret = state.exprs.ERtoEP(ExprIntRef(*this))->v;
+            break;
+        case teFloat:
+            ret = state.exprs.ERtoEP(ExprFloatRef(*this))->v;
+            break;
+        case teString:
+            ret = state.exprs.ERtoEP(ExprStringRef(*this))->v;
+            break;
+        case tePath:
+            ret = state.exprs.ERtoEP(ExprPathRef(*this))->v;
+            break;
+        case teList:
+            if (state.exprs.ERtoEP(ExprListRef(*this))->elems.empty())
+                ret = state.vEmptyList;
+            break;
+        default:
+            break;
     }
-    return Expr::maybeThunk(state, env);
-}
 
-ValueRef ExprString::maybeThunk(EvalState & state, EnvRef env)
-{
-    state.nrAvoided++;
-    return v;
-}
-
-ValueRef ExprInt::maybeThunk(EvalState & state, EnvRef env)
-{
-    state.nrAvoided++;
-    return v;
-}
-
-ValueRef ExprFloat::maybeThunk(EvalState & state, EnvRef env)
-{
-    state.nrAvoided++;
-    return v;
-}
-
-ValueRef ExprPath::maybeThunk(EvalState & state, EnvRef env)
-{
-    state.nrAvoided++;
-    return v;
+    if (!ret) {
+        ret = state.allocValue();
+        mkThunk(state, ret, env, *this);
+    } else {
+        state.nrAvoided++;
+    }
+    return ret;
 }
 
 void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial)
@@ -1552,7 +1547,7 @@ EnvRef ExprAttrs::buildInheritFromEnv(EvalState & state, EnvRef up)
 
     Displacement displ = 0;
     for (auto from : *inheritFromExprs)
-        inheritEnv.values(state.envs)[displ++] = state.exprs.ERtoEP(from)->maybeThunk(state, up);
+        inheritEnv.values(state.envs)[displ++] = from.maybeThunk(state, up);
 
     return inheritEnv;
 }
@@ -1584,7 +1579,7 @@ void ExprAttrsRef::eval(EvalState & state, EnvRef env, ValueRef v)
                 vAttr = state.allocValue();
                 mkThunk(state, vAttr, i.second.chooseByKind(env2, env, inheritEnv), i.second.e);
             } else
-                vAttr = state.exprs.ERtoEP(i.second.e)->maybeThunk(state, i.second.chooseByKind(env2, env, inheritEnv));
+                vAttr = i.second.e.maybeThunk(state, i.second.chooseByKind(env2, env, inheritEnv));
             env2.values(state.envs)[displ++] = vAttr;
             bindings.insert(i.first, vAttr, i.second.pos);
         }
@@ -1620,7 +1615,7 @@ void ExprAttrsRef::eval(EvalState & state, EnvRef env, ValueRef v)
         EnvRef inheritEnv = state.exprs.ERtoEP(*this)->inheritFromExprs ? state.exprs.ERtoEP(*this)->buildInheritFromEnv(state, env) : EnvRef::null;
         for (auto & i : state.exprs.ERtoEP(*this)->attrs)
             bindings.insert(
-                i.first, state.exprs.ERtoEP(i.second.e)->maybeThunk(state, i.second.chooseByKind(env, env, inheritEnv)), i.second.pos);
+                i.first, i.second.e.maybeThunk(state, i.second.chooseByKind(env, env, inheritEnv)), i.second.pos);
     }
 
     /* Dynamic attrs apply *after* rec and __overrides. */
@@ -1645,7 +1640,7 @@ void ExprAttrsRef::eval(EvalState & state, EnvRef env, ValueRef v)
 
         state.exprs.ERtoEP(i.valueExpr)->setName(state.exprs, nameSym);
         /* Keep sorted order so find can catch duplicates */
-        bindings.insert(nameSym, state.exprs.ERtoEP(i.valueExpr)->maybeThunk(state, dynamicEnv), i.pos);
+        bindings.insert(nameSym, i.valueExpr.maybeThunk(state, dynamicEnv), i.pos);
         sort = true;
     }
 
@@ -1668,7 +1663,7 @@ void ExprLetRef::eval(EvalState & state, EnvRef env, ValueRef v)
        environment. */
     Displacement displ = 0;
     for (auto & i : state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->attrs) {
-        env2.values(state.envs)[displ++] = state.exprs.ERtoEP(i.second.e)->maybeThunk(state, i.second.chooseByKind(env2, env, inheritEnv));
+        env2.values(state.envs)[displ++] = i.second.e.maybeThunk(state, i.second.chooseByKind(env2, env, inheritEnv));
     }
 
     auto dts = state.debugRepl
@@ -1682,16 +1677,8 @@ void ExprListRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     auto list = state.buildList(state.exprs.ERtoEP(*this)->elems.size());
     for (const auto & [n, v2] : enumerate(list))
-        v2 = state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->elems[n])->maybeThunk(state, env);
+        v2 = state.exprs.ERtoEP(*this)->elems[n].maybeThunk(state, env);
     v.mkList(state.values, list);
-}
-
-ValueRef ExprList::maybeThunk(EvalState & state, EnvRef env)
-{
-    if (elems.empty()) {
-        return state.vEmptyList;
-    }
-    return Expr::maybeThunk(state, env);
 }
 
 void ExprVarRef::eval(EvalState & state, EnvRef env, ValueRef v)
@@ -1902,7 +1889,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
                                 .withFrame(vCur.lambda().env, lambda)
                                 .debugThrow();
                         }
-                        env2.values(envs)[displ++] = exprs.ERtoEP(i.def)->maybeThunk(*this, env2);
+                        env2.values(envs)[displ++] = i.def.maybeThunk(*this, env2);
                     } else {
                         attrsUsed++;
                         env2.values(envs)[displ++] = j->value;
@@ -2088,7 +2075,7 @@ void ExprCallRef::eval(EvalState & state, EnvRef env, ValueRef v)
     // This excluded attrset lambdas (`{...}:`). Contributions of mixed lambdas appears insignificant at ~150 total.
     SmallValueVector<4> vArgs(state.exprs.ERtoEP(*this)->args.size());
     for (size_t i = 0; i < state.exprs.ERtoEP(*this)->args.size(); ++i)
-        vArgs[i] = state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->args[i])->maybeThunk(state, env);
+        vArgs[i] = state.exprs.ERtoEP(*this)->args[i].maybeThunk(state, env);
 
     state.callFunction(vFun.ref(state.values), vArgs, v, state.exprs.ERtoEP(*this)->pos);
 }
@@ -2159,7 +2146,7 @@ void ExprWithRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     EnvRef env2(state.allocEnv(1));
     env2.up(state.envs) = env;
-    env2.values(state.envs)[0] = state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->maybeThunk(state, env);
+    env2.values(state.envs)[0] = state.exprs.ERtoEP(*this)->attrs.maybeThunk(state, env);
 
     state.exprs.ERtoEP(*this)->body.eval(state, env2, v);
 }

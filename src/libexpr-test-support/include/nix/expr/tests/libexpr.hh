@@ -48,7 +48,7 @@ protected:
     {
         ExprRef e = state.parseExprFromString(input, state.rootPath(CanonPath::root));
         assert(e);
-        return state.exprs.ERtoEP(e)->maybeThunk(state, state.baseEnv);
+        return e.maybeThunk(state, state.baseEnv);
     }
 
     SymbolRef createSymbol(const char * value)

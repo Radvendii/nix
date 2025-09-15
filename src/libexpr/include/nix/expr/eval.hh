@@ -754,6 +754,7 @@ private:
 
     inline ValueRef lookupVar(EnvRef env, /* const */ ExprVarRef var, bool noEval);
 
+    friend struct ExprRef;
     friend struct ExprVar;
     friend struct ExprAttrs;
     friend struct ExprLet;

@@ -97,7 +97,6 @@ struct Expr
     }
 
     virtual ~Expr() {};
-    virtual ValueRef maybeThunk(EvalState & state, EnvRef env);
     virtual void setName(Exprs & exprs, SymbolRef name);
     virtual void setDocComment(Exprs & exprs, DocComment docComment) {};
 
@@ -118,8 +117,6 @@ struct ExprInt : Expr
     ExprInt(Values & values, NixInt n);
 
     ExprInt(Values & values, NixInt::Inner n);
-
-    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 };
 
 struct ExprFloat : Expr
@@ -127,8 +124,6 @@ struct ExprFloat : Expr
     ValueRef v;
 
     ExprFloat(Values & values, NixFloat nf);
-
-    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 };
 
 struct ExprString : Expr
@@ -137,8 +132,6 @@ struct ExprString : Expr
     ValueRef v;
 
     ExprString(Values & values, std::string && s);
-
-    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 };
 
 struct ExprPath : Expr
@@ -148,8 +141,6 @@ struct ExprPath : Expr
     ValueRef v;
 
     ExprPath(Values & values, ref<SourceAccessor> accessor, std::string && s);
-
-    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 };
 
 typedef uint32_t Level;
@@ -181,7 +172,6 @@ struct ExprVar : Expr
     ExprVar(const PosIdx & pos, SymbolRef name)
         : pos(pos)
         , name(name) {};
-    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 
     PosIdx getPos(Exprs & exprs) const override
     {
@@ -332,7 +322,6 @@ struct ExprList : Expr
 {
     std::vector<ExprRef> elems;
     ExprList() {};
-    ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 
     PosIdx getPos(Exprs & exprs) const override
     {
