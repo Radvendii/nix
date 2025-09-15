@@ -434,78 +434,153 @@ struct ExprRef {
     }
 
     constexpr auto operator<=>(const ExprRef & other) const noexcept = default;
+
     template<typename T>
     inline T dyn_cast() const noexcept;
 };
 
+
 // XXX [speed]: addd error reporting like in ExprRef
 // XXX [speed]: should this be defined using templates e.g. ExprRef<ExprWith> or ExprRef<teWith>?
 // XXX [speed]: the ExprRef constructor should not be publicly accessible
-#define NIX_EXPR_REF(TYPE, DISCRIMINANT, VECTOR)        \
-struct TYPE##Ref {                                      \
-    public:                                             \
-    TYPE##Ref() = default;                              \
-                                                        \
-    static TYPE##Ref null;                              \
-    uint32_t ref;                                       \
-                                                        \
-    constexpr explicit TYPE##Ref(uint32_t idx)          \
-        : ref((DISCRIMINANT << 24) + idx)               \
-    {                                                   \
-    }                                                   \
-    constexpr explicit TYPE##Ref(ExprRef ref)           \
-        : ref(ref.ref)                                  \
-    {                                                   \
-    }                                                   \
-                                                        \
-    [[gnu::always_inline]]                              \
-    constexpr explicit operator bool() const noexcept { \
-        return ref;                                     \
-    }                                                   \
-                                                        \
-    constexpr auto operator<=>(const TYPE##Ref & other) const noexcept = default; \
-                                                        \
-    operator ExprRef() noexcept                         \
-    {                                                   \
-        return ExprRef(ref);                            \
-    }                                                   \
+#define COMMON_DEFS(TYPE, DISCRIMINANT)                                       \
+TYPE##Ref() = default;                                                        \
+static TYPE##Ref null;                                                        \
+uint32_t ref;                                                                 \
+                                                                              \
+constexpr explicit TYPE##Ref(uint32_t idx)                                    \
+    : ref((DISCRIMINANT << 24) + idx) {}                                      \
+                                                                              \
+constexpr explicit TYPE##Ref(ExprRef ref)                                     \
+    : ref(ref.ref) {}                                                         \
+                                                                              \
+[[gnu::always_inline]]                                                        \
+constexpr explicit operator bool() const noexcept {                           \
+    return ref;                                                               \
+}                                                                             \
+                                                                              \
+constexpr auto operator<=>(const TYPE##Ref & other) const noexcept = default; \
+                                                                              \
+operator ExprRef() noexcept                                                   \
+{                                                                             \
+    return ExprRef(ref);                                                      \
+}
+
+struct ExprWithRef {
+    public:
+    COMMON_DEFS(ExprWith, teWith)
 };
-
-NIX_FOR_EACH_EXPR(NIX_EXPR_REF)
-NIX_EXPR_REF(ExprBlackHole, teBlackHole, )
-#undef NIX_EXPR_REF
-
+struct ExprLetRef {
+    public:
+    COMMON_DEFS(ExprLet, teLet)
+};
+struct ExprIfRef {
+    public:
+    COMMON_DEFS(ExprIf, teIf)
+};
+struct ExprAttrsRef {
+    public:
+    COMMON_DEFS(ExprAttrs, teAttrs)
+};
+struct ExprCallRef {
+    public:
+    COMMON_DEFS(ExprCall, teCall)
+};
+struct ExprFloatRef {
+    public:
+    COMMON_DEFS(ExprFloat, teFloat)
+};
+struct ExprIntRef {
+    public:
+    COMMON_DEFS(ExprInt, teInt)
+};
+struct ExprPathRef {
+    public:
+    COMMON_DEFS(ExprPath, tePath)
+};
+struct ExprSelectRef {
+    public:
+    COMMON_DEFS(ExprSelect, teSelect)
+};
+struct ExprLambdaRef {
+    public:
+    COMMON_DEFS(ExprLambda, teLambda)
+};
+struct ExprListRef {
+    public:
+    COMMON_DEFS(ExprList, teList)
+};
+struct ExprStringRef {
+    public:
+    COMMON_DEFS(ExprString, teString)
+};
+struct ExprAssertRef {
+    public:
+    COMMON_DEFS(ExprAssert, teAssert)
+};
+struct ExprPosRef {
+    public:
+    COMMON_DEFS(ExprPos, tePos)
+};
+struct ExprConcatStringsRef {
+    public:
+    COMMON_DEFS(ExprConcatStrings, teConcatStrings)
+};
+struct ExprOpHasAttrRef {
+    public:
+    COMMON_DEFS(ExprOpHasAttr, teOpHasAttr)
+};
+struct ExprOpConcatListsRef {
+    public:
+    COMMON_DEFS(ExprOpConcatLists, teOpConcatLists)
+};
+struct ExprOpNotRef {
+    public:
+    COMMON_DEFS(ExprOpNot, teOpNot)
+};
+struct ExprOpEqRef {
+    public:
+    COMMON_DEFS(ExprOpEq, teOpEq)
+};
+struct ExprOpNEqRef {
+    public:
+    COMMON_DEFS(ExprOpNEq, teOpNEq)
+};
+struct ExprOpAndRef {
+    public:
+    COMMON_DEFS(ExprOpAnd, teOpAnd)
+};
+struct ExprOpOrRef {
+    public:
+    COMMON_DEFS(ExprOpOr, teOpOr)
+};
+struct ExprOpImplRef {
+    public:
+    COMMON_DEFS(ExprOpImpl, teOpImpl)
+};
+struct ExprOpUpdateRef {
+    public:
+    COMMON_DEFS(ExprOpUpdate, teOpUpdate)
+};
+struct ExprInheritFromRef {
+    public:
+    COMMON_DEFS(ExprInheritFrom, teInheritFrom)
+};
+struct ExprBlackHoleRef {
+    public:
+    COMMON_DEFS(ExprBlackHole, teBlackHole)
+};
 struct ExprVarRef {
     public:
-    ExprVarRef() = default;
-
-    static ExprVarRef null;
-    uint32_t ref;
-
-    constexpr explicit ExprVarRef(uint32_t idx)
-        : ref((teVar << 24) + idx)
-    {
-    }
+    COMMON_DEFS(ExprVar, teVar)
     constexpr ExprVarRef(ExprInheritFromRef ref)
         :ref(ref.ref)
     {
     }
-    constexpr explicit ExprVarRef(ExprRef ref)
-        : ref(ref.ref)
-    {
-    }
-
-    [[gnu::always_inline]]
-    constexpr explicit operator bool() const noexcept {
-        return ref;
-    }
-
-    constexpr auto operator<=>(const ExprVarRef & other) const noexcept = default;
-    operator ExprRef() noexcept
-    {
-        return ExprRef(ref);
-    }
 };
+#undef COMMON_DEFS
+
+
 
 // XXX [speed]: return here does unnecessary conversion back and forth
 #define NIX_DYN_CAST(TYPE, DISCRIMINANT, VECTOR)      \
