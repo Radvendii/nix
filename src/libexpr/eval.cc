@@ -1638,7 +1638,7 @@ void ExprAttrsRef::eval(EvalState & state, EnvRef env, ValueRef v)
                 .withFrame(env, *this)
                 .debugThrow();
 
-        state.exprs.ERtoEP(i.valueExpr)->setName(state.exprs, nameSym);
+        i.valueExpr.setName(state.exprs, nameSym);
         /* Keep sorted order so find can catch duplicates */
         bindings.insert(nameSym, i.valueExpr.maybeThunk(state, dynamicEnv), i.pos);
         sort = true;

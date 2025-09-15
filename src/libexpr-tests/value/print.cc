@@ -120,7 +120,7 @@ TEST_F(ValuePrintingTests, vLambda)
 
     test(vLambda, "«lambda @ «none»:1:1»");
 
-    state.exprs.ERtoEP(eLambda)->setName(state.exprs, createSymbol("puppy"));
+    eLambda.setName(state.exprs, createSymbol("puppy"));
 
     test(vLambda, "«lambda puppy @ «none»:1:1»");
 }
@@ -511,7 +511,7 @@ TEST_F(ValuePrintingTests, ansiColorsLambda)
 
     test(vLambda, ANSI_BLUE "«lambda @ «none»:1:1»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 
-    state.exprs.ERtoEP(eLambda)->setName(state.exprs, createSymbol("puppy"));
+    eLambda.setName(state.exprs, createSymbol("puppy"));
 
     test(vLambda, ANSI_BLUE "«lambda puppy @ «none»:1:1»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 }

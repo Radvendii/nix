@@ -719,12 +719,21 @@ void ExprPosRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv>
 
 /* Storing function names. */
 
-void Expr::setName(Exprs & exprs, SymbolRef name) {}
+void ExprRef::setName(Exprs & exprs, SymbolRef name) {
+    if ((Type) (ref >> 24) == teLambda) {
+        ExprLambdaRef(*this).setName(exprs, name);
+    }
+}
+void ExprRef::setDocComment(Exprs & exprs, DocComment docComment) {
+    if ((Type) (ref >> 24) == teLambda) {
+        ExprLambdaRef(*this).setDocComment(exprs, docComment);
+    }
+}
 
-void ExprLambda::setName(Exprs & exprs, SymbolRef name)
+void ExprLambdaRef::setName(Exprs & exprs, SymbolRef name)
 {
-    this->name = name;
-    exprs.ERtoEP(body)->setName(exprs, name);
+    exprs.ERtoEP(*this)->name = name;
+    exprs.ERtoEP(*this)->body.setName(exprs, name);
 }
 
 std::string ExprLambda::showNamePos(const EvalState & state) const
@@ -733,12 +742,12 @@ std::string ExprLambda::showNamePos(const EvalState & state) const
     return fmt("%1% at %2%", id, state.positions[pos]);
 }
 
-void ExprLambda::setDocComment(Exprs & exprs, DocComment docComment)
+void ExprLambdaRef::setDocComment(Exprs & exprs, DocComment docComment)
 {
     // RFC 145 specifies that the innermost doc comment wins.
     // See https://github.com/NixOS/rfcs/blob/master/rfcs/0145-doc-strings.md#ambiguous-placement
-    if (!this->docComment) {
-        this->docComment = docComment;
+    if (!exprs.ERtoEP(*this)->docComment) {
+        exprs.ERtoEP(*this)->docComment = docComment;
 
         // Curried functions are defined by putting a function directly
         // in the body of another function. To render docs for those, we
@@ -746,7 +755,7 @@ void ExprLambda::setDocComment(Exprs & exprs, DocComment docComment)
         //
         // If we have our own comment, we've already propagated it, so this
         // belongs in the same conditional.
-        exprs.ERtoEP(body)->setDocComment(exprs, docComment);
+        exprs.ERtoEP(*this)->body.setDocComment(exprs, docComment);
     }
 };
 

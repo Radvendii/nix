@@ -97,8 +97,6 @@ struct Expr
     }
 
     virtual ~Expr() {};
-    virtual void setName(Exprs & exprs, SymbolRef name);
-    virtual void setDocComment(Exprs & exprs, DocComment docComment) {};
 
     virtual PosIdx getPos(Exprs & exprs) const
     {
@@ -385,7 +383,6 @@ struct ExprLambda : Expr
     {
     }
 
-    void setName(Exprs & exprs, SymbolRef name) override;
     std::string showNamePos(const EvalState & state) const;
 
     inline bool hasFormals() const
@@ -397,8 +394,6 @@ struct ExprLambda : Expr
     {
         return pos;
     }
-
-    virtual void setDocComment(Exprs & exprs, DocComment docComment) override;
 };
 
 struct ExprCall : Expr

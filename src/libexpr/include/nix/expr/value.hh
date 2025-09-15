@@ -132,6 +132,7 @@ class StorePath;
 class EvalState;
 class XMLWriter;
 class Printer;
+struct DocComment;
 
 using NixInt = checked::Checked<int64_t>;
 using NixFloat = double;
@@ -439,10 +440,14 @@ struct ExprRef {
 
     template<typename T>
     inline T dyn_cast() const noexcept;
+
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
     void eval(EvalState & state, EnvRef env, ValueRef v);
+
     ValueRef maybeThunk(EvalState & state, EnvRef env);
+    void setName(Exprs & exprs, SymbolRef name);
+    void setDocComment(Exprs & exprs, DocComment docComment);
 };
 
 
@@ -514,6 +519,8 @@ struct ExprSelectRef {
 struct ExprLambdaRef {
     public:
     COMMON_DEFS(ExprLambda, teLambda)
+    void setName(Exprs & exprs, SymbolRef name);
+    void setDocComment(Exprs & exprs, DocComment docComment);
 };
 struct ExprListRef {
     public:

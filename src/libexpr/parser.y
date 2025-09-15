@@ -106,7 +106,7 @@ void yyerror(YYLTYPE * loc, yyscan_t scanner, ParserState * state, const char * 
 static void setDocPosition(ParserState * state, ExprLambdaRef lambda, PosIdx start) {
     auto it = state->lexerState.positionToDocComment.find(start);
     if (it != state->lexerState.positionToDocComment.end()) {
-        state->exprs.ERtoEP(lambda)->setDocComment(state->exprs, it->second);
+        lambda.setDocComment(state->exprs, it->second);
     }
 }
 

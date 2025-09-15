@@ -156,7 +156,7 @@ inline void ParserState::addAttr(
 
     auto it = lexerState.positionToDocComment.find(pos);
     if (it != lexerState.positionToDocComment.end()) {
-        exprs.ERtoEP(e)->setDocComment(exprs, it->second);
+        e.setDocComment(exprs, it->second);
         lexerState.positionToDocComment.emplace(at(exprLoc), it->second);
     }
 }
@@ -214,7 +214,7 @@ ParserState::addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & 
     } else {
         // This attr path is not defined. Let's create it.
         exprs.ERtoEP(attrs)->attrs.emplace(symbol, def);
-        exprs.ERtoEP(def.e)->setName(exprs, symbol);
+        def.e.setName(exprs, symbol);
     }
 }
 
