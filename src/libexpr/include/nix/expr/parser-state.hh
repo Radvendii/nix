@@ -127,24 +127,24 @@ inline void ParserState::addAttr(
     // Checking attrPath validity.
     // ===========================
     for (i = attrPath.begin(); i + 1 < attrPath.end(); i++) {
-        ExprAttrs * nested;
+        ExprAttrsRef nested;
         if (i->symbol) {
             ExprAttrs::AttrDefs::iterator j = exprs.ERtoEP(attrs)->attrs.find(i->symbol);
             if (j != exprs.ERtoEP(attrs)->attrs.end()) {
-                nested = dynamic_cast<ExprAttrs *>(exprs.ERtoEP(j->second.e));
+                nested = j->second.e.dyn_cast<ExprAttrsRef>();
                 if (!nested) {
                     attrPath.erase(i + 1, attrPath.end());
                     dupAttr(attrPath, pos, j->second.pos);
                 }
             } else {
-                nested = exprs.ERtoEP(exprs.addExprAttrs());
-                exprs.ERtoEP(attrs)->attrs[i->symbol] = ExprAttrs::AttrDef(exprs.EPtoER(nested), pos);
+                nested = exprs.addExprAttrs();
+                exprs.ERtoEP(attrs)->attrs[i->symbol] = ExprAttrs::AttrDef(nested, pos);
             }
         } else {
-            nested = exprs.ERtoEP(exprs.addExprAttrs());
-            exprs.ERtoEP(attrs)->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, exprs.EPtoER(nested), pos));
+            nested = exprs.addExprAttrs();
+            exprs.ERtoEP(attrs)->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, nested, pos));
         }
-        attrs = exprs.EPtoER(nested);
+        attrs = nested;
     }
     // Expr insertion.
     // ==========================
@@ -174,8 +174,8 @@ ParserState::addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & 
         // e and the expr pointed by the attr path are two attribute sets,
         // we want to merge them.
         // Otherwise, throw an error.
-        auto ae = dynamic_cast<ExprAttrs *>(exprs.ERtoEP(def.e));
-        auto jAttrs = dynamic_cast<ExprAttrs *>(exprs.ERtoEP(j->second.e));
+        auto ae = def.e.dyn_cast<ExprAttrsRef>();
+        auto jAttrs = j->second.e.dyn_cast<ExprAttrsRef>();
 
         // N.B. In a world in which we are less bound by our past mistakes, we
         // would also test that jAttrs and ae are not recursive. The effect of
@@ -183,30 +183,30 @@ ParserState::addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & 
         // `rec` marker on jAttrs will apply to the attributes in ae.
         // See https://github.com/NixOS/nix/issues/9020.
         if (jAttrs && ae) {
-            if (ae->inheritFromExprs && !jAttrs->inheritFromExprs)
-                jAttrs->inheritFromExprs = std::make_unique<std::vector<ExprRef>>();
-            for (auto & ad : ae->attrs) {
+            if (exprs.ERtoEP(ae)->inheritFromExprs && !exprs.ERtoEP(jAttrs)->inheritFromExprs)
+                exprs.ERtoEP(jAttrs)->inheritFromExprs = std::make_unique<std::vector<ExprRef>>();
+            for (auto & ad : exprs.ERtoEP(ae)->attrs) {
                 if (ad.second.kind == ExprAttrs::AttrDef::Kind::InheritedFrom) {
-                    auto & sel = dynamic_cast<ExprSelect &>(*exprs.ERtoEP(ad.second.e));
-                    auto & from = dynamic_cast<ExprInheritFrom &>(*exprs.ERtoEP(sel.e));
-                    from.displ += jAttrs->inheritFromExprs->size();
+                    auto sel = ad.second.e.dyn_cast<ExprSelectRef>();
+                    auto from = exprs.ERtoEP(sel)->e.dyn_cast<ExprInheritFromRef>();
+                    exprs.ERtoEP(from)->displ += exprs.ERtoEP(jAttrs)->inheritFromExprs->size();
                 }
                 attrPath.emplace_back(AttrName(ad.first));
-                addAttr(exprs.EPtoER(jAttrs), attrPath, ad.first, std::move(ad.second));
+                addAttr(jAttrs, attrPath, ad.first, std::move(ad.second));
                 attrPath.pop_back();
             }
-            ae->attrs.clear();
-            jAttrs->dynamicAttrs.insert(
-                jAttrs->dynamicAttrs.end(),
-                std::make_move_iterator(ae->dynamicAttrs.begin()),
-                std::make_move_iterator(ae->dynamicAttrs.end()));
-            ae->dynamicAttrs.clear();
-            if (ae->inheritFromExprs) {
-                jAttrs->inheritFromExprs->insert(
-                    jAttrs->inheritFromExprs->end(),
-                    std::make_move_iterator(ae->inheritFromExprs->begin()),
-                    std::make_move_iterator(ae->inheritFromExprs->end()));
-                ae->inheritFromExprs = nullptr;
+            exprs.ERtoEP(ae)->attrs.clear();
+            exprs.ERtoEP(jAttrs)->dynamicAttrs.insert(
+                exprs.ERtoEP(jAttrs)->dynamicAttrs.end(),
+                std::make_move_iterator(exprs.ERtoEP(ae)->dynamicAttrs.begin()),
+                std::make_move_iterator(exprs.ERtoEP(ae)->dynamicAttrs.end()));
+            exprs.ERtoEP(ae)->dynamicAttrs.clear();
+            if (exprs.ERtoEP(ae)->inheritFromExprs) {
+                exprs.ERtoEP(jAttrs)->inheritFromExprs->insert(
+                    exprs.ERtoEP(jAttrs)->inheritFromExprs->end(),
+                    std::make_move_iterator(exprs.ERtoEP(ae)->inheritFromExprs->begin()),
+                    std::make_move_iterator(exprs.ERtoEP(ae)->inheritFromExprs->end()));
+                exprs.ERtoEP(ae)->inheritFromExprs = nullptr;
             }
         } else {
             dupAttr(attrPath, def.pos, j->second.pos);
@@ -345,7 +345,7 @@ ParserState::stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, st
     }
 
     /* If this is a single string, then don't do a concatenation. */
-    if (es2->size() == 1 && dynamic_cast<ExprString *>(exprs.ERtoEP((*es2)[0].second))) {
+    if (es2->size() == 1 && (*es2)[0].second.dyn_cast<ExprStringRef>()) {
         auto /* XXX [speed] const */ result = (*es2)[0].second;
         delete es2;
         return result;

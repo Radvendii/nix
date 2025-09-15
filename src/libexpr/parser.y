@@ -111,8 +111,8 @@ static void setDocPosition(ParserState * state, ExprLambdaRef lambda, PosIdx sta
 }
 
 static ExprRef makeCall(Exprs & exprs, PosIdx pos, ExprRef fn, ExprRef arg) {
-    if (auto e2 = dynamic_cast<ExprCall *>(exprs.ERtoEP(fn))) {
-        e2->args.push_back(arg);
+    if (auto e2 = fn.dyn_cast<ExprCallRef>()) {
+        exprs.ERtoEP(e2)->args.push_back(arg);
         return fn;
     }
     return exprs.addExprCall(pos, fn, {arg});
@@ -457,9 +457,9 @@ attrs
   : attrs attr { $$ = $1; $1->emplace_back(AttrName(state->symbols.create($2)), state->at(@2)); }
   | attrs string_attr
     { $$ = $1;
-      ExprString * str = dynamic_cast<ExprString *>(state->exprs.ERtoEP($2));
+      ExprStringRef str = $2.dyn_cast<ExprStringRef>();
       if (str) {
-          $$->emplace_back(AttrName(state->symbols.create(str->s)), state->at(@2));
+          $$->emplace_back(AttrName(state->symbols.create(state->exprs.ERtoEP(str)->s)), state->at(@2));
           // XXX [speed]: we're leaking more memory
           // delete str;
       } else
@@ -475,9 +475,9 @@ attrpath
   : attrpath '.' attr { $$ = $1; $1->push_back(AttrName(state->symbols.create($3))); }
   | attrpath '.' string_attr
     { $$ = $1;
-      ExprString * str = dynamic_cast<ExprString *>(state->exprs.ERtoEP($3));
+      ExprStringRef str = $3.dyn_cast<ExprStringRef>();
       if (str) {
-          $$->push_back(AttrName(state->symbols.create(str->s)));
+          $$->push_back(AttrName(state->symbols.create(state->exprs.ERtoEP(str)->s)));
           // XXX [speed]: we're leaking more memory
           // delete str;
       } else
@@ -486,9 +486,9 @@ attrpath
   | attr { $$ = new std::vector<AttrName>; $$->push_back(AttrName(state->symbols.create($1))); }
   | string_attr
     { $$ = new std::vector<AttrName>;
-      ExprString *str = dynamic_cast<ExprString *>(state->exprs.ERtoEP($1));
+      ExprStringRef str = $1.dyn_cast<ExprStringRef>();
       if (str) {
-          $$->push_back(AttrName(state->symbols.create(str->s)));
+          $$->push_back(AttrName(state->symbols.create(state->exprs.ERtoEP(str)->s)));
           // XXX [speed]: we're leaking more memory
           // delete str;
       } else

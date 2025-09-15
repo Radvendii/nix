@@ -239,15 +239,15 @@ bool Value::isTrivial(Exprs & exprs) const
 {
     return !isa<tApp, tPrimOpApp>()
            && (!isa<tThunk>()
-               || (dynamic_cast<ExprAttrs *>(exprs.ERtoEP(thunk().expr)) && ((ExprAttrs *) exprs.ERtoEP(thunk().expr))->dynamicAttrs.empty())
-               || dynamic_cast<ExprLambda *>(exprs.ERtoEP(thunk().expr)) || dynamic_cast<ExprList *>(exprs.ERtoEP(thunk().expr)));
+               || (thunk().expr.dyn_cast<ExprAttrsRef>() && ((ExprAttrs *) exprs.ERtoEP(thunk().expr))->dynamicAttrs.empty())
+               || thunk().expr.dyn_cast<ExprLambdaRef>() || thunk().expr.dyn_cast<ExprListRef>());
 }
 bool ValueRef::isTrivial(Exprs & exprs, Values & values) const
 {
     return !isa<tApp, tPrimOpApp>(values)
            && (!isa<tThunk>(values)
-               || (dynamic_cast<ExprAttrs *>(exprs.ERtoEP(thunk(values).expr)) && ((ExprAttrs *) exprs.ERtoEP(thunk(values).expr))->dynamicAttrs.empty())
-               || dynamic_cast<ExprLambda *>(exprs.ERtoEP(thunk(values).expr)) || dynamic_cast<ExprList *>(exprs.ERtoEP(thunk(values).expr)));
+               || (thunk(values).expr.dyn_cast<ExprAttrsRef>() && ((ExprAttrs *) exprs.ERtoEP(thunk(values).expr))->dynamicAttrs.empty())
+               || thunk(values).expr.dyn_cast<ExprLambdaRef>() || thunk(values).expr.dyn_cast<ExprListRef>());
 }
 
 static SymbolRef getName(const AttrName & name, EvalState & state, EnvRef env)
@@ -1468,7 +1468,7 @@ void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial
 
         // Enforce that 'flake.nix' is a direct attrset, not a
         // computation.
-        if (mustBeTrivial && !(dynamic_cast<ExprAttrs *>(exprs.ERtoEP(e))))
+        if (mustBeTrivial && !e.dyn_cast<ExprAttrsRef>())
             error<EvalError>("file '%s' must be an attribute set", path).debugThrow();
         eval(e, v);
     } catch (Error & e) {
@@ -2183,13 +2183,13 @@ void ExprAssert::eval(EvalState & state, EnvRef env, ValueRef v)
         state.exprs.ERtoEP(cond)->show(state.exprs, state.values, state.symbols, out);
         auto exprStr = toView(out);
 
-        if (auto eq = dynamic_cast<ExprOpEq *>(state.exprs.ERtoEP(cond))) {
+        if (auto eq = cond.dyn_cast<ExprOpEqRef>()) {
             try {
                 Value v1;
-                state.exprs.ERtoEP(eq->e1)->eval(state, env, v1.ref(state.values));
+                state.exprs.ERtoEP(state.exprs.ERtoEP(eq)->e1)->eval(state, env, v1.ref(state.values));
                 Value v2;
-                state.exprs.ERtoEP(eq->e2)->eval(state, env, v2.ref(state.values));
-                state.assertEqValues(v1.ref(state.values), v2.ref(state.values), eq->pos, "in an equality assertion");
+                state.exprs.ERtoEP(state.exprs.ERtoEP(eq)->e2)->eval(state, env, v2.ref(state.values));
+                state.assertEqValues(v1.ref(state.values), v2.ref(state.values), state.exprs.ERtoEP(eq)->pos, "in an equality assertion");
             } catch (AssertionError & e) {
                 e.addTrace(state.positions[pos], "while evaluating the condition of the assertion '%s'", exprStr);
                 throw;

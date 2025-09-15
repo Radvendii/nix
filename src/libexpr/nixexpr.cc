@@ -199,9 +199,9 @@ void ExprAttrs::showBindings(Exprs & exprs, Values & values, const SymbolTable &
             inherits.push_back(i->first);
             break;
         case AttrDef::Kind::InheritedFrom: {
-            auto & select = dynamic_cast<ExprSelect &>(*exprs.ERtoEP(i->second.e));
-            auto & from = dynamic_cast<ExprInheritFrom &>(*exprs.ERtoEP(select.e));
-            inheritsFrom[from.displ].push_back(i->first);
+            auto select = i->second.e.dyn_cast<ExprSelectRef>();
+            auto from = exprs.ERtoEP(select)->e.dyn_cast<ExprInheritFromRef>();
+            inheritsFrom[exprs.ERtoEP(from)->displ].push_back(i->first);
             break;
         }
         }
