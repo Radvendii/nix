@@ -111,8 +111,6 @@ struct Expr
     virtual void warnIfCursedOr(const SymbolTable & symbols, const PosTable & positions) {};
 };
 
-#define COMMON_METHODS                                                                                         \
-
 struct ExprInt : Expr
 {
     ValueRef v;
@@ -122,7 +120,6 @@ struct ExprInt : Expr
     ExprInt(Values & values, NixInt::Inner n);
 
     ValueRef maybeThunk(EvalState & state, EnvRef env) override;
-    COMMON_METHODS
 };
 
 struct ExprFloat : Expr
@@ -132,7 +129,6 @@ struct ExprFloat : Expr
     ExprFloat(Values & values, NixFloat nf);
 
     ValueRef maybeThunk(EvalState & state, EnvRef env) override;
-    COMMON_METHODS
 };
 
 struct ExprString : Expr
@@ -143,7 +139,6 @@ struct ExprString : Expr
     ExprString(Values & values, std::string && s);
 
     ValueRef maybeThunk(EvalState & state, EnvRef env) override;
-    COMMON_METHODS
 };
 
 struct ExprPath : Expr
@@ -155,7 +150,6 @@ struct ExprPath : Expr
     ExprPath(Values & values, ref<SourceAccessor> accessor, std::string && s);
 
     ValueRef maybeThunk(EvalState & state, EnvRef env) override;
-    COMMON_METHODS
 };
 
 typedef uint32_t Level;
@@ -193,8 +187,6 @@ struct ExprVar : Expr
     {
         return pos;
     }
-
-    COMMON_METHODS
 };
 
 /**
@@ -247,8 +239,6 @@ struct ExprSelect : Expr
      * exist.
      */
     SymbolRef evalExceptFinalSelect(EvalState & state, EnvRef env, ValueRef attrs);
-
-    COMMON_METHODS
 };
 
 struct ExprOpHasAttr : Expr
@@ -263,8 +253,6 @@ struct ExprOpHasAttr : Expr
     {
         return exprs.ERtoEP(e)->getPos(exprs);
     }
-
-    COMMON_METHODS
 };
 
 struct ExprAttrs : Expr
@@ -335,8 +323,6 @@ struct ExprAttrs : Expr
         return pos;
     }
 
-    COMMON_METHODS
-
     std::shared_ptr<const StaticEnv> bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     EnvRef buildInheritFromEnv(EvalState & state, EnvRef up);
     void showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
@@ -346,7 +332,6 @@ struct ExprList : Expr
 {
     std::vector<ExprRef> elems;
     ExprList() {};
-    COMMON_METHODS
     ValueRef maybeThunk(EvalState & state, EnvRef env) override;
 
     PosIdx getPos(Exprs & exprs) const override
@@ -425,7 +410,6 @@ struct ExprLambda : Expr
     }
 
     virtual void setDocComment(Exprs & exprs, DocComment docComment) override;
-    COMMON_METHODS
 };
 
 struct ExprCall : Expr
@@ -458,7 +442,6 @@ struct ExprCall : Expr
 
     virtual void resetCursedOr() override;
     virtual void warnIfCursedOr(const SymbolTable & symbols, const PosTable & positions) override;
-    COMMON_METHODS
 };
 
 struct ExprLet : Expr
@@ -468,7 +451,6 @@ struct ExprLet : Expr
     ExprLet(ExprAttrsRef attrs, ExprRef body)
         : attrs(attrs)
         , body(body) {};
-    COMMON_METHODS
 };
 
 struct ExprWith : Expr
@@ -486,8 +468,6 @@ struct ExprWith : Expr
     {
         return pos;
     }
-
-    COMMON_METHODS
 };
 
 struct ExprIf : Expr
@@ -504,8 +484,6 @@ struct ExprIf : Expr
     {
         return pos;
     }
-
-    COMMON_METHODS
 };
 
 struct ExprAssert : Expr
@@ -521,8 +499,6 @@ struct ExprAssert : Expr
     {
         return pos;
     }
-
-    COMMON_METHODS
 };
 
 struct ExprOpNot : Expr
@@ -535,8 +511,6 @@ struct ExprOpNot : Expr
     {
         return exprs.ERtoEP(e)->getPos(exprs);
     }
-
-    COMMON_METHODS
 };
 
 #define NIX_FOR_EACH_BINOP(MACRO) \
@@ -582,8 +556,6 @@ struct ExprConcatStrings : Expr
     {
         return pos;
     }
-
-    COMMON_METHODS
 };
 
 struct ExprPos : Expr
@@ -596,8 +568,6 @@ struct ExprPos : Expr
     {
         return pos;
     }
-
-    COMMON_METHODS
 };
 
 /* only used to mark thunks as black holes. */
