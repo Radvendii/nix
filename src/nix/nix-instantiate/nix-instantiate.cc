@@ -37,7 +37,7 @@ void processExpr(
     ExprRef e)
 {
     if (parseOnly) {
-        state.exprs.ERtoEP(e)->show(state.exprs, state.values, state.symbols, std::cout);
+        e.show(state.exprs, state.values, state.symbols, std::cout);
         std::cout << "\n";
         return;
     }

@@ -97,7 +97,6 @@ struct Expr
     }
 
     virtual ~Expr() {};
-    virtual void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
     virtual void eval(EvalState & state, EnvRef env, ValueRef v);
     virtual ValueRef maybeThunk(EvalState & state, EnvRef env);
     virtual void setName(Exprs & exprs, SymbolRef name);
@@ -114,7 +113,6 @@ struct Expr
 };
 
 #define COMMON_METHODS                                                                                         \
-    void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const override; \
     void eval(EvalState & state, EnvRef env, ValueRef v) override;
 
 struct ExprInt : Expr
@@ -543,35 +541,35 @@ struct ExprOpNot : Expr
     COMMON_METHODS
 };
 
-#define MakeBinOp(name, s)                                                                           \
-    struct name : Expr                                                                               \
-    {                                                                                                \
-        PosIdx pos;                                                                                  \
-        ExprRef e1, e2;                                                                              \
-        name(ExprRef e1, ExprRef e2)                                                                 \
-            : e1(e1)                                                                                 \
-            , e2(e2) {};                                                                             \
-        name(const PosIdx & pos, ExprRef e1, ExprRef e2)                                             \
-            : pos(pos)                                                                               \
-            , e1(e1)                                                                                 \
-            , e2(e2) {};                                                                             \
-        void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const override   \
-        {                                                                                            \
-            str << "(";                                                                              \
-            exprs.ERtoEP(e1)->show(exprs, values, symbols, str);                                     \
-            str << " " s " ";                                                                        \
-            exprs.ERtoEP(e2)->show(exprs, values, symbols, str);                                     \
-            str << ")";                                                                              \
-        }                                                                                            \
-        void eval(EvalState & state, EnvRef env, ValueRef v) override;                               \
-        PosIdx getPos(Exprs & exprs) const override                                                  \
-        {                                                                                            \
-            return pos;                                                                              \
-        }                                                                                            \
-    };
+#define NIX_FOR_EACH_BINOP(MACRO) \
+MACRO(ExprOpEq, "==")             \
+MACRO(ExprOpNEq, "!=")            \
+MACRO(ExprOpAnd, "&&")            \
+MACRO(ExprOpOr, "||")             \
+MACRO(ExprOpImpl, "->")           \
+MACRO(ExprOpUpdate, "//")         \
+MACRO(ExprOpConcatLists, "++")
 
-MakeBinOp(ExprOpEq, "==") MakeBinOp(ExprOpNEq, "!=") MakeBinOp(ExprOpAnd, "&&") MakeBinOp(ExprOpOr, "||")
-    MakeBinOp(ExprOpImpl, "->") MakeBinOp(ExprOpUpdate, "//") MakeBinOp(ExprOpConcatLists, "++")
+#define MakeBinOp(name, s)                                         \
+struct name : Expr                                                 \
+{                                                                  \
+    PosIdx pos;                                                    \
+    ExprRef e1, e2;                                                \
+    name(ExprRef e1, ExprRef e2)                                   \
+        : e1(e1)                                                   \
+        , e2(e2) {};                                               \
+    name(const PosIdx & pos, ExprRef e1, ExprRef e2)               \
+        : pos(pos)                                                 \
+        , e1(e1)                                                   \
+        , e2(e2) {};                                               \
+    void eval(EvalState & state, EnvRef env, ValueRef v) override; \
+    PosIdx getPos(Exprs & exprs) const override                    \
+    {                                                              \
+        return pos;                                                \
+    }                                                              \
+};
+
+NIX_FOR_EACH_BINOP(MakeBinOp)
 
 struct ExprConcatStrings : Expr
 {
@@ -608,8 +606,6 @@ struct ExprPos : Expr
 /* only used to mark thunks as black holes. */
 struct ExprBlackHole : Expr
 {
-    void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const override {}
-
     void eval(EvalState & state, EnvRef env, ValueRef v) override;
 
     [[noreturn]] static void throwInfiniteRecursionError(EvalState & state, ValueRef v);

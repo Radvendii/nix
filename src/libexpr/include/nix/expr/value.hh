@@ -124,6 +124,7 @@ struct ExprBlackHole;
 struct StaticEnv;
 struct PrimOp;
 class SymbolRef;
+class SymbolTable;
 class Symbol;
 class PosIdx;
 struct Pos;
@@ -377,32 +378,32 @@ enum Type : uint8_t {
     teInheritFrom,
     teBlackHole,
 };
-#define NIX_FOR_EACH_EXPR(MACRO)                          \
-MACRO(ExprWith, teWith, withs)                            \
-MACRO(ExprLet, teLet, lets)                               \
-MACRO(ExprIf, teIf, ifs)                                  \
-MACRO(ExprAttrs, teAttrs, attrss)                         \
-MACRO(ExprCall, teCall, calls)                            \
-MACRO(ExprFloat, teFloat, floats)                         \
-MACRO(ExprInt, teInt, ints)                               \
-MACRO(ExprPath, tePath, paths)                            \
-MACRO(ExprSelect, teSelect, selects)                      \
-MACRO(ExprLambda, teLambda, lambdas)                      \
-MACRO(ExprList, teList, lists)                            \
-MACRO(ExprString, teString, strings)                      \
-MACRO(ExprAssert, teAssert, asserts)                      \
-MACRO(ExprPos, tePos, poss)                               \
-MACRO(ExprConcatStrings, teConcatStrings, concatStringss) \
-MACRO(ExprOpHasAttr, teOpHasAttr, opHasAttrs)             \
-MACRO(ExprOpConcatLists, teOpConcatLists, opConcatListss) \
-MACRO(ExprOpNot, teOpNot, opNots)                         \
-MACRO(ExprOpEq, teOpEq, opEqs)                            \
-MACRO(ExprOpNEq, teOpNEq, opNEqs)                         \
-MACRO(ExprOpAnd, teOpAnd, opAnds)                         \
-MACRO(ExprOpOr, teOpOr, opOrs)                            \
-MACRO(ExprOpImpl, teOpImpl, opImpls)                      \
-MACRO(ExprOpUpdate, teOpUpdate, opUpdates)                \
-MACRO(ExprInheritFrom, teInheritFrom, inheritFroms)
+#define NIX_FOR_EACH_EXPR(MACRO, ...)                                               \
+MACRO(ExprWith, teWith, withs __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprLet, teLet, lets __VA_OPT__(,) __VA_ARGS__)                               \
+MACRO(ExprIf, teIf, ifs __VA_OPT__(,) __VA_ARGS__)                                  \
+MACRO(ExprAttrs, teAttrs, attrss __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprCall, teCall, calls __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprFloat, teFloat, floats __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprInt, teInt, ints __VA_OPT__(,) __VA_ARGS__)                               \
+MACRO(ExprPath, tePath, paths __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprSelect, teSelect, selects __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprLambda, teLambda, lambdas __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprList, teList, lists __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprString, teString, strings __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprAssert, teAssert, asserts __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprPos, tePos, poss __VA_OPT__(,) __VA_ARGS__)                               \
+MACRO(ExprConcatStrings, teConcatStrings, concatStringss __VA_OPT__(,) __VA_ARGS__) \
+MACRO(ExprOpHasAttr, teOpHasAttr, opHasAttrs __VA_OPT__(,) __VA_ARGS__)             \
+MACRO(ExprOpConcatLists, teOpConcatLists, opConcatListss __VA_OPT__(,) __VA_ARGS__) \
+MACRO(ExprOpNot, teOpNot, opNots __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprOpEq, teOpEq, opEqs __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprOpNEq, teOpNEq, opNEqs __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprOpAnd, teOpAnd, opAnds __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprOpOr, teOpOr, opOrs __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprOpImpl, teOpImpl, opImpls __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprOpUpdate, teOpUpdate, opUpdates __VA_OPT__(,) __VA_ARGS__)                \
+MACRO(ExprInheritFrom, teInheritFrom, inheritFroms __VA_OPT__(,) __VA_ARGS__)
 // XXX [speed]: ExprVar has to be treated separately because it has its own subtype ExprInheritFrom
 // MACRO(ExprVar, teVar, vars)
 // XXX [speed]: ExprBlackHole behaves differently than all the rest and must be special-cased.
@@ -439,6 +440,7 @@ struct ExprRef {
     template<typename T>
     inline T dyn_cast() const noexcept;
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
+    void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
 };
 
 
@@ -467,7 +469,8 @@ operator ExprRef() noexcept                                                   \
     return ExprRef(ref);                                                      \
 }                                                                             \
                                                                               \
-void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
+void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);  \
+void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
 
 struct ExprWithRef {
     public:

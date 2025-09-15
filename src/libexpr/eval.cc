@@ -1234,14 +1234,13 @@ Value ValueRef::toStack(Values & values) const
     }
     return ret;
 }
-#define NIX_BIND_VARS_DEF(BINOP)                                                        \
-void BINOP##Ref::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) \
+#define NIX_BIND_VARS_DEF(TYPE, STR)                                                    \
+void TYPE##Ref::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)  \
 {                                                                                       \
     es.exprs.ERtoEP(*this)->e1.bindVars(es, env);                                       \
     es.exprs.ERtoEP(*this)->e2.bindVars(es, env);                                       \
 }
-NIX_BIND_VARS_DEF(ExprOpEq) NIX_BIND_VARS_DEF(ExprOpNEq) NIX_BIND_VARS_DEF(ExprOpAnd) NIX_BIND_VARS_DEF(ExprOpOr)
-    NIX_BIND_VARS_DEF(ExprOpImpl) NIX_BIND_VARS_DEF(ExprOpUpdate) NIX_BIND_VARS_DEF(ExprOpConcatLists)
+NIX_FOR_EACH_BINOP(NIX_BIND_VARS_DEF)
 // XXX [speed]
 
 
@@ -1721,7 +1720,7 @@ static std::string showAttrPath(EvalState & state, EnvRef env, const AttrPath & 
         } catch (Error & e) {
             assert(!i.symbol);
             out << "\"${";
-            state.exprs.ERtoEP(i.expr)->show(state.exprs, state.values, state.symbols, out);
+            i.expr.show(state.exprs, state.values, state.symbols, out);
             out << "}\"";
         }
     }
@@ -2180,7 +2179,7 @@ void ExprAssert::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     if (!state.evalBool(env, cond, pos, "in the condition of the assert statement")) {
         std::ostringstream out;
-        state.exprs.ERtoEP(cond)->show(state.exprs, state.values, state.symbols, out);
+        cond.show(state.exprs, state.values, state.symbols, out);
         auto exprStr = toView(out);
 
         if (auto eq = cond.dyn_cast<ExprOpEqRef>()) {

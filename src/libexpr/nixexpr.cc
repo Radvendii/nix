@@ -16,19 +16,37 @@ unsigned long Expr::nrExprs = 0;
 
 ExprBlackHole eBlackHole;
 
-#define DYNAMIC_DISPATCH(TYPE, DISCRIMINANT, VECTOR) \
-case DISCRIMINANT:                                   \
-    TYPE##Ref(*this).bindVars(es, env);              \
+#define DYNAMIC_DISPATCH_CASE(TYPE, DISCRIMINANT, VECTOR, FUN) \
+case DISCRIMINANT:                                             \
+    TYPE##Ref(*this).FUN;                                      \
     break;
+#define DYNAMIC_DISPATCH(FUN)                            \
+switch((Type) (ref >> 24)) {                             \
+NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH_CASE, FUN)            \
+DYNAMIC_DISPATCH_CASE(ExprVar, teVar, vars, FUN)         \
+DYNAMIC_DISPATCH_CASE(ExprBlackHole, teBlackHole, , FUN) \
+}
 
 void ExprRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
-    switch((Type) (ref >> 24)) {
-    NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH)
-    DYNAMIC_DISPATCH(ExprVar, teVar, vars)
-    DYNAMIC_DISPATCH(ExprBlackHole, teBlackHole, )
-    }
+DYNAMIC_DISPATCH(bindVars(es, env))
 }
+
+void ExprRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+{
+DYNAMIC_DISPATCH(show(exprs, values, symbols, str))
+}
+
+void ExprInheritFromRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+{
+    ExprVarRef(*this).show(exprs, values, symbols, str);
+}
+
+void ExprBlackHoleRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+{
+    unreachable();
+}
+
 
 void ExprBlackHoleRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
@@ -146,53 +164,61 @@ std::ostream & operator<<(std::ostream & str, const Symbol & symbol)
     return printIdentifier(str, s);
 }
 
-void Expr::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
-{
-    unreachable();
+#define NIX_BINOP_SHOW(TYPE, STRING)                                                                        \
+void TYPE##Ref::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const \
+{                                                                                                           \
+    str << "(";                                                                                             \
+    exprs.ERtoEP(*this)->e1.show(exprs, values, symbols, str);                                              \
+    str << " " STRING " ";                                                                                  \
+    exprs.ERtoEP(*this)->e2.show(exprs, values, symbols, str);                                              \
+    str << ")";                                                                                             \
 }
 
-void ExprInt::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+NIX_FOR_EACH_BINOP(NIX_BINOP_SHOW)
+#undef NIX_BINOP_SHOW
+
+void ExprIntRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << v.integer(values);
+    str << exprs.ERtoEP(*this)->v.integer(values);
 }
 
-void ExprFloat::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprFloatRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << v.fpoint(values);
+    str << exprs.ERtoEP(*this)->v.fpoint(values);
 }
 
-void ExprString::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprStringRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    printLiteralString(str, s);
+    printLiteralString(str, exprs.ERtoEP(*this)->s);
 }
 
-void ExprPath::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprPathRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << s;
+    str << exprs.ERtoEP(*this)->s;
 }
 
-void ExprVar::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprVarRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << symbols[name];
+    str << symbols[exprs.ERtoEP(*this)->name];
 }
 
-void ExprSelect::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprSelectRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(";
-    exprs.ERtoEP(e)->show(exprs, values, symbols, str);
-    str << ")." << showAttrPath(exprs, values, symbols, attrPath);
-    if (def) {
+    exprs.ERtoEP(*this)->e.show(exprs, values, symbols, str);
+    str << ")." << showAttrPath(exprs, values, symbols, exprs.ERtoEP(*this)->attrPath);
+    if (exprs.ERtoEP(*this)->def) {
         str << " or (";
-        exprs.ERtoEP(def)->show(exprs, values, symbols, str);
+        exprs.ERtoEP(*this)->def.show(exprs, values, symbols, str);
         str << ")";
     }
 }
 
-void ExprOpHasAttr::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprOpHasAttrRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "((";
-    exprs.ERtoEP(e)->show(exprs, values, symbols, str);
-    str << ") ? " << showAttrPath(exprs, values, symbols, attrPath) << ")";
+    exprs.ERtoEP(*this)->e.show(exprs, values, symbols, str);
+    str << ") ? " << showAttrPath(exprs, values, symbols, exprs.ERtoEP(*this)->attrPath) << ")";
 }
 
 void ExprAttrs::showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
@@ -232,7 +258,7 @@ void ExprAttrs::showBindings(Exprs & exprs, Values & values, const SymbolTable &
     }
     for (const auto & [from, syms] : inheritsFrom) {
         str << "inherit (";
-        exprs.ERtoEP((*inheritFromExprs)[from])->show(exprs, values, symbols, str);
+        (*inheritFromExprs)[from].show(exprs, values, symbols, str);
         str << ")";
         for (auto sym : syms)
             str << " " << symbols[sym];
@@ -241,49 +267,49 @@ void ExprAttrs::showBindings(Exprs & exprs, Values & values, const SymbolTable &
     for (auto & i : sorted) {
         if (i->second.kind == AttrDef::Kind::Plain) {
             str << symbols[i->first] << " = ";
-            exprs.ERtoEP(i->second.e)->show(exprs, values, symbols, str);
+            i->second.e.show(exprs, values, symbols, str);
             str << "; ";
         }
     }
     for (auto & i : dynamicAttrs) {
         str << "\"${";
-        exprs.ERtoEP(i.nameExpr)->show(exprs, values, symbols, str);
+        i.nameExpr.show(exprs, values, symbols, str);
         str << "}\" = ";
-        exprs.ERtoEP(i.valueExpr)->show(exprs, values, symbols, str);
+        i.valueExpr.show(exprs, values, symbols, str);
         str << "; ";
     }
 }
 
-void ExprAttrs::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprAttrsRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    if (recursive)
+    if (exprs.ERtoEP(*this)->recursive)
         str << "rec ";
     str << "{ ";
-    showBindings(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->showBindings(exprs, values, symbols, str);
     str << "}";
 }
 
-void ExprList::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprListRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "[ ";
-    for (auto & i : elems) {
+    for (auto & i : exprs.ERtoEP(*this)->elems) {
         str << "(";
-        exprs.ERtoEP(i)->show(exprs, values, symbols, str);
+        i.show(exprs, values, symbols, str);
         str << ") ";
     }
     str << "]";
 }
 
-void ExprLambda::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprLambdaRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(";
-    if (hasFormals()) {
+    if (exprs.ERtoEP(*this)->hasFormals()) {
         str << "{ ";
         bool first = true;
         // the natural Symbol ordering is by creation time, which can lead to the
         // same expression being printed in two different ways depending on its
         // context. always use lexicographic ordering to avoid this.
-        for (auto & i : formals->lexicographicOrder(symbols)) {
+        for (auto & i : exprs.ERtoEP(*this)->formals->lexicographicOrder(symbols)) {
             if (first)
                 first = false;
             else
@@ -291,95 +317,95 @@ void ExprLambda::show(Exprs & exprs, Values & values, const SymbolTable & symbol
             str << symbols[i.name];
             if (i.def) {
                 str << " ? ";
-                exprs.ERtoEP(i.def)->show(exprs, values, symbols, str);
+                i.def.show(exprs, values, symbols, str);
             }
         }
-        if (formals->ellipsis) {
+        if (exprs.ERtoEP(*this)->formals->ellipsis) {
             if (!first)
                 str << ", ";
             str << "...";
         }
         str << " }";
-        if (arg)
+        if (exprs.ERtoEP(*this)->arg)
             str << " @ ";
     }
-    if (arg)
-        str << symbols[arg];
+    if (exprs.ERtoEP(*this)->arg)
+        str << symbols[exprs.ERtoEP(*this)->arg];
     str << ": ";
-    exprs.ERtoEP(body)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->body.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprCall::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprCallRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << '(';
-    exprs.ERtoEP(fun)->show(exprs, values, symbols, str);
-    for (auto e : args) {
+    exprs.ERtoEP(*this)->fun.show(exprs, values, symbols, str);
+    for (auto e : exprs.ERtoEP(*this)->args) {
         str << ' ';
-        exprs.ERtoEP(e)->show(exprs, values, symbols, str);
+        e.show(exprs, values, symbols, str);
     }
     str << ')';
 }
 
-void ExprLet::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprLetRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(let ";
-    exprs.ERtoEP(attrs)->showBindings(exprs, values, symbols, str);
+    exprs.ERtoEP(exprs.ERtoEP(*this)->attrs)->showBindings(exprs, values, symbols, str);
     str << "in ";
-    exprs.ERtoEP(body)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->body.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprWith::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprWithRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(with ";
-    exprs.ERtoEP(attrs)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->attrs.show(exprs, values, symbols, str);
     str << "; ";
-    exprs.ERtoEP(body)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->body.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprIf::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprIfRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(if ";
-    exprs.ERtoEP(cond)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->cond.show(exprs, values, symbols, str);
     str << " then ";
-    exprs.ERtoEP(then)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->then.show(exprs, values, symbols, str);
     str << " else ";
-    exprs.ERtoEP(else_)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->else_.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprAssert::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprAssertRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "assert ";
-    exprs.ERtoEP(cond)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->cond.show(exprs, values, symbols, str);
     str << "; ";
-    exprs.ERtoEP(body)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->body.show(exprs, values, symbols, str);
 }
 
-void ExprOpNot::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprOpNotRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(! ";
-    exprs.ERtoEP(e)->show(exprs, values, symbols, str);
+    exprs.ERtoEP(*this)->e.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprConcatStrings::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprConcatStringsRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     bool first = true;
     str << "(";
-    for (auto & i : *es) {
+    for (auto & i : *exprs.ERtoEP(*this)->es) {
         if (first)
             first = false;
         else
             str << " + ";
-        exprs.ERtoEP(i.second)->show(exprs, values, symbols, str);
+        i.second.show(exprs, values, symbols, str);
     }
     str << ")";
 }
 
-void ExprPos::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+void ExprPosRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "__curPos";
 }
@@ -397,7 +423,7 @@ std::string showAttrPath(Exprs & exprs, Values & values, const SymbolTable & sym
             out << symbols[i.symbol];
         else {
             out << "\"${";
-            exprs.ERtoEP(i.expr)->show(exprs, values, symbols, out);
+            i.expr.show(exprs, values, symbols, out);
             out << "}\"";
         }
     }
