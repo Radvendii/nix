@@ -98,7 +98,6 @@ struct Expr
 
     virtual ~Expr() {};
     virtual void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
-    virtual void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     virtual void eval(EvalState & state, EnvRef env, ValueRef v);
     virtual ValueRef maybeThunk(EvalState & state, EnvRef env);
     virtual void setName(Exprs & exprs, SymbolRef name);
@@ -116,8 +115,7 @@ struct Expr
 
 #define COMMON_METHODS                                                                                         \
     void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const override; \
-    void eval(EvalState & state, EnvRef env, ValueRef v) override;                                             \
-    void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override;
+    void eval(EvalState & state, EnvRef env, ValueRef v) override;
 
 struct ExprInt : Expr
 {
@@ -217,8 +215,6 @@ struct ExprInheritFrom : ExprVar
         this->displ = displ;
         this->fromWith = ExprWithRef::null;
     }
-
-    void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override;
 };
 
 struct ExprSelect : Expr
@@ -567,7 +563,6 @@ struct ExprOpNot : Expr
             exprs.ERtoEP(e2)->show(exprs, values, symbols, str);                                     \
             str << ")";                                                                              \
         }                                                                                            \
-        void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override;        \
         void eval(EvalState & state, EnvRef env, ValueRef v) override;                               \
         PosIdx getPos(Exprs & exprs) const override                                                  \
         {                                                                                            \
@@ -616,8 +611,6 @@ struct ExprBlackHole : Expr
     void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const override {}
 
     void eval(EvalState & state, EnvRef env, ValueRef v) override;
-
-    void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) override {}
 
     [[noreturn]] static void throwInfiniteRecursionError(EvalState & state, ValueRef v);
 };

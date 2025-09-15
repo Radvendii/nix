@@ -121,6 +121,7 @@ struct ExprRef;
 struct Expr;
 struct ExprLambdaRef;
 struct ExprBlackHole;
+struct StaticEnv;
 struct PrimOp;
 class SymbolRef;
 class Symbol;
@@ -416,7 +417,7 @@ struct ExprRef {
     uint32_t ref;
 
     constexpr explicit ExprRef(Type type, uint32_t idx)
-        : ref((type << 24) + idx)
+        : ref((type << 24) | idx)
     {
         // XXX [speed]: better error messaging
         if (idx > 0x00FFFFFF) [[unlikely]]
@@ -437,10 +438,10 @@ struct ExprRef {
 
     template<typename T>
     inline T dyn_cast() const noexcept;
+    void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
 };
 
 
-// XXX [speed]: addd error reporting like in ExprRef
 // XXX [speed]: should this be defined using templates e.g. ExprRef<ExprWith> or ExprRef<teWith>?
 // XXX [speed]: the ExprRef constructor should not be publicly accessible
 #define COMMON_DEFS(TYPE, DISCRIMINANT)                                       \
@@ -449,7 +450,7 @@ static TYPE##Ref null;                                                        \
 uint32_t ref;                                                                 \
                                                                               \
 constexpr explicit TYPE##Ref(uint32_t idx)                                    \
-    : ref((DISCRIMINANT << 24) + idx) {}                                      \
+    : TYPE##Ref(ExprRef(DISCRIMINANT, idx)) {}                                \
                                                                               \
 constexpr explicit TYPE##Ref(ExprRef ref)                                     \
     : ref(ref.ref) {}                                                         \
@@ -464,7 +465,9 @@ constexpr auto operator<=>(const TYPE##Ref & other) const noexcept = default; \
 operator ExprRef() noexcept                                                   \
 {                                                                             \
     return ExprRef(ref);                                                      \
-}
+}                                                                             \
+                                                                              \
+void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
 
 struct ExprWithRef {
     public:

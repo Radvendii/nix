@@ -464,7 +464,7 @@ TEST_F(ValuePrintingTests, ansiColorsDerivationError)
 TEST_F(ValuePrintingTests, ansiColorsAssert)
 {
     ExprVarRef eFalse = state.exprs.addExprVar(state.symbols.create("false"));
-    state.exprs.ERtoEP(eFalse)->bindVars(state, state.staticBaseEnv);
+    eFalse.bindVars(state, state.staticBaseEnv);
     ExprIntRef eInt = state.exprs.addExprInt(state.values, 1);
 
     ExprAssertRef expr = state.exprs.addExprAssert(noPos, eFalse, eInt);

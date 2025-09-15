@@ -1234,11 +1234,11 @@ Value ValueRef::toStack(Values & values) const
     }
     return ret;
 }
-#define NIX_BIND_VARS_DEF(BINOP)                                                   \
-void BINOP::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) \
-{                                                                                  \
-    es.exprs.ERtoEP(e1)->bindVars(es, env);                                        \
-    es.exprs.ERtoEP(e2)->bindVars(es, env);                                        \
+#define NIX_BIND_VARS_DEF(BINOP)                                                        \
+void BINOP##Ref::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env) \
+{                                                                                       \
+    es.exprs.ERtoEP(*this)->e1.bindVars(es, env);                                       \
+    es.exprs.ERtoEP(*this)->e2.bindVars(es, env);                                       \
 }
 NIX_BIND_VARS_DEF(ExprOpEq) NIX_BIND_VARS_DEF(ExprOpNEq) NIX_BIND_VARS_DEF(ExprOpAnd) NIX_BIND_VARS_DEF(ExprOpOr)
     NIX_BIND_VARS_DEF(ExprOpImpl) NIX_BIND_VARS_DEF(ExprOpUpdate) NIX_BIND_VARS_DEF(ExprOpConcatLists)
@@ -3554,7 +3554,7 @@ ExprRef EvalState::parse(
     auto result = parseExprFromBuf(
         text, length, origin, basePath, symbols, settings, values, exprs, positions, *docComments, rootFS, exprSymbols);
 
-    exprs.ERtoEP(result)->bindVars(*this, staticEnv);
+    result.bindVars(*this, staticEnv);
 
     return result;
 }

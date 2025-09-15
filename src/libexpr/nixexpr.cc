@@ -16,6 +16,24 @@ unsigned long Expr::nrExprs = 0;
 
 ExprBlackHole eBlackHole;
 
+#define DYNAMIC_DISPATCH(TYPE, DISCRIMINANT, VECTOR) \
+case DISCRIMINANT:                                   \
+    TYPE##Ref(*this).bindVars(es, env);              \
+    break;
+
+void ExprRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+{
+    switch((Type) (ref >> 24)) {
+    NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH)
+    DYNAMIC_DISPATCH(ExprVar, teVar, vars)
+    DYNAMIC_DISPATCH(ExprBlackHole, teBlackHole, )
+    }
+}
+
+void ExprBlackHoleRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+{
+    unreachable();
+}
 
 Exprs::Exprs() {
 #define NIX_EXPR_RESERVE(TYPE, DISCRIMINANT, VECTOR) \
@@ -388,41 +406,36 @@ std::string showAttrPath(Exprs & exprs, Values & values, const SymbolTable & sym
 
 /* Computing levels/displacements for variables. */
 
-void Expr::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
-{
-    unreachable();
-}
-
-void ExprInt::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprIntRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprFloat::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprFloatRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprString::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprStringRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprPath::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprPathRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprVar::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprVarRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    fromWith = ExprWithRef::null;
+    es.exprs.ERtoEP(*this)->fromWith = ExprWithRef::null;
 
     /* Check whether the variable appears in the environment.  If so,
        set its level and displacement. */
@@ -434,10 +447,10 @@ void ExprVar::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & 
             if (withLevel == -1)
                 withLevel = level;
         } else {
-            auto i = curEnv->find(name);
+            auto i = curEnv->find(es.exprs.ERtoEP(*this)->name);
             if (i != curEnv->vars.end()) {
-                this->level = level;
-                displ = i->second;
+                es.exprs.ERtoEP(*this)->level = level;
+                es.exprs.ERtoEP(*this)->displ = i->second;
                 return;
             }
         }
@@ -447,40 +460,40 @@ void ExprVar::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & 
        enclosing `with'.  If there is no `with', then we can issue an
        "undefined variable" error now. */
     if (withLevel == -1)
-        es.error<UndefinedVarError>("undefined variable '%1%'", es.symbols[name]).atPos(pos).debugThrow();
-    for (auto * e = env.get(); e && !fromWith; e = e->up.get())
-        fromWith = e->isWith;
-    this->level = withLevel;
+        es.error<UndefinedVarError>("undefined variable '%1%'", es.symbols[es.exprs.ERtoEP(*this)->name]).atPos(es.exprs.ERtoEP(*this)->pos).debugThrow();
+    for (auto * e = env.get(); e && !es.exprs.ERtoEP(*this)->fromWith; e = e->up.get())
+        es.exprs.ERtoEP(*this)->fromWith = e->isWith;
+    es.exprs.ERtoEP(*this)->level = withLevel;
 }
 
-void ExprInheritFrom::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprInheritFromRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprSelect::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprSelectRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(e)->bindVars(es, env);
-    if (def)
-        es.exprs.ERtoEP(def)->bindVars(es, env);
-    for (auto & i : attrPath)
+    es.exprs.ERtoEP(*this)->e.bindVars(es, env);
+    if (es.exprs.ERtoEP(*this)->def)
+        es.exprs.ERtoEP(*this)->def.bindVars(es, env);
+    for (auto & i : es.exprs.ERtoEP(*this)->attrPath)
         if (!i.symbol)
-            es.exprs.ERtoEP(i.expr)->bindVars(es, env);
+            i.expr.bindVars(es, env);
 }
 
-void ExprOpHasAttr::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprOpHasAttrRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(e)->bindVars(es, env);
-    for (auto & i : attrPath)
+    es.exprs.ERtoEP(*this)->e.bindVars(es, env);
+    for (auto & i : es.exprs.ERtoEP(*this)->attrPath)
         if (!i.symbol)
-            es.exprs.ERtoEP(i.expr)->bindVars(es, env);
+            i.expr.bindVars(es, env);
 }
 
 std::shared_ptr<const StaticEnv>
@@ -499,184 +512,184 @@ ExprAttrs::bindInheritSources(EvalState & es, const std::shared_ptr<const Static
     // invisible, but the evaluator does not allow for this yet.
     auto inner = std::make_shared<StaticEnv>(ExprWithRef::null, env, 0);
     for (auto from : *inheritFromExprs)
-        es.exprs.ERtoEP(from)->bindVars(es, env);
+        from.bindVars(es, env);
 
     return inner;
 }
 
-void ExprAttrs::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprAttrsRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    if (recursive) {
+    if (es.exprs.ERtoEP(*this)->recursive) {
         auto newEnv = [&]() -> std::shared_ptr<const StaticEnv> {
-            auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, attrs.size());
+            auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, es.exprs.ERtoEP(*this)->attrs.size());
 
             Displacement displ = 0;
-            for (auto & i : attrs)
+            for (auto & i : es.exprs.ERtoEP(*this)->attrs)
                 newEnv->vars.emplace_back(i.first, i.second.displ = displ++);
             return newEnv;
         }();
 
         // No need to sort newEnv since attrs is in sorted order.
 
-        auto inheritFromEnv = bindInheritSources(es, newEnv);
-        for (auto & i : attrs)
-            es.exprs.ERtoEP(i.second.e)->bindVars(es, i.second.chooseByKind(newEnv, env, inheritFromEnv));
+        auto inheritFromEnv = es.exprs.ERtoEP(*this)->bindInheritSources(es, newEnv);
+        for (auto & i : es.exprs.ERtoEP(*this)->attrs)
+            i.second.e.bindVars(es, i.second.chooseByKind(newEnv, env, inheritFromEnv));
 
-        for (auto & i : dynamicAttrs) {
-            es.exprs.ERtoEP(i.nameExpr)->bindVars(es, newEnv);
-            es.exprs.ERtoEP(i.valueExpr)->bindVars(es, newEnv);
+        for (auto & i : es.exprs.ERtoEP(*this)->dynamicAttrs) {
+            i.nameExpr.bindVars(es, newEnv);
+            i.valueExpr.bindVars(es, newEnv);
         }
     } else {
-        auto inheritFromEnv = bindInheritSources(es, env);
+        auto inheritFromEnv = es.exprs.ERtoEP(*this)->bindInheritSources(es, env);
 
-        for (auto & i : attrs)
-            es.exprs.ERtoEP(i.second.e)->bindVars(es, i.second.chooseByKind(env, env, inheritFromEnv));
+        for (auto & i : es.exprs.ERtoEP(*this)->attrs)
+            i.second.e.bindVars(es, i.second.chooseByKind(env, env, inheritFromEnv));
 
-        for (auto & i : dynamicAttrs) {
-            es.exprs.ERtoEP(i.nameExpr)->bindVars(es, env);
-            es.exprs.ERtoEP(i.valueExpr)->bindVars(es, env);
+        for (auto & i : es.exprs.ERtoEP(*this)->dynamicAttrs) {
+            i.nameExpr.bindVars(es, env);
+            i.valueExpr.bindVars(es, env);
         }
     }
 }
 
-void ExprList::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprListRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    for (auto & i : elems)
-        es.exprs.ERtoEP(i)->bindVars(es, env);
+    for (auto & i : es.exprs.ERtoEP(*this)->elems)
+        i.bindVars(es, env);
 }
 
-void ExprLambda::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprLambdaRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
     auto newEnv =
-        std::make_shared<StaticEnv>(ExprWithRef::null, env, (hasFormals() ? formals->formals.size() : 0) + (!arg ? 0 : 1));
+        std::make_shared<StaticEnv>(ExprWithRef::null, env, (es.exprs.ERtoEP(*this)->hasFormals() ? es.exprs.ERtoEP(*this)->formals->formals.size() : 0) + (!es.exprs.ERtoEP(*this)->arg ? 0 : 1));
 
     Displacement displ = 0;
 
-    if (arg)
-        newEnv->vars.emplace_back(arg, displ++);
+    if (es.exprs.ERtoEP(*this)->arg)
+        newEnv->vars.emplace_back(es.exprs.ERtoEP(*this)->arg, displ++);
 
-    if (hasFormals()) {
-        for (auto & i : formals->formals)
+    if (es.exprs.ERtoEP(*this)->hasFormals()) {
+        for (auto & i : es.exprs.ERtoEP(*this)->formals->formals)
             newEnv->vars.emplace_back(i.name, displ++);
 
         newEnv->sort();
 
-        for (auto & i : formals->formals)
+        for (auto & i : es.exprs.ERtoEP(*this)->formals->formals)
             if (i.def)
-                es.exprs.ERtoEP(i.def)->bindVars(es, newEnv);
+                i.def.bindVars(es, newEnv);
     }
 
-    es.exprs.ERtoEP(body)->bindVars(es, newEnv);
+    es.exprs.ERtoEP(*this)->body.bindVars(es, newEnv);
 }
 
-void ExprCall::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprCallRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(fun)->bindVars(es, env);
-    for (auto e : args)
-        es.exprs.ERtoEP(e)->bindVars(es, env);
+    es.exprs.ERtoEP(*this)->fun.bindVars(es, env);
+    for (auto e : es.exprs.ERtoEP(*this)->args)
+        e.bindVars(es, env);
 }
 
-void ExprLet::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprLetRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     auto newEnv = [&]() -> std::shared_ptr<const StaticEnv> {
-        auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, es.exprs.ERtoEP(attrs)->attrs.size());
+        auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, es.exprs.ERtoEP(es.exprs.ERtoEP(*this)->attrs)->attrs.size());
 
         Displacement displ = 0;
-        for (auto & i : es.exprs.ERtoEP(attrs)->attrs)
+        for (auto & i : es.exprs.ERtoEP(es.exprs.ERtoEP(*this)->attrs)->attrs)
             newEnv->vars.emplace_back(i.first, i.second.displ = displ++);
         return newEnv;
     }();
 
     // No need to sort newEnv since attrs->attrs is in sorted order.
 
-    auto inheritFromEnv = es.exprs.ERtoEP(attrs)->bindInheritSources(es, newEnv);
-    for (auto & i : es.exprs.ERtoEP(attrs)->attrs)
-        es.exprs.ERtoEP(i.second.e)->bindVars(es, i.second.chooseByKind(newEnv, env, inheritFromEnv));
+    auto inheritFromEnv = es.exprs.ERtoEP(es.exprs.ERtoEP(*this)->attrs)->bindInheritSources(es, newEnv);
+    for (auto & i : es.exprs.ERtoEP(es.exprs.ERtoEP(*this)->attrs)->attrs)
+        i.second.e.bindVars(es, i.second.chooseByKind(newEnv, env, inheritFromEnv));
 
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), newEnv));
+        es.exprEnvs.insert(std::make_pair(*this, newEnv));
 
-    es.exprs.ERtoEP(body)->bindVars(es, newEnv);
+    es.exprs.ERtoEP(*this)->body.bindVars(es, newEnv);
 }
 
-void ExprWith::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprWithRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    parentWith = ExprWithRef::null;
-    for (auto * e = env.get(); e && !parentWith; e = e->up.get())
-        parentWith = e->isWith;
+    es.exprs.ERtoEP(*this)->parentWith = ExprWithRef::null;
+    for (auto * e = env.get(); e && !es.exprs.ERtoEP(*this)->parentWith; e = e->up.get())
+        es.exprs.ERtoEP(*this)->parentWith = e->isWith;
 
     /* Does this `with' have an enclosing `with'?  If so, record its
        level so that `lookupVar' can look up variables in the previous
        `with' if this one doesn't contain the desired attribute. */
     const StaticEnv * curEnv;
     Level level;
-    prevWith = 0;
+    es.exprs.ERtoEP(*this)->prevWith = 0;
     for (curEnv = env.get(), level = 1; curEnv; curEnv = curEnv->up.get(), level++)
         if (curEnv->isWith) {
-            prevWith = level;
+            es.exprs.ERtoEP(*this)->prevWith = level;
             break;
         }
 
-    es.exprs.ERtoEP(attrs)->bindVars(es, env);
-    auto newEnv = std::make_shared<StaticEnv>(es.exprs.EPtoER(this), env);
-    es.exprs.ERtoEP(body)->bindVars(es, newEnv);
+    es.exprs.ERtoEP(*this)->attrs.bindVars(es, env);
+    auto newEnv = std::make_shared<StaticEnv>(*this, env);
+    es.exprs.ERtoEP(*this)->body.bindVars(es, newEnv);
 }
 
-void ExprIf::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprIfRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(cond)->bindVars(es, env);
-    es.exprs.ERtoEP(then)->bindVars(es, env);
-    es.exprs.ERtoEP(else_)->bindVars(es, env);
+    es.exprs.ERtoEP(*this)->cond.bindVars(es, env);
+    es.exprs.ERtoEP(*this)->then.bindVars(es, env);
+    es.exprs.ERtoEP(*this)->else_.bindVars(es, env);
 }
 
-void ExprAssert::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprAssertRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(cond)->bindVars(es, env);
-    es.exprs.ERtoEP(body)->bindVars(es, env);
+    es.exprs.ERtoEP(*this)->cond.bindVars(es, env);
+    es.exprs.ERtoEP(*this)->body.bindVars(es, env);
 }
 
-void ExprOpNot::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprOpNotRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(e)->bindVars(es, env);
+    es.exprs.ERtoEP(*this)->e.bindVars(es, env);
 }
 
-void ExprConcatStrings::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprConcatStringsRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 
-    for (auto & i : *this->es)
-        es.exprs.ERtoEP(i.second)->bindVars(es, env);
+    for (auto & i : *es.exprs.ERtoEP(*this)->es)
+        i.second.bindVars(es, env);
 }
 
-void ExprPos::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+void ExprPosRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
-        es.exprEnvs.insert(std::make_pair(es.exprs.EPtoER(this), env));
+        es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
 /* Storing function names. */
