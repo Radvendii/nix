@@ -21,6 +21,7 @@ Exprs::Exprs() {
 #define NIX_EXPR_RESERVE(TYPE, DISCRIMINANT, VECTOR) \
 VECTOR.reserve(1000000);
     NIX_FOR_EACH_EXPR(NIX_EXPR_RESERVE)
+NIX_EXPR_RESERVE(ExprVar, teVar, vars)
 #undef NIX_EXPR_RESERVE
 }
 ExprCallRef Exprs::addExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args)
@@ -46,6 +47,15 @@ TYPE * Exprs::ERtoEP(TYPE##Ref ref) {               \
     NIX_FOR_EACH_EXPR(NIX_DEFINE_GET)
 #undef NIX_DEFINE_GET
 
+ExprVar * Exprs::ERtoEP(ExprVarRef ref) {
+    auto type = (Type) (ref.ref >> 24);
+    if (type == teVar)
+        return &vars[ref.ref & 0x00FFFFFF];
+    if (type == teInheritFrom)
+        return &inheritFroms[ref.ref & 0x00FFFFFF];
+    unreachable();
+}
+
 ExprBlackHole * Exprs::ERtoEP(ExprBlackHoleRef ref) {
     assert((Type) (ref.ref >> 24) == teBlackHole);
     return &eBlackHole;
@@ -62,6 +72,7 @@ if (!VECTOR.empty() && p >= &VECTOR.front() && p <= &VECTOR.back()) { \
     return TYPE##Ref((TYPE *)p - &VECTOR.front());                    \
 }
 NIX_FOR_EACH_EXPR(NIX_EXPR_LOOK_FOR_POINTER)
+NIX_EXPR_LOOK_FOR_POINTER(ExprVar, teVar, vars)
 #undef NIX_EXPR_LOOK_FOR_POINTER
 // this would mean this is pointing to an Expr outside this struct
 unreachable();
@@ -76,6 +87,18 @@ TYPE##Ref Exprs::EPtoER(TYPE * p) { \
 NIX_FOR_EACH_EXPR(NIX_EXPR_EPTOER)
 #undef NIX_EXPR_EPTOER
 
+// ExprVar must be different because ExprInheritFrom is a subtype
+ExprVarRef Exprs::EPtoER(ExprVar * p) {
+    if (!p)
+        return ExprVarRef::null;
+    if (!vars.empty() && p >= &vars.front() && p <= &vars.back())
+        return ExprVarRef(p - &vars.front());
+    if (!inheritFroms.empty() && p >= &inheritFroms.front() && p <= &inheritFroms.back())
+        return ExprInheritFromRef((ExprInheritFrom *)p - &inheritFroms.front());
+
+    unreachable();
+}
+
 Expr * Exprs::ERtoEP(ExprRef ref) {
     if (!ref)
         return nullptr;
@@ -84,6 +107,7 @@ Expr * Exprs::ERtoEP(ExprRef ref) {
     case DISCRIMINANT:                                      \
         return &VECTOR[ref.ref & 0x00FFFFFF];
     NIX_FOR_EACH_EXPR(NIX_EXPR_SWITCH_GET_REF)
+    NIX_EXPR_SWITCH_GET_REF(ExprVar, teVar, vars)
 #undef NIX_EXPR_SWITCH_GET_REF
     case teBlackHole:
         return &eBlackHole;

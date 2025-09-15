@@ -379,7 +379,6 @@ enum Type : uint8_t {
 MACRO(ExprWith, teWith, withs)                            \
 MACRO(ExprLet, teLet, lets)                               \
 MACRO(ExprIf, teIf, ifs)                                  \
-MACRO(ExprVar, teVar, vars)                               \
 MACRO(ExprAttrs, teAttrs, attrss)                         \
 MACRO(ExprCall, teCall, calls)                            \
 MACRO(ExprFloat, teFloat, floats)                         \
@@ -402,6 +401,8 @@ MACRO(ExprOpOr, teOpOr, opOrs)                            \
 MACRO(ExprOpImpl, teOpImpl, opImpls)                      \
 MACRO(ExprOpUpdate, teOpUpdate, opUpdates)                \
 MACRO(ExprInheritFrom, teInheritFrom, inheritFroms)
+// XXX [speed]: ExprVar has to be treated separately because it has its own subtype ExprInheritFrom
+// MACRO(ExprVar, teVar, vars)
 // XXX [speed]: ExprBlackHole behaves differently than all the rest and must be special-cased.
 // MACRO(ExprBlackHole, teBlackHole, blackHoles)
 
@@ -473,6 +474,38 @@ NIX_FOR_EACH_EXPR(NIX_EXPR_REF)
 NIX_EXPR_REF(ExprBlackHole, teBlackHole, )
 #undef NIX_EXPR_REF
 
+struct ExprVarRef {
+    public:
+    ExprVarRef() = default;
+
+    static ExprVarRef null;
+    uint32_t ref;
+
+    constexpr explicit ExprVarRef(uint32_t idx)
+        : ref((teVar << 24) + idx)
+    {
+    }
+    constexpr ExprVarRef(ExprInheritFromRef ref)
+        :ref(ref.ref)
+    {
+    }
+    constexpr explicit ExprVarRef(ExprRef ref)
+        : ref(ref.ref)
+    {
+    }
+
+    [[gnu::always_inline]]
+    constexpr explicit operator bool() const noexcept {
+        return ref;
+    }
+
+    constexpr auto operator<=>(const ExprVarRef & other) const noexcept = default;
+    operator ExprRef() noexcept
+    {
+        return ExprRef(ref);
+    }
+};
+
 // XXX [speed]: return here does unnecessary conversion back and forth
 #define NIX_DYN_CAST(TYPE, DISCRIMINANT, VECTOR)      \
 template<>                                            \
@@ -484,10 +517,19 @@ inline TYPE##Ref ExprRef::dyn_cast() const noexcept { \
     NIX_FOR_EACH_EXPR(NIX_DYN_CAST)
     NIX_DYN_CAST(ExprBlackHole, teBlackHole, )
 #undef NIX_DYN_CAST
+template<>
+inline ExprVarRef ExprRef::dyn_cast() const noexcept {
+    if (Type (ref >> 24) == teVar)
+        return ExprVarRef(ref & 0x00FFFFFF);
+    if (Type (ref >> 24) == teInheritFrom)
+        return ExprInheritFromRef(ref & 0x00FFFFFF);
+    return ExprVarRef::null;
+}
 
 #define NIX_PREDECL_TYPE(TYPE, DISCRIMINANT, VECTOR) \
 struct TYPE;
 NIX_FOR_EACH_EXPR(NIX_PREDECL_TYPE)
+NIX_PREDECL_TYPE(ExprVar, teVar, vars)
 NIX_PREDECL_TYPE(ExprlackHole, teBlackHole, )
 #undef NIX_PREDECL_TYPE
 
@@ -498,6 +540,7 @@ struct Exprs {
 #define NIX_DEFINE_VEC(TYPE, DISCRIMINANT, VECTOR) \
 std::vector<TYPE> VECTOR;
     NIX_FOR_EACH_EXPR(NIX_DEFINE_VEC)
+    NIX_DEFINE_VEC(ExprVar, teVar, vars)
 // No blackHoles vector!
 #undef NIX_DEFINE_VEC
 
@@ -508,17 +551,20 @@ ExprCallRef addExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> &&
 #define NIX_DECLARE_ADD(TYPE, DISCRIMINANT, VECTOR) \
 TYPE##Ref add##TYPE(auto && ...args);
     NIX_FOR_EACH_EXPR(NIX_DECLARE_ADD)
+    NIX_DECLARE_ADD(ExprVar, teVar, vars)
 #undef NIX_DECLARE_ADD
 // No addExprBlackHole()!
 
 #define NIX_DECLARE_GET(TYPE, DISCRIMINANT, VECTOR) \
 TYPE * ERtoEP(TYPE##Ref ref);
     NIX_FOR_EACH_EXPR(NIX_DECLARE_GET)
+    NIX_DECLARE_GET(ExprVar, teVar, vars)
     NIX_DECLARE_GET(ExprBlackHole, teBlackhole, )
 #undef NIX_DECLARE_GET
 #define NIX_DECLARE_EPTOER(TYPE, DISCRIMINANT, VECTOR) \
 TYPE##Ref EPtoER(TYPE * ref);
     NIX_FOR_EACH_EXPR(NIX_DECLARE_EPTOER)
+    NIX_DECLARE_EPTOER(ExprVar, teVar, vars)
 #undef NIX_DECLARE_EPTOER
 
     ExprRef EPtoER(Expr * p);

@@ -679,6 +679,7 @@ if(VECTOR.size() > 999000)                                  \
 return TYPE##Ref(VECTOR.size() - 1);                        \
 }
 NIX_FOR_EACH_EXPR(NIX_DEFINE_ADD)
+NIX_DEFINE_ADD(ExprVar, teVar, vars)
 #undef NIX_DEFINE_ADD
 // No addExprBlackHole!
 } // namespace nix

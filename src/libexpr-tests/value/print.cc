@@ -463,14 +463,14 @@ TEST_F(ValuePrintingTests, ansiColorsDerivationError)
 
 TEST_F(ValuePrintingTests, ansiColorsAssert)
 {
-    ExprVar & eFalse = *state.exprs.ERtoEP(state.exprs.addExprVar(state.symbols.create("false")));
-    eFalse.bindVars(state, state.staticBaseEnv);
-    ExprInt & eInt = *state.exprs.ERtoEP(state.exprs.addExprInt(state.values, 1));
+    ExprVarRef eFalse = state.exprs.addExprVar(state.symbols.create("false"));
+    state.exprs.ERtoEP(eFalse)->bindVars(state, state.staticBaseEnv);
+    ExprIntRef eInt = state.exprs.addExprInt(state.values, 1);
 
-    ExprAssert & expr = *state.exprs.ERtoEP(state.exprs.addExprAssert(noPos, state.exprs.EPtoER(&eFalse), state.exprs.EPtoER(&eInt)));
+    ExprAssertRef expr = state.exprs.addExprAssert(noPos, eFalse, eInt);
 
     Value v;
-    state.mkThunk_(v.ref(state.values), &expr);
+    state.mkThunk_(v.ref(state.values), expr);
 
     test(v, ANSI_RED "«error: assertion 'false' failed»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 }
