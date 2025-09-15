@@ -117,8 +117,9 @@ typedef enum {
 class Bindings;
 struct Env;
 class EnvRef;
+struct ExprRef;
 struct Expr;
-struct ExprLambda;
+struct ExprLambdaRef;
 struct ExprBlackHole;
 struct PrimOp;
 class SymbolRef;
@@ -217,9 +218,9 @@ class ValueRef {
     inline void mkAttrs(Values & values, Bindings * a) noexcept;
     void mkAttrs(Values & values, BindingsBuilder & bindings);
     void mkList(Values & values, const ListBuilder & builder) noexcept;
-    inline void mkThunk(Exprs & exprs, Values & values, EnvRef e, Expr * ex) noexcept;
+    inline void mkThunk(Exprs & exprs, Values & values, EnvRef e, ExprRef ex) noexcept;
     inline void mkApp(Values & values, ValueRef l, ValueRef r) noexcept;
-    inline void mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLambda * f) noexcept;
+    inline void mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLambdaRef f) noexcept;
     inline void mkBlackhole(Exprs & exprs, Values & values);
     void mkPrimOp(Values & values, PrimOp * p);
     inline void mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept;
@@ -565,6 +566,7 @@ TYPE * ERtoEP(TYPE##Ref ref);
 TYPE##Ref EPtoER(TYPE * ref);
     NIX_FOR_EACH_EXPR(NIX_DECLARE_EPTOER)
     NIX_DECLARE_EPTOER(ExprVar, teVar, vars)
+    NIX_DECLARE_EPTOER(ExprBlackHole, teBlackHole, )
 #undef NIX_DECLARE_EPTOER
 
     ExprRef EPtoER(Expr * p);
@@ -1194,9 +1196,9 @@ public:
         }
     }
 
-    inline void mkThunk(Exprs & exprs, EnvRef e, Expr * ex) noexcept
+    inline void mkThunk(Exprs & exprs, EnvRef e, ExprRef ex) noexcept
     {
-        setStorage(detail::ClosureThunk{.env = e, .expr = exprs.EPtoER(ex)});
+        setStorage(detail::ClosureThunk{.env = e, .expr = ex});
         nrThunk++;
     }
 
@@ -1207,9 +1209,9 @@ public:
     }
 
 
-    inline void mkLambda(Exprs & exprs, EnvRef e, ExprLambda * f) noexcept
+    inline void mkLambda(Exprs & exprs, EnvRef e, ExprLambdaRef f) noexcept
     {
-        setStorage(detail::Lambda{.env = e, .fun = exprs.EPtoER(f)});
+        setStorage(detail::Lambda{.env = e, .fun = f});
         nrLambda++;
     }
 
@@ -1355,7 +1357,7 @@ bool Value::isBlackhole(Exprs & exprs) const
 
 void Value::mkBlackhole(Exprs & exprs)
 {
-    mkThunk(exprs, EnvRef::null, (Expr *) &eBlackHole);
+    mkThunk(exprs, EnvRef::null, exprs.EPtoER(&eBlackHole));
 }
 
 typedef std::vector<ValueRef, traceable_allocator<ValueRef>> ValueVector;
@@ -1603,9 +1605,9 @@ inline void ValueRef::mkAttrs(Values & values, Bindings * a) noexcept
     nrAttrs++;
 }
 
-inline void ValueRef::mkThunk(Exprs & exprs, Values & values, EnvRef e, Expr * ex) noexcept
+inline void ValueRef::mkThunk(Exprs & exprs, Values & values, EnvRef e, ExprRef ex) noexcept
 {
-    setStorage(values, detail::ClosureThunk{.env = e, .expr = exprs.EPtoER(ex)});
+    setStorage(values, detail::ClosureThunk{.env = e, .expr = ex});
     nrThunk++;
 }
 
@@ -1616,15 +1618,15 @@ inline void ValueRef::mkApp(Values & values, ValueRef l, ValueRef r) noexcept
 }
 
 
-inline void ValueRef::mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLambda * f) noexcept
+inline void ValueRef::mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLambdaRef f) noexcept
 {
-    setStorage(values, detail::Lambda{.env = e, .fun = exprs.EPtoER(f)});
+    setStorage(values, detail::Lambda{.env = e, .fun = f});
     nrLambda++;
 }
 
 inline void ValueRef::mkBlackhole(Exprs & exprs, Values & values)
 {
-    mkThunk(exprs, values, EnvRef::null, (Expr *) &eBlackHole);
+    mkThunk(exprs, values, EnvRef::null, exprs.EPtoER(&eBlackHole));
 }
 
 inline void ValueRef::mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept

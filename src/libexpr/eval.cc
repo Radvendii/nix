@@ -1294,7 +1294,7 @@ unsigned long nrThunks = 0;
 
 static inline void mkThunk(EvalState & state, ValueRef v, EnvRef env, ExprRef expr)
 {
-    v.mkThunk(state.exprs, state.values, env, state.exprs.ERtoEP(expr));
+    v.mkThunk(state.exprs, state.values, env, expr);
     nrThunks++;
 }
 
@@ -1834,7 +1834,7 @@ void ExprOpHasAttr::eval(EvalState & state, EnvRef env, ValueRef v)
 
 void ExprLambda::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.mkLambda(state.exprs, state.values, env, this);
+    v.mkLambda(state.exprs, state.values, env, state.exprs.EPtoER(this));
 }
 
 void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vRes, const PosIdx pos)

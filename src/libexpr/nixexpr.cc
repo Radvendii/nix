@@ -87,6 +87,11 @@ TYPE##Ref Exprs::EPtoER(TYPE * p) { \
 NIX_FOR_EACH_EXPR(NIX_EXPR_EPTOER)
 #undef NIX_EXPR_EPTOER
 
+ExprBlackHoleRef Exprs::EPtoER(ExprBlackHole * p) {
+    assert(p == &eBlackHole);
+    return ExprBlackHoleRef(0);
+}
+
 // ExprVar must be different because ExprInheritFrom is a subtype
 ExprVarRef Exprs::EPtoER(ExprVar * p) {
     if (!p)

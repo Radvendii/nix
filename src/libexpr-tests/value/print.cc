@@ -91,7 +91,7 @@ TEST_F(ValuePrintingTests, tList)
 TEST_F(ValuePrintingTests, vThunk)
 {
     Value vThunk;
-    vThunk.mkThunk(state.exprs, EnvRef::null, nullptr);
+    vThunk.mkThunk(state.exprs, EnvRef::null, ExprRef::null);
 
     test(vThunk, "«thunk»");
 }
@@ -113,14 +113,14 @@ TEST_F(ValuePrintingTests, vLambda)
     auto body = state.exprs.addExprInt(state.values, 0);
     auto formals = Formals{};
 
-    ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, body));
+    ExprLambdaRef eLambda = state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, body);
 
     Value vLambda;
-    vLambda.mkLambda(state.exprs, env, &eLambda);
+    vLambda.mkLambda(state.exprs, env, eLambda);
 
     test(vLambda, "«lambda @ «none»:1:1»");
 
-    eLambda.setName(state.exprs, createSymbol("puppy"));
+    state.exprs.ERtoEP(eLambda)->setName(state.exprs, createSymbol("puppy"));
 
     test(vLambda, "«lambda puppy @ «none»:1:1»");
 }
@@ -504,14 +504,14 @@ TEST_F(ValuePrintingTests, ansiColorsLambda)
     auto body = state.exprs.addExprInt(state.values, 0);
     auto formals = Formals{};
 
-    ExprLambda & eLambda = *state.exprs.ERtoEP(state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, body));
+    ExprLambdaRef eLambda = state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, body);
 
     Value vLambda;
-    vLambda.mkLambda(state.exprs, env, &eLambda);
+    vLambda.mkLambda(state.exprs, env, eLambda);
 
     test(vLambda, ANSI_BLUE "«lambda @ «none»:1:1»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 
-    eLambda.setName(state.exprs, createSymbol("puppy"));
+    state.exprs.ERtoEP(eLambda)->setName(state.exprs, createSymbol("puppy"));
 
     test(vLambda, ANSI_BLUE "«lambda puppy @ «none»:1:1»" ANSI_NORMAL, PrintOptions{.ansiColors = true, .force = true});
 }
@@ -540,7 +540,7 @@ TEST_F(ValuePrintingTests, ansiColorsPrimOpApp)
 TEST_F(ValuePrintingTests, ansiColorsThunk)
 {
     Value v;
-    v.mkThunk(state.exprs, EnvRef::null, nullptr);
+    v.mkThunk(state.exprs, EnvRef::null, ExprRef::null);
 
     test(v, ANSI_MAGENTA "«thunk»" ANSI_NORMAL, PrintOptions{.ansiColors = true});
 }

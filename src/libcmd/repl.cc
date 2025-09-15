@@ -701,7 +701,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
             && isVarName(name = removeWhitespace(line.substr(0, p)))) {
             ExprRef e = parseString(line.substr(p + 1));
             ValueRef v(state->allocValue());
-            v.mkThunk(state->exprs, state->values, env, state->exprs.ERtoEP(e));
+            v.mkThunk(state->exprs, state->values, env, e);
             addVarToScope(state->symbols.create(name), v);
         } else {
             Value v;
