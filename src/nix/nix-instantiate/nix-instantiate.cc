@@ -24,6 +24,7 @@ static int rootNr = 0;
 
 enum OutputKind { okPlain, okRaw, okXML, okJSON };
 
+// XXX [speed] is this ever called?
 void processExpr(
     EvalState & state,
     const Strings & attrPaths,
@@ -33,16 +34,16 @@ void processExpr(
     bool evalOnly,
     OutputKind output,
     bool location,
-    Expr * e)
+    ExprRef e)
 {
     if (parseOnly) {
-        e->show(state.exprs, state.values, state.symbols, std::cout);
+        state.exprs.ERtoEP(e)->show(state.exprs, state.values, state.symbols, std::cout);
         std::cout << "\n";
         return;
     }
 
     Value vRoot;
-    state.eval(state.exprs.EPtoER(e), vRoot.ref(state.values));
+    state.eval(e, vRoot.ref(state.values));
 
     for (auto & i : attrPaths) {
         ValueRef v(findAlongAttrPath(state, i, autoArgs, vRoot.ref(state.values)).first);
@@ -191,7 +192,7 @@ static int main_nix_instantiate(int argc, char ** argv)
         if (readStdin) {
             ExprRef e = state->parseStdin();
             processExpr(
-                *state, attrPaths, parseOnly, strict, autoArgs, evalOnly, outputKind, xmlOutputSourceLocation, state->exprs.ERtoEP(e));
+                *state, attrPaths, parseOnly, strict, autoArgs, evalOnly, outputKind, xmlOutputSourceLocation, e);
         } else if (files.empty() && !fromArgs)
             files.push_back("./default.nix");
 
@@ -199,7 +200,7 @@ static int main_nix_instantiate(int argc, char ** argv)
             ExprRef e = fromArgs ? state->parseExprFromString(i, state->rootPath("."))
                                 : state->parseExprFromFile(resolveExprPath(lookupFileArg(*state, i)));
             processExpr(
-                *state, attrPaths, parseOnly, strict, autoArgs, evalOnly, outputKind, xmlOutputSourceLocation, state->exprs.ERtoEP(e));
+                *state, attrPaths, parseOnly, strict, autoArgs, evalOnly, outputKind, xmlOutputSourceLocation, e);
         }
 
         state->maybePrintStats();

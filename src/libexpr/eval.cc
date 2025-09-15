@@ -239,14 +239,14 @@ bool Value::isTrivial(Exprs & exprs) const
 {
     return !isa<tApp, tPrimOpApp>()
            && (!isa<tThunk>()
-               || (thunk().expr.dyn_cast<ExprAttrsRef>() && ((ExprAttrs *) exprs.ERtoEP(thunk().expr))->dynamicAttrs.empty())
+               || (thunk().expr.dyn_cast<ExprAttrsRef>() && exprs.ERtoEP(thunk().expr.dyn_cast<ExprAttrsRef>())->dynamicAttrs.empty())
                || thunk().expr.dyn_cast<ExprLambdaRef>() || thunk().expr.dyn_cast<ExprListRef>());
 }
 bool ValueRef::isTrivial(Exprs & exprs, Values & values) const
 {
     return !isa<tApp, tPrimOpApp>(values)
            && (!isa<tThunk>(values)
-               || (thunk(values).expr.dyn_cast<ExprAttrsRef>() && ((ExprAttrs *) exprs.ERtoEP(thunk(values).expr))->dynamicAttrs.empty())
+               || (thunk(values).expr.dyn_cast<ExprAttrsRef>() && exprs.ERtoEP(thunk(values).expr.dyn_cast<ExprAttrsRef>())->dynamicAttrs.empty())
                || thunk(values).expr.dyn_cast<ExprLambdaRef>() || thunk(values).expr.dyn_cast<ExprListRef>());
 }
 

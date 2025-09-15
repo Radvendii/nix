@@ -70,7 +70,7 @@ public:
 
 struct LambdaFrameInfo
 {
-    ExprLambda * expr;
+    ExprLambdaRef expr;
     /** Position where the lambda has been called. */
     PosIdx callPos = noPos;
     std::ostream & symbolize(/* XXX [speed] const */ EvalState & state, std::ostream & os, PosCache & posCache) const;
@@ -204,7 +204,7 @@ FrameInfo SampleStack::getFrameInfoFromValueAndPos(const ValueRef v, std::span<V
     /* NOTE: No actual references to garbage collected values are not held in
        the profiler. */
     if (v.isLambda(state.values))
-        return LambdaFrameInfo{.expr = state.exprs.ERtoEP(v.lambda(state.values).fun), .callPos = pos};
+        return LambdaFrameInfo{.expr = v.lambda(state.values).fun, .callPos = pos};
     else if (v.isPrimOp(state.values)) {
         return getPrimOpFrameInfo(*v.primOp(state.values), args, pos);
     } else if (v.isPrimOpApp(state.values))
@@ -251,11 +251,11 @@ std::ostream & LambdaFrameInfo::symbolize(/*const*/ EvalState & state, std::ostr
     if (auto pos = posCache.lookup(callPos); std::holds_alternative<std::monostate>(pos.origin))
         /* HACK: To avoid dubious «none»:0 in the generated profile if the origin can't be resolved
            resort to printing the lambda location instead of the callsite position. */
-        os << posCache.lookup(expr->getPos(state.exprs));
+        os << posCache.lookup(state.exprs.ERtoEP(expr)->getPos(state.exprs));
     else
         os << pos;
-    if (expr->name)
-        os << ":" << state.symbols[expr->name];
+    if (state.exprs.ERtoEP(expr)->name)
+        os << ":" << state.symbols[state.exprs.ERtoEP(expr)->name];
     return os;
 }
 
