@@ -552,6 +552,10 @@ struct ExprLambdaRef {
     COMMON_DEFS(ExprLambda, teLambda)
     void setName(Exprs & exprs, SymbolRef name);
     void setDocComment(Exprs & exprs, DocComment docComment);
+
+    // XXX [speed]: not used?
+    std::string showNamePos(/* XXX [speed] const */ EvalState & state) /* XXX [speed] const */;
+    inline bool hasFormals(Exprs & exprs) const;
 };
 struct ExprListRef {
     public:

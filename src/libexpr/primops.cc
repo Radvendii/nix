@@ -3293,7 +3293,7 @@ static void prim_functionArgs(EvalState & state, const PosIdx pos, ValueRef * ar
     if (!args[0].isLambda(state.values))
         state.error<TypeError>("'functionArgs' requires a function").atPos(pos).debugThrow();
 
-    if (!state.exprs.ERtoEP(args[0].lambda(state.values).fun)->hasFormals()) {
+    if (!args[0].lambda(state.values).fun.hasFormals(state.exprs)) {
         v.mkAttrs(state.values, &state.emptyBindings);
         return;
     }

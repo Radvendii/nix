@@ -333,13 +333,6 @@ struct ExprLambda : Expr
         , body(body)
     {
     }
-
-    std::string showNamePos(const EvalState & state) const;
-
-    inline bool hasFormals() const
-    {
-        return formals != nullptr;
-    }
 };
 
 struct ExprCall : Expr
@@ -524,4 +517,8 @@ NIX_FOR_EACH_EXPR(NIX_DEFINE_ADD)
 NIX_DEFINE_ADD(ExprVar, teVar, vars)
 #undef NIX_DEFINE_ADD
 // No addExprBlackHole!
+inline bool ExprLambdaRef::hasFormals(Exprs & exprs) const
+{
+    return exprs.ERtoEP(*this)->formals != nullptr;
+}
 } // namespace nix

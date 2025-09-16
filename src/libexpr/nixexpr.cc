@@ -350,7 +350,7 @@ void ExprListRef::show(Exprs & exprs, Values & values, const SymbolTable & symbo
 void ExprLambdaRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(";
-    if (exprs.ERtoEP(*this)->hasFormals()) {
+    if (hasFormals(exprs)) {
         str << "{ ";
         bool first = true;
         // the natural Symbol ordering is by creation time, which can lead to the
@@ -643,14 +643,14 @@ void ExprLambdaRef::bindVars(EvalState & es, const std::shared_ptr<const StaticE
         es.exprEnvs.insert(std::make_pair(*this, env));
 
     auto newEnv =
-        std::make_shared<StaticEnv>(ExprWithRef::null, env, (es.exprs.ERtoEP(*this)->hasFormals() ? es.exprs.ERtoEP(*this)->formals->formals.size() : 0) + (!es.exprs.ERtoEP(*this)->arg ? 0 : 1));
+        std::make_shared<StaticEnv>(ExprWithRef::null, env, (hasFormals(es.exprs) ? es.exprs.ERtoEP(*this)->formals->formals.size() : 0) + (!es.exprs.ERtoEP(*this)->arg ? 0 : 1));
 
     Displacement displ = 0;
 
     if (es.exprs.ERtoEP(*this)->arg)
         newEnv->vars.emplace_back(es.exprs.ERtoEP(*this)->arg, displ++);
 
-    if (es.exprs.ERtoEP(*this)->hasFormals()) {
+    if (hasFormals(es.exprs)) {
         for (auto & i : es.exprs.ERtoEP(*this)->formals->formals)
             newEnv->vars.emplace_back(i.name, displ++);
 
@@ -784,10 +784,10 @@ void ExprLambdaRef::setName(Exprs & exprs, SymbolRef name)
     exprs.ERtoEP(*this)->body.setName(exprs, name);
 }
 
-std::string ExprLambda::showNamePos(const EvalState & state) const
+std::string ExprLambdaRef::showNamePos(EvalState & state)
 {
-    std::string id(name ? concatStrings("'", state.symbols[name], "'") : "anonymous function");
-    return fmt("%1% at %2%", id, state.positions[pos]);
+    std::string id(state.exprs.ERtoEP(*this)->name ? concatStrings("'", state.symbols[state.exprs.ERtoEP(*this)->name], "'") : "anonymous function");
+    return fmt("%1% at %2%", id, state.positions[state.exprs.ERtoEP(*this)->pos]);
 }
 
 void ExprLambdaRef::setDocComment(Exprs & exprs, DocComment docComment)

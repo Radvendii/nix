@@ -1855,13 +1855,13 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 
             ExprLambdaRef lambda(vCur.lambda().fun);
 
-            auto size = (!exprs.ERtoEP(lambda)->arg ? 0 : 1) + (exprs.ERtoEP(lambda)->hasFormals() ? exprs.ERtoEP(lambda)->formals->formals.size() : 0);
+            auto size = (!exprs.ERtoEP(lambda)->arg ? 0 : 1) + (lambda.hasFormals(exprs) ? exprs.ERtoEP(lambda)->formals->formals.size() : 0);
             EnvRef env2(allocEnv(size));
             env2.up(envs) = vCur.lambda().env;
 
             Displacement displ = 0;
 
-            if (!exprs.ERtoEP(lambda)->hasFormals())
+            if (!lambda.hasFormals(exprs))
                 env2.values(envs)[displ++] = args[0];
             else {
                 try {
@@ -2106,7 +2106,7 @@ void EvalState::autoCallFunction(const Bindings & args, ValueRef fun, ValueRef r
         }
     }
 
-    if (!fun.isLambda(values) || !exprs.ERtoEP(fun.lambda(values).fun)->hasFormals()) {
+    if (!fun.isLambda(values) || !fun.lambda(values).fun.hasFormals(exprs)) {
         res.set(values, fun);
         return;
     }
