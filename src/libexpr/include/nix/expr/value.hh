@@ -1493,7 +1493,7 @@ bool Value::isBlackhole(Exprs & exprs) const
 
 void Value::mkBlackhole(Exprs & exprs)
 {
-    mkThunk(exprs, EnvRef::null, exprs.EPtoER(&eBlackHole));
+    mkThunk(exprs, EnvRef::null, ExprBlackHoleRef{0});
 }
 
 typedef std::vector<ValueRef, traceable_allocator<ValueRef>> ValueVector;
@@ -1762,7 +1762,7 @@ inline void ValueRef::mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLam
 
 inline void ValueRef::mkBlackhole(Exprs & exprs, Values & values)
 {
-    mkThunk(exprs, values, EnvRef::null, exprs.EPtoER(&eBlackHole));
+    mkThunk(exprs, values, EnvRef::null, ExprBlackHoleRef{0});
 }
 
 inline void ValueRef::mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept
