@@ -1776,19 +1776,19 @@ void ExprSelectRef::eval(EvalState & state, EnvRef env, ValueRef v)
     v.set(state.values, vAttrs);
 }
 
-SymbolRef ExprSelect::evalExceptFinalSelect(EvalState & state, EnvRef env, ValueRef attrs)
+SymbolRef ExprSelectRef::evalExceptFinalSelect(EvalState & state, EnvRef env, ValueRef attrs)
 {
     Value vTmp;
-    SymbolRef name = getName(attrPath[attrPath.size() - 1], state, env);
+    SymbolRef name = getName(state.exprs.ERtoEP(*this)->attrPath[state.exprs.ERtoEP(*this)->attrPath.size() - 1], state, env);
 
-    if (attrPath.size() == 1) {
-        e.eval(state, env, vTmp.ref(state.values));
+    if (state.exprs.ERtoEP(*this)->attrPath.size() == 1) {
+        state.exprs.ERtoEP(*this)->e.eval(state, env, vTmp.ref(state.values));
     } else {
         // XXX [speed]: danger! i've changed this in ways that are highly suspicious
-        AttrName last = attrPath.back();
-        attrPath.pop_back();
-        state.exprs.EPtoER(this).eval(state, env, vTmp.ref(state.values));
-        attrPath.push_back(last);
+        AttrName last = state.exprs.ERtoEP(*this)->attrPath.back();
+        state.exprs.ERtoEP(*this)->attrPath.pop_back();
+        eval(state, env, vTmp.ref(state.values));
+        state.exprs.ERtoEP(*this)->attrPath.push_back(last);
     }
     attrs.setFromStack(state.values, vTmp);
     return name;

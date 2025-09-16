@@ -197,17 +197,6 @@ struct ExprSelect : Expr
     {
         attrPath.push_back(AttrName(name));
     };
-
-    /**
-     * Evaluate the `a.b.c` part of `a.b.c.d`. This exists mostly for the purpose of :doc in the repl.
-     *
-     * @param[out] attrs The attribute set that should contain the last attribute name (if it exists).
-     * @return The last attribute name in `attrPath`
-     *
-     * @note This does *not* evaluate the final attribute, and does not fail if that's the only attribute that does not
-     * exist.
-     */
-    SymbolRef evalExceptFinalSelect(EvalState & state, EnvRef env, ValueRef attrs);
 };
 
 struct ExprOpHasAttr : Expr

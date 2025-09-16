@@ -624,7 +624,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         DocComment fallbackDoc;
         if (auto select = expr.dyn_cast<ExprSelectRef>()) {
             Value vAttrs;
-            auto name = state->exprs.ERtoEP(select)->evalExceptFinalSelect(*state, env, vAttrs.ref(state->values));
+            auto name = select.evalExceptFinalSelect(*state, env, vAttrs.ref(state->values));
             fallbackName = state->symbols[name];
 
             state->forceAttrs(vAttrs.ref(state->values), noPos, "while evaluating an attribute set to look for documentation");
