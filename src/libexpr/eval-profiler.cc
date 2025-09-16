@@ -73,7 +73,7 @@ struct LambdaFrameInfo
     ExprLambdaRef expr;
     /** Position where the lambda has been called. */
     PosIdx callPos = noPos;
-    std::ostream & symbolize(/* XXX [speed] const */ EvalState & state, std::ostream & os, PosCache & posCache) const;
+    std::ostream & symbolize(/* XXX [speed] const */ EvalState & state, std::ostream & os, PosCache & posCache) /* XXX [speed] const */;
     auto operator<=>(const LambdaFrameInfo & rhs) const = default;
 };
 
@@ -246,16 +246,16 @@ SampleStack::postFunctionCallHook(EvalState & state, const ValueRef v, std::span
         stack.pop_back();
 }
 
-std::ostream & LambdaFrameInfo::symbolize(/*const*/ EvalState & state, std::ostream & os, PosCache & posCache) const
+std::ostream & LambdaFrameInfo::symbolize(/*const*/ EvalState & state, std::ostream & os, PosCache & posCache)
 {
     if (auto pos = posCache.lookup(callPos); std::holds_alternative<std::monostate>(pos.origin))
         /* HACK: To avoid dubious «none»:0 in the generated profile if the origin can't be resolved
            resort to printing the lambda location instead of the callsite position. */
-        os << posCache.lookup(state.exprs.ERtoEP(expr)->pos);
+        os << posCache.lookup(expr.pos(state.exprs));
     else
         os << pos;
-    if (state.exprs.ERtoEP(expr)->name)
-        os << ":" << state.symbols[state.exprs.ERtoEP(expr)->name];
+    if (expr.name(state.exprs))
+        os << ":" << state.symbols[expr.name(state.exprs)];
     return os;
 }
 
@@ -321,7 +321,7 @@ void SampleStack::saveProfile()
             else
                 os << ";";
 
-            std::visit([&](auto && info) { info.symbolize(state, os, posCache); }, pos);
+            std::visit([&](auto /* XXX [speed] && */ info) { info.symbolize(state, os, posCache); }, pos);
         }
         os << " " << count;
         writeLine(profileFd.get(), std::move(os).str());

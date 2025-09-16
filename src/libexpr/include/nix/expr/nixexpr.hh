@@ -208,60 +208,60 @@ struct ExprOpHasAttr : Expr
         , attrPath(std::move(attrPath)) {};
 };
 
+struct AttrDef
+{
+    enum class Kind {
+        /** `attr = expr;` */
+        Plain,
+        /** `inherit attr1 attrn;` */
+        Inherited,
+        /** `inherit (expr) attr1 attrn;` */
+        InheritedFrom,
+    };
+
+    Kind kind;
+    ExprRef e;
+    PosIdx pos;
+    Displacement displ = 0; // displacement
+    AttrDef(ExprRef e, const PosIdx & pos, Kind kind = Kind::Plain)
+        : kind(kind)
+        , e(e)
+        , pos(pos) {};
+    AttrDef() {};
+
+    template<typename T>
+    const T & chooseByKind(const T & plain, const T & inherited, const T & inheritedFrom) const
+    {
+        switch (kind) {
+        case Kind::Plain:
+            return plain;
+        case Kind::Inherited:
+            return inherited;
+        default:
+        case Kind::InheritedFrom:
+            return inheritedFrom;
+        }
+    }
+};
+
+struct DynamicAttrDef
+{
+    ExprRef nameExpr, valueExpr;
+    PosIdx pos;
+    DynamicAttrDef(ExprRef nameExpr, ExprRef valueExpr, const PosIdx & pos)
+        : nameExpr(nameExpr)
+        , valueExpr(valueExpr)
+        , pos(pos) {};
+};
+
 struct ExprAttrs : Expr
 {
     bool recursive;
     PosIdx pos;
 
-    struct AttrDef
-    {
-        enum class Kind {
-            /** `attr = expr;` */
-            Plain,
-            /** `inherit attr1 attrn;` */
-            Inherited,
-            /** `inherit (expr) attr1 attrn;` */
-            InheritedFrom,
-        };
-
-        Kind kind;
-        ExprRef e;
-        PosIdx pos;
-        Displacement displ = 0; // displacement
-        AttrDef(ExprRef e, const PosIdx & pos, Kind kind = Kind::Plain)
-            : kind(kind)
-            , e(e)
-            , pos(pos) {};
-        AttrDef() {};
-
-        template<typename T>
-        const T & chooseByKind(const T & plain, const T & inherited, const T & inheritedFrom) const
-        {
-            switch (kind) {
-            case Kind::Plain:
-                return plain;
-            case Kind::Inherited:
-                return inherited;
-            default:
-            case Kind::InheritedFrom:
-                return inheritedFrom;
-            }
-        }
-    };
-
     typedef std::map<SymbolRef, AttrDef> AttrDefs;
     AttrDefs attrs;
     std::unique_ptr<std::vector<ExprRef>> inheritFromExprs;
-
-    struct DynamicAttrDef
-    {
-        ExprRef nameExpr, valueExpr;
-        PosIdx pos;
-        DynamicAttrDef(ExprRef nameExpr, ExprRef valueExpr, const PosIdx & pos)
-            : nameExpr(nameExpr)
-            , valueExpr(valueExpr)
-            , pos(pos) {};
-    };
 
     typedef std::vector<DynamicAttrDef> DynamicAttrDefs;
     DynamicAttrDefs dynamicAttrs;
@@ -452,9 +452,7 @@ struct ExprPos : Expr
 };
 
 /* only used to mark thunks as black holes. */
-struct ExprBlackHole : Expr
-{
-};
+struct ExprBlackHole : Expr { };
 
 extern ExprBlackHole eBlackHole;
 
@@ -518,6 +516,98 @@ NIX_DEFINE_ADD(ExprVar, teVar, vars)
 // No addExprBlackHole!
 inline bool ExprLambdaRef::hasFormals(Exprs & exprs) const
 {
-    return exprs.ERtoEP(*this)->formals != nullptr;
+    return formals(exprs) != nullptr;
 }
+
+#define NIX_EXPR_MEMBER_ACCESS(ExprType, MemberType, name)       \
+inline MemberType & ExprType##Ref::name(Exprs & exprs) const {   \
+    return exprs.ERtoEP(*this)->name;                            \
+}
+
+NIX_EXPR_MEMBER_ACCESS(ExprWith, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprWith, ExprRef, attrs)
+NIX_EXPR_MEMBER_ACCESS(ExprWith, ExprRef, body)
+NIX_EXPR_MEMBER_ACCESS(ExprWith, size_t, prevWith)
+NIX_EXPR_MEMBER_ACCESS(ExprWith, ExprWithRef, parentWith)
+
+NIX_EXPR_MEMBER_ACCESS(ExprLet, ExprAttrsRef, attrs)
+NIX_EXPR_MEMBER_ACCESS(ExprLet, ExprRef, body)
+
+NIX_EXPR_MEMBER_ACCESS(ExprIf, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprIf, ExprRef, cond)
+NIX_EXPR_MEMBER_ACCESS(ExprIf, ExprRef, then)
+NIX_EXPR_MEMBER_ACCESS(ExprIf, ExprRef, else_)
+
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, bool, recursive)
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, AttrDefs, attrs)
+// XXX [speed]: i don't really know how to work safely with std::unique_ptr
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, std::unique_ptr<std::vector<ExprRef>>, inheritFromExprs)
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, DynamicAttrDefs, dynamicAttrs)
+
+NIX_EXPR_MEMBER_ACCESS(ExprCall, ExprRef, fun)
+NIX_EXPR_MEMBER_ACCESS(ExprCall, std::vector<ExprRef>, args)
+NIX_EXPR_MEMBER_ACCESS(ExprCall, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprCall, std::optional<PosIdx>, cursedOrEndPos)
+
+
+NIX_EXPR_MEMBER_ACCESS(ExprFloat, ValueRef, v)
+
+NIX_EXPR_MEMBER_ACCESS(ExprInt, ValueRef, v)
+
+NIX_EXPR_MEMBER_ACCESS(ExprPath, ValueRef, v)
+NIX_EXPR_MEMBER_ACCESS(ExprPath, std::string, s)
+
+NIX_EXPR_MEMBER_ACCESS(ExprSelect, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprSelect, ExprRef, e)
+NIX_EXPR_MEMBER_ACCESS(ExprSelect, ExprRef, def)
+NIX_EXPR_MEMBER_ACCESS(ExprSelect, AttrPath, attrPath)
+
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, SymbolRef, name)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, SymbolRef, arg)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, Formals *, formals)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, ExprRef, body)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, DocComment, docComment)
+
+NIX_EXPR_MEMBER_ACCESS(ExprList, std::vector<ExprRef>, elems)
+
+NIX_EXPR_MEMBER_ACCESS(ExprString, ValueRef, v)
+NIX_EXPR_MEMBER_ACCESS(ExprString, std::string, s)
+
+NIX_EXPR_MEMBER_ACCESS(ExprAssert, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprAssert, ExprRef, cond)
+NIX_EXPR_MEMBER_ACCESS(ExprAssert, ExprRef, body)
+
+NIX_EXPR_MEMBER_ACCESS(ExprPos, PosIdx, pos)
+
+NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, bool, forceString)
+#define COMMA ,
+NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, std::vector<std::pair<PosIdx COMMA ExprRef>> *, es)
+
+NIX_EXPR_MEMBER_ACCESS(ExprOpHasAttr, ExprRef, e)
+NIX_EXPR_MEMBER_ACCESS(ExprOpHasAttr, AttrPath, attrPath)
+
+NIX_EXPR_MEMBER_ACCESS(ExprOpNot, ExprRef, e)
+
+#define NIX_BINOP_MEMBER_ACCESS(BINOP, STR) \
+NIX_EXPR_MEMBER_ACCESS(BINOP, PosIdx, pos)  \
+NIX_EXPR_MEMBER_ACCESS(BINOP, ExprRef, e1)  \
+NIX_EXPR_MEMBER_ACCESS(BINOP, ExprRef, e2)
+
+NIX_FOR_EACH_BINOP(NIX_BINOP_MEMBER_ACCESS)
+#undef NIX_BINOP_MEMBER_ACCESS
+
+NIX_EXPR_MEMBER_ACCESS(ExprVar, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprVar, SymbolRef, name)
+NIX_EXPR_MEMBER_ACCESS(ExprVar, ExprWithRef, fromWith)
+NIX_EXPR_MEMBER_ACCESS(ExprVar, Level, level)
+NIX_EXPR_MEMBER_ACCESS(ExprVar, Displacement, displ)
+
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, SymbolRef, name)
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, ExprWithRef, fromWith)
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, Level, level)
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, Displacement, displ)
 } // namespace nix

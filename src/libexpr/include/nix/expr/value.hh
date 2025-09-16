@@ -494,18 +494,39 @@ void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostr
 
 struct ExprWithRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & attrs(Exprs & exprs) const;
+    inline ExprRef & body(Exprs & exprs) const;
+    inline size_t & prevWith(Exprs & exprs) const;
+    inline ExprWithRef & parentWith(Exprs & exprs) const;
     COMMON_DEFS(ExprWith, teWith)
 };
+struct ExprAttrsRef;
 struct ExprLetRef {
     public:
+    inline ExprAttrsRef & attrs(Exprs & exprs) const;
+    inline ExprRef & body(Exprs & exprs) const;
     COMMON_DEFS(ExprLet, teLet)
 };
 struct ExprIfRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & cond(Exprs & exprs) const;
+    inline ExprRef & then(Exprs & exprs) const;
+    inline ExprRef & else_(Exprs & exprs) const;
     COMMON_DEFS(ExprIf, teIf)
 };
+struct AttrDef;
+typedef std::map<SymbolRef, AttrDef> AttrDefs;
+struct DynamicAttrDef;
+typedef std::vector<DynamicAttrDef> DynamicAttrDefs;
 struct ExprAttrsRef {
     public:
+    inline bool & recursive(Exprs & exprs) const;
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline AttrDefs & attrs(Exprs & exprs) const;
+    inline std::unique_ptr<std::vector<ExprRef>> & inheritFromExprs(Exprs & exprs) const;
+    inline DynamicAttrDefs & dynamicAttrs(Exprs & exprs) const;
     COMMON_DEFS(ExprAttrs, teAttrs)
 
     std::shared_ptr<const StaticEnv> bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
@@ -514,6 +535,10 @@ struct ExprAttrsRef {
 };
 struct ExprCallRef {
     public:
+    inline ExprRef & fun(Exprs & exprs) const;
+    inline std::vector<ExprRef> & args(Exprs & exprs) const;
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline std::optional<PosIdx> & cursedOrEndPos(Exprs & exprs) const; // used during parsing to warn about https://github.com/NixOS/nix/issues/11118
     COMMON_DEFS(ExprCall, teCall)
 
     // These are temporary methods to be used only in parser.y
@@ -522,18 +547,28 @@ struct ExprCallRef {
 };
 struct ExprFloatRef {
     public:
+    inline ValueRef & v(Exprs & exprs) const;
     COMMON_DEFS(ExprFloat, teFloat)
 };
 struct ExprIntRef {
     public:
+    inline ValueRef & v(Exprs & exprs) const;
     COMMON_DEFS(ExprInt, teInt)
 };
 struct ExprPathRef {
     public:
+    inline std::string & s(Exprs & exprs) const;
+    inline ValueRef & v(Exprs & exprs) const;
     COMMON_DEFS(ExprPath, tePath)
 };
+struct AttrName;
+typedef std::vector<AttrName> AttrPath;
 struct ExprSelectRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & e(Exprs & exprs) const;
+    inline ExprRef & def(Exprs & exprs) const;
+    inline AttrPath & attrPath(Exprs & exprs) const;
     COMMON_DEFS(ExprSelect, teSelect)
 
     /**
@@ -547,8 +582,15 @@ struct ExprSelectRef {
      */
     SymbolRef evalExceptFinalSelect(EvalState & state, EnvRef env, ValueRef attrs);
 };
+struct Formals;
 struct ExprLambdaRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline SymbolRef & name(Exprs & exprs) const;
+    inline SymbolRef & arg(Exprs & exprs) const;
+    inline Formals * & formals(Exprs & exprs) const;
+    inline ExprRef & body(Exprs & exprs) const;
+    inline DocComment & docComment(Exprs & exprs) const;
     COMMON_DEFS(ExprLambda, teLambda)
     void setName(Exprs & exprs, SymbolRef name);
     void setDocComment(Exprs & exprs, DocComment docComment);
@@ -559,62 +601,103 @@ struct ExprLambdaRef {
 };
 struct ExprListRef {
     public:
+    inline std::vector<ExprRef> & elems(Exprs & exprs) const;
     COMMON_DEFS(ExprList, teList)
 };
 struct ExprStringRef {
     public:
+    inline ValueRef & v(Exprs & exprs) const;
+    inline std::string & s(Exprs & exprs) const;
     COMMON_DEFS(ExprString, teString)
 };
 struct ExprAssertRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & cond(Exprs & exprs) const;
+    inline ExprRef & body(Exprs & exprs) const;
     COMMON_DEFS(ExprAssert, teAssert)
 };
 struct ExprPosRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
     COMMON_DEFS(ExprPos, tePos)
 };
 struct ExprConcatStringsRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline bool & forceString(Exprs & exprs) const;
+    inline std::vector<std::pair<PosIdx, ExprRef>> * & es(Exprs & exprs) const;
     COMMON_DEFS(ExprConcatStrings, teConcatStrings)
 };
 struct ExprOpHasAttrRef {
+    inline ExprRef & e(Exprs & exprs) const;
+    inline AttrPath & attrPath(Exprs & exprs) const;
     public:
     COMMON_DEFS(ExprOpHasAttr, teOpHasAttr)
 };
 struct ExprOpConcatListsRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & e1(Exprs & exprs) const;
+    inline ExprRef & e2(Exprs & exprs) const;
     COMMON_DEFS(ExprOpConcatLists, teOpConcatLists)
 };
 struct ExprOpNotRef {
     public:
+    inline ExprRef & e(Exprs & exprs) const;
     COMMON_DEFS(ExprOpNot, teOpNot)
 };
 struct ExprOpEqRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & e1(Exprs & exprs) const;
+    inline ExprRef & e2(Exprs & exprs) const;
     COMMON_DEFS(ExprOpEq, teOpEq)
 };
 struct ExprOpNEqRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & e1(Exprs & exprs) const;
+    inline ExprRef & e2(Exprs & exprs) const;
     COMMON_DEFS(ExprOpNEq, teOpNEq)
 };
 struct ExprOpAndRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & e1(Exprs & exprs) const;
+    inline ExprRef & e2(Exprs & exprs) const;
     COMMON_DEFS(ExprOpAnd, teOpAnd)
 };
 struct ExprOpOrRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & e1(Exprs & exprs) const;
+    inline ExprRef & e2(Exprs & exprs) const;
     COMMON_DEFS(ExprOpOr, teOpOr)
 };
 struct ExprOpImplRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & e1(Exprs & exprs) const;
+    inline ExprRef & e2(Exprs & exprs) const;
     COMMON_DEFS(ExprOpImpl, teOpImpl)
 };
 struct ExprOpUpdateRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline ExprRef & e1(Exprs & exprs) const;
+    inline ExprRef & e2(Exprs & exprs) const;
     COMMON_DEFS(ExprOpUpdate, teOpUpdate)
 };
+typedef uint32_t Level;
+typedef uint32_t Displacement;
 struct ExprInheritFromRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline SymbolRef & name(Exprs & exprs) const;
+    inline ExprWithRef & fromWith(Exprs & exprs) const;
+    inline Level & level(Exprs & exprs) const;
+    inline Displacement & displ(Exprs & exprs) const;
     COMMON_DEFS(ExprInheritFrom, teInheritFrom)
 };
 struct ExprBlackHoleRef {
@@ -624,6 +707,11 @@ struct ExprBlackHoleRef {
 };
 struct ExprVarRef {
     public:
+    inline PosIdx & pos(Exprs & exprs) const;
+    inline SymbolRef & name(Exprs & exprs) const;
+    inline ExprWithRef & fromWith(Exprs & exprs) const;
+    inline Level & level(Exprs & exprs) const;
+    inline Displacement & displ(Exprs & exprs) const;
     COMMON_DEFS(ExprVar, teVar)
     constexpr ExprVarRef(ExprInheritFromRef ref)
         :ref(ref.ref)

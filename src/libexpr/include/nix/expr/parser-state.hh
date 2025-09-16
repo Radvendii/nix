@@ -97,7 +97,7 @@ struct ParserState
     void dupAttr(SymbolRef attr, const PosIdx pos, const PosIdx prevPos);
     void addAttr(
         ExprAttrsRef attrs, AttrPath && attrPath, const ParserLocation & loc, ExprRef e, const ParserLocation & exprLoc);
-    void addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & symbol, ExprAttrs::AttrDef && def);
+    void addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & symbol, AttrDef && def);
     Formals * validateFormals(Formals * formals, PosIdx pos = noPos, SymbolRef arg = {});
     ExprRef stripIndentation(const PosIdx pos, std::vector<std::pair<PosIdx, std::variant<ExprRef, StringToken>>> && es);
     PosIdx at(const ParserLocation & loc);
@@ -129,8 +129,8 @@ inline void ParserState::addAttr(
     for (i = attrPath.begin(); i + 1 < attrPath.end(); i++) {
         ExprAttrsRef nested;
         if (i->symbol) {
-            ExprAttrs::AttrDefs::iterator j = exprs.ERtoEP(attrs)->attrs.find(i->symbol);
-            if (j != exprs.ERtoEP(attrs)->attrs.end()) {
+            AttrDefs::iterator j = attrs.attrs(exprs).find(i->symbol);
+            if (j != attrs.attrs(exprs).end()) {
                 nested = j->second.e.dyn_cast<ExprAttrsRef>();
                 if (!nested) {
                     attrPath.erase(i + 1, attrPath.end());
@@ -138,20 +138,20 @@ inline void ParserState::addAttr(
                 }
             } else {
                 nested = exprs.addExprAttrs();
-                exprs.ERtoEP(attrs)->attrs[i->symbol] = ExprAttrs::AttrDef(nested, pos);
+                attrs.attrs(exprs)[i->symbol] = AttrDef(nested, pos);
             }
         } else {
             nested = exprs.addExprAttrs();
-            exprs.ERtoEP(attrs)->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, nested, pos));
+            attrs.dynamicAttrs(exprs).push_back(DynamicAttrDef(i->expr, nested, pos));
         }
         attrs = nested;
     }
     // Expr insertion.
     // ==========================
     if (i->symbol) {
-        addAttr(attrs, attrPath, i->symbol, ExprAttrs::AttrDef(e, pos));
+        addAttr(attrs, attrPath, i->symbol, AttrDef(e, pos));
     } else {
-        exprs.ERtoEP(attrs)->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, e, pos));
+        attrs.dynamicAttrs(exprs).push_back(DynamicAttrDef(i->expr, e, pos));
     }
 
     auto it = lexerState.positionToDocComment.find(pos);
@@ -166,10 +166,10 @@ inline void ParserState::addAttr(
  * symbol as its last element.
  */
 inline void
-ParserState::addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & symbol, ExprAttrs::AttrDef && def)
+ParserState::addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & symbol, AttrDef && def)
 {
-    ExprAttrs::AttrDefs::iterator j = exprs.ERtoEP(attrs)->attrs.find(symbol);
-    if (j != exprs.ERtoEP(attrs)->attrs.end()) {
+    AttrDefs::iterator j = attrs.attrs(exprs).find(symbol);
+    if (j != attrs.attrs(exprs).end()) {
         // This attr path is already defined. However, if both
         // e and the expr pointed by the attr path are two attribute sets,
         // we want to merge them.
@@ -183,37 +183,37 @@ ParserState::addAttr(ExprAttrsRef attrs, AttrPath & attrPath, const SymbolRef & 
         // `rec` marker on jAttrs will apply to the attributes in ae.
         // See https://github.com/NixOS/nix/issues/9020.
         if (jAttrs && ae) {
-            if (exprs.ERtoEP(ae)->inheritFromExprs && !exprs.ERtoEP(jAttrs)->inheritFromExprs)
-                exprs.ERtoEP(jAttrs)->inheritFromExprs = std::make_unique<std::vector<ExprRef>>();
-            for (auto & ad : exprs.ERtoEP(ae)->attrs) {
-                if (ad.second.kind == ExprAttrs::AttrDef::Kind::InheritedFrom) {
+            if (ae.inheritFromExprs(exprs) && !jAttrs.inheritFromExprs(exprs))
+                jAttrs.inheritFromExprs(exprs) = std::make_unique<std::vector<ExprRef>>();
+            for (auto & ad : ae.attrs(exprs)) {
+                if (ad.second.kind == AttrDef::Kind::InheritedFrom) {
                     auto sel = ad.second.e.dyn_cast<ExprSelectRef>();
-                    auto from = exprs.ERtoEP(sel)->e.dyn_cast<ExprInheritFromRef>();
-                    exprs.ERtoEP(from)->displ += exprs.ERtoEP(jAttrs)->inheritFromExprs->size();
+                    auto from = sel.e(exprs).dyn_cast<ExprInheritFromRef>();
+                    from.displ(exprs) += jAttrs.inheritFromExprs(exprs)->size();
                 }
                 attrPath.emplace_back(AttrName(ad.first));
                 addAttr(jAttrs, attrPath, ad.first, std::move(ad.second));
                 attrPath.pop_back();
             }
-            exprs.ERtoEP(ae)->attrs.clear();
-            exprs.ERtoEP(jAttrs)->dynamicAttrs.insert(
-                exprs.ERtoEP(jAttrs)->dynamicAttrs.end(),
-                std::make_move_iterator(exprs.ERtoEP(ae)->dynamicAttrs.begin()),
-                std::make_move_iterator(exprs.ERtoEP(ae)->dynamicAttrs.end()));
-            exprs.ERtoEP(ae)->dynamicAttrs.clear();
-            if (exprs.ERtoEP(ae)->inheritFromExprs) {
-                exprs.ERtoEP(jAttrs)->inheritFromExprs->insert(
-                    exprs.ERtoEP(jAttrs)->inheritFromExprs->end(),
-                    std::make_move_iterator(exprs.ERtoEP(ae)->inheritFromExprs->begin()),
-                    std::make_move_iterator(exprs.ERtoEP(ae)->inheritFromExprs->end()));
-                exprs.ERtoEP(ae)->inheritFromExprs = nullptr;
+            ae.attrs(exprs).clear();
+            jAttrs.dynamicAttrs(exprs).insert(
+                jAttrs.dynamicAttrs(exprs).end(),
+                std::make_move_iterator(ae.dynamicAttrs(exprs).begin()),
+                std::make_move_iterator(ae.dynamicAttrs(exprs).end()));
+            ae.dynamicAttrs(exprs).clear();
+            if (ae.inheritFromExprs(exprs)) {
+                jAttrs.inheritFromExprs(exprs)->insert(
+                    jAttrs.inheritFromExprs(exprs)->end(),
+                    std::make_move_iterator(ae.inheritFromExprs(exprs)->begin()),
+                    std::make_move_iterator(ae.inheritFromExprs(exprs)->end()));
+                ae.inheritFromExprs(exprs) = nullptr;
             }
         } else {
             dupAttr(attrPath, def.pos, j->second.pos);
         }
     } else {
         // This attr path is not defined. Let's create it.
-        exprs.ERtoEP(attrs)->attrs.emplace(symbol, def);
+        attrs.attrs(exprs).emplace(symbol, def);
         def.e.setName(exprs, symbol);
     }
 }

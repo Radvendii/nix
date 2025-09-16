@@ -112,7 +112,7 @@ static void setDocPosition(ParserState * state, ExprLambdaRef lambda, PosIdx sta
 
 static ExprRef makeCall(Exprs & exprs, PosIdx pos, ExprRef fn, ExprRef arg) {
     if (auto e2 = fn.dyn_cast<ExprCallRef>()) {
-        exprs.ERtoEP(e2)->args.push_back(arg);
+        e2.args(exprs).push_back(arg);
         return fn;
     }
     return exprs.addExprCall(pos, fn, {arg});
@@ -220,7 +220,7 @@ expr_function
   | WITH expr ';' expr_function
     { $$ = state->exprs.addExprWith(CUR_POS, $2, $4); }
   | LET binds IN_KW expr_function
-    { if (!state->exprs.ERtoEP($2)->dynamicAttrs.empty())
+    { if (!$2.dynamicAttrs(state->exprs).empty())
         throw ParseError({
             .msg = HintFmt("dynamic attributes not allowed in let"),
             .pos = state->positions[CUR_POS]
@@ -336,11 +336,11 @@ expr_simple
   /* Let expressions `let {..., body = ...}' are just desugared
      into `(rec {..., body = ...}).body'. */
   | LET '{' binds '}'
-    { state->exprs.ERtoEP($3)->recursive = true; state->exprs.ERtoEP($3)->pos = CUR_POS; $$ = state->exprs.addExprSelect(noPos, $3, state->s.body); }
+    { $3.recursive(state->exprs) = true; $3.pos(state->exprs) = CUR_POS; $$ = state->exprs.addExprSelect(noPos, $3, state->s.body); }
   | REC '{' binds '}'
-    { state->exprs.ERtoEP($3)->recursive = true; state->exprs.ERtoEP($3)->pos = CUR_POS; $$ = $3; }
+    { $3.recursive(state->exprs) = true; $3.pos(state->exprs) = CUR_POS; $$ = $3; }
   | '{' binds1 '}'
-    { state->exprs.ERtoEP($2)->pos = CUR_POS; $$ = $2; }
+    { $2.pos(state->exprs) = CUR_POS; $$ = $2; }
   | '{' '}'
     { $$ = state->exprs.addExprAttrs(CUR_POS); }
   | '[' expr_list ']' { $$ = $2; }
@@ -420,29 +420,29 @@ binds1
   | binds[accum] INHERIT attrs ';'
     { $$ = $accum;
       for (auto & [i, iPos] : *$attrs) {
-          if (state->exprs.ERtoEP($accum)->attrs.find(i.symbol) != state->exprs.ERtoEP($accum)->attrs.end())
-              state->dupAttr(i.symbol, iPos, state->exprs.ERtoEP($accum)->attrs[i.symbol].pos);
-          state->exprs.ERtoEP($accum)->attrs.emplace(
+          if ($accum.attrs(state->exprs).find(i.symbol) != $accum.attrs(state->exprs).end())
+              state->dupAttr(i.symbol, iPos, $accum.attrs(state->exprs)[i.symbol].pos);
+          $accum.attrs(state->exprs).emplace(
               i.symbol,
-              ExprAttrs::AttrDef(state->exprs.addExprVar(iPos, i.symbol), iPos, ExprAttrs::AttrDef::Kind::Inherited));
+              AttrDef(state->exprs.addExprVar(iPos, i.symbol), iPos, AttrDef::Kind::Inherited));
       }
       delete $attrs;
     }
   | binds[accum] INHERIT '(' expr ')' attrs ';'
     { $$ = $accum;
-      if (!state->exprs.ERtoEP($accum)->inheritFromExprs)
-          state->exprs.ERtoEP($accum)->inheritFromExprs = std::make_unique<std::vector<ExprRef>>();
-      state->exprs.ERtoEP($accum)->inheritFromExprs->push_back($expr);
-      auto from = state->exprs.addExprInheritFrom(state->at(@expr), state->exprs.ERtoEP($accum)->inheritFromExprs->size() - 1);
+      if (!$accum.inheritFromExprs(state->exprs))
+          $accum.inheritFromExprs(state->exprs) = std::make_unique<std::vector<ExprRef>>();
+      $accum.inheritFromExprs(state->exprs)->push_back($expr);
+      auto from = state->exprs.addExprInheritFrom(state->at(@expr), $accum.inheritFromExprs(state->exprs)->size() - 1);
       for (auto & [i, iPos] : *$attrs) {
-          if (state->exprs.ERtoEP($accum)->attrs.find(i.symbol) != state->exprs.ERtoEP($accum)->attrs.end())
-              state->dupAttr(i.symbol, iPos, state->exprs.ERtoEP($accum)->attrs[i.symbol].pos);
-          state->exprs.ERtoEP($accum)->attrs.emplace(
+          if ($accum.attrs(state->exprs).find(i.symbol) != $accum.attrs(state->exprs).end())
+              state->dupAttr(i.symbol, iPos, $accum.attrs(state->exprs)[i.symbol].pos);
+          $accum.attrs(state->exprs).emplace(
               i.symbol,
-              ExprAttrs::AttrDef(
+              AttrDef(
                   state->exprs.addExprSelect(iPos, from, i.symbol),
                   iPos,
-                  ExprAttrs::AttrDef::Kind::InheritedFrom));
+                  AttrDef::Kind::InheritedFrom));
       }
       delete $attrs;
     }
@@ -459,7 +459,7 @@ attrs
     { $$ = $1;
       ExprStringRef str = $2.dyn_cast<ExprStringRef>();
       if (str) {
-          $$->emplace_back(AttrName(state->symbols.create(state->exprs.ERtoEP(str)->s)), state->at(@2));
+          $$->emplace_back(AttrName(state->symbols.create(str.s(state->exprs))), state->at(@2));
           // XXX [speed]: we're leaking more memory
           // delete str;
       } else
@@ -477,7 +477,7 @@ attrpath
     { $$ = $1;
       ExprStringRef str = $3.dyn_cast<ExprStringRef>();
       if (str) {
-          $$->push_back(AttrName(state->symbols.create(state->exprs.ERtoEP(str)->s)));
+          $$->push_back(AttrName(state->symbols.create(str.s(state->exprs))));
           // XXX [speed]: we're leaking more memory
           // delete str;
       } else
@@ -488,7 +488,7 @@ attrpath
     { $$ = new std::vector<AttrName>;
       ExprStringRef str = $1.dyn_cast<ExprStringRef>();
       if (str) {
-          $$->push_back(AttrName(state->symbols.create(state->exprs.ERtoEP(str)->s)));
+          $$->push_back(AttrName(state->symbols.create(str.s(state->exprs))));
           // XXX [speed]: we're leaking more memory
           // delete str;
       } else
@@ -507,7 +507,7 @@ string_attr
   ;
 
 expr_list
-  : expr_list expr_select { $$ = $1; state->exprs.ERtoEP($1)->elems.push_back($2); /* !!! dangerous */; $2.warnIfCursedOr(state->exprs, state->symbols, state->positions); }
+  : expr_list expr_select { $$ = $1; $1.elems(state->exprs).push_back($2); /* !!! dangerous */; $2.warnIfCursedOr(state->exprs, state->symbols, state->positions); }
   | { $$ = state->exprs.addExprList(); }
   ;
 

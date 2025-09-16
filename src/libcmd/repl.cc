@@ -498,7 +498,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
                 auto path = state->coerceToPath(noPos, v.ref(state->values), context, "while evaluating the filename to edit");
                 return {path, 0};
             } else if (v.ref(state->values).isLambda(state->values)) {
-                auto pos = state->positions[state->exprs.ERtoEP(v.lambda().fun)->pos];
+                auto pos = state->positions[v.lambda().fun.pos(state->exprs)];
                 if (auto path = std::get_if<SourcePath>(&pos.origin))
                     return {*path, pos.line};
                 else

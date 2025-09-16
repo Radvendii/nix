@@ -417,7 +417,7 @@ static void main_nix_build(int argc, char ** argv)
             }
             bool add = false;
             if (v.type(state->values) == nFunction && v.lambda(state->values).fun.hasFormals(state->exprs)) {
-                for (auto & i : state->exprs.ERtoEP(v.lambda(state->values).fun)->formals->formals) {
+                for (auto & i : v.lambda(state->values).fun.formals(state->exprs)->formals) {
                     if (state->symbols[i.name] == "inNixShell") {
                         add = true;
                         break;

@@ -3298,7 +3298,7 @@ static void prim_functionArgs(EvalState & state, const PosIdx pos, ValueRef * ar
         return;
     }
 
-    const auto & formals = state.exprs.ERtoEP(args[0].lambda(state.values).fun)->formals->formals;
+    const auto & formals = args[0].lambda(state.values).fun.formals(state.exprs)->formals;
     auto attrs = state.buildBindings(formals.size());
     for (auto & i : formals)
         attrs.insert(i.name, state.getBool((bool)i.def), i.pos);

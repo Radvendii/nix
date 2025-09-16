@@ -456,12 +456,12 @@ private:
         if (v.isLambda(state.values)) {
             output << "lambda";
             if (v.lambda(state.values).fun) {
-                if (state.exprs.ERtoEP(v.lambda(state.values).fun)->name) {
-                    output << " " << state.symbols[state.exprs.ERtoEP(v.lambda(state.values).fun)->name];
+                if (v.lambda(state.values).fun.name(state.exprs)) {
+                    output << " " << state.symbols[v.lambda(state.values).fun.name(state.exprs)];
                 }
 
                 std::ostringstream s;
-                s << state.positions[state.exprs.ERtoEP(v.lambda(state.values).fun)->pos];
+                s << state.positions[v.lambda(state.values).fun.pos(state.exprs)];
                 output << " @ " << filterANSIEscapes(toView(s));
             }
         } else if (v.isPrimOp(state.values)) {

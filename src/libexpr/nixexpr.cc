@@ -48,41 +48,41 @@ PosIdx ExprRef::getPos(Exprs & exprs) const
     switch (type()) {
     case teInheritFrom:
     case teVar:
-        return exprs.ERtoEP(ExprVarRef(*this))->pos;
+        return ExprVarRef(*this).pos(exprs);
     case teSelect:
-        return exprs.ERtoEP(ExprSelectRef(*this))->pos;
+        return ExprSelectRef(*this).pos(exprs);
     case teAttrs:
-        return exprs.ERtoEP(ExprAttrsRef(*this))->pos;
+        return ExprAttrsRef(*this).pos(exprs);
     case teLambda:
-        return exprs.ERtoEP(ExprLambdaRef(*this))->pos;
+        return ExprLambdaRef(*this).pos(exprs);
     case teCall:
-        return exprs.ERtoEP(ExprCallRef(*this))->pos;
+        return ExprCallRef(*this).pos(exprs);
     case teWith:
-        return exprs.ERtoEP(ExprWithRef(*this))->pos;
+        return ExprWithRef(*this).pos(exprs);
     case teIf:
-        return exprs.ERtoEP(ExprIfRef(*this))->pos;
+        return ExprIfRef(*this).pos(exprs);
     case teAssert:
-        return exprs.ERtoEP(ExprAssertRef(*this))->pos;
+        return ExprAssertRef(*this).pos(exprs);
     case teOpAnd:
-        return exprs.ERtoEP(ExprOpAndRef(*this))->pos;
+        return ExprOpAndRef(*this).pos(exprs);
     case teOpOr:
-        return exprs.ERtoEP(ExprOpOrRef(*this))->pos;
+        return ExprOpOrRef(*this).pos(exprs);
     case teOpEq:
-        return exprs.ERtoEP(ExprOpEqRef(*this))->pos;
+        return ExprOpEqRef(*this).pos(exprs);
     case teOpNEq:
-        return exprs.ERtoEP(ExprOpNEqRef(*this))->pos;
+        return ExprOpNEqRef(*this).pos(exprs);
     case teOpImpl:
-        return exprs.ERtoEP(ExprOpImplRef(*this))->pos;
+        return ExprOpImplRef(*this).pos(exprs);
     case teConcatStrings:
-        return exprs.ERtoEP(ExprConcatStringsRef(*this))->pos;
+        return ExprConcatStringsRef(*this).pos(exprs);
     case tePos:
-        return exprs.ERtoEP(ExprPosRef(*this))->pos;
+        return ExprPosRef(*this).pos(exprs);
     case teOpHasAttr:
-        return exprs.ERtoEP(ExprOpHasAttrRef(*this))->e.getPos(exprs);
+        return ExprOpHasAttrRef(*this).e(exprs).getPos(exprs);
     case teOpNot:
-        return exprs.ERtoEP(ExprOpNotRef(*this))->e.getPos(exprs);
+        return ExprOpNotRef(*this).e(exprs).getPos(exprs);
     case teList:
-        return exprs.ERtoEP(ExprListRef(*this))->elems.empty() ? noPos : exprs.ERtoEP(ExprListRef(*this))->elems.front().getPos(exprs);
+        return ExprListRef(*this).elems(exprs).empty() ? noPos : ExprListRef(*this).elems(exprs).front().getPos(exprs);
     default:
         return noPos;
     }
@@ -172,9 +172,9 @@ std::ostream & operator<<(std::ostream & str, const Symbol & symbol)
 void TYPE##Ref::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const \
 {                                                                                                           \
     str << "(";                                                                                             \
-    exprs.ERtoEP(*this)->e1.show(exprs, values, symbols, str);                                              \
+    e1(exprs).show(exprs, values, symbols, str);                                                            \
     str << " " STRING " ";                                                                                  \
-    exprs.ERtoEP(*this)->e2.show(exprs, values, symbols, str);                                              \
+    e2(exprs).show(exprs, values, symbols, str);                                                            \
     str << ")";                                                                                             \
 }
 
@@ -183,37 +183,37 @@ NIX_FOR_EACH_BINOP(NIX_BINOP_SHOW)
 
 void ExprIntRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << exprs.ERtoEP(*this)->v.integer(values);
+    str << v(exprs).integer(values);
 }
 
 void ExprFloatRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << exprs.ERtoEP(*this)->v.fpoint(values);
+    str << v(exprs).fpoint(values);
 }
 
 void ExprStringRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    printLiteralString(str, exprs.ERtoEP(*this)->s);
+    printLiteralString(str, s(exprs));
 }
 
 void ExprPathRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << exprs.ERtoEP(*this)->s;
+    str << s(exprs);
 }
 
 void ExprVarRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << symbols[exprs.ERtoEP(*this)->name];
+    str << symbols[name(exprs)];
 }
 
 void ExprSelectRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(";
-    exprs.ERtoEP(*this)->e.show(exprs, values, symbols, str);
-    str << ")." << showAttrPath(exprs, values, symbols, exprs.ERtoEP(*this)->attrPath);
-    if (exprs.ERtoEP(*this)->def) {
+    e(exprs).show(exprs, values, symbols, str);
+    str << ")." << showAttrPath(exprs, values, symbols, attrPath(exprs));
+    if (def(exprs)) {
         str << " or (";
-        exprs.ERtoEP(*this)->def.show(exprs, values, symbols, str);
+        def(exprs).show(exprs, values, symbols, str);
         str << ")";
     }
 }
@@ -221,15 +221,15 @@ void ExprSelectRef::show(Exprs & exprs, Values & values, const SymbolTable & sym
 void ExprOpHasAttrRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "((";
-    exprs.ERtoEP(*this)->e.show(exprs, values, symbols, str);
-    str << ") ? " << showAttrPath(exprs, values, symbols, exprs.ERtoEP(*this)->attrPath) << ")";
+    e(exprs).show(exprs, values, symbols, str);
+    str << ") ? " << showAttrPath(exprs, values, symbols, attrPath(exprs)) << ")";
 }
 
 void ExprAttrsRef::showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    typedef const decltype(exprs.ERtoEP(*this)->attrs)::value_type * Attr;
+    typedef const AttrDefs::value_type * Attr;
     std::vector<Attr> sorted;
-    for (auto & i : exprs.ERtoEP(*this)->attrs)
+    for (auto & i : attrs(exprs))
         sorted.push_back(&i);
     std::sort(sorted.begin(), sorted.end(), [&](Attr a, Attr b) {
         std::string_view sa = symbols[a->first], sb = symbols[b->first];
@@ -241,15 +241,15 @@ void ExprAttrsRef::showBindings(Exprs & exprs, Values & values, const SymbolTabl
     std::map<Displacement, std::vector<SymbolRef>> inheritsFrom;
     for (auto & i : sorted) {
         switch (i->second.kind) {
-        case ExprAttrs::AttrDef::Kind::Plain:
+        case AttrDef::Kind::Plain:
             break;
-        case ExprAttrs::AttrDef::Kind::Inherited:
+        case AttrDef::Kind::Inherited:
             inherits.push_back(i->first);
             break;
-        case ExprAttrs::AttrDef::Kind::InheritedFrom: {
+        case AttrDef::Kind::InheritedFrom: {
             auto select = i->second.e.dyn_cast<ExprSelectRef>();
-            auto from = exprs.ERtoEP(select)->e.dyn_cast<ExprInheritFromRef>();
-            inheritsFrom[exprs.ERtoEP(from)->displ].push_back(i->first);
+            auto from = select.e(exprs).dyn_cast<ExprInheritFromRef>();
+            inheritsFrom[from.displ(exprs)].push_back(i->first);
             break;
         }
         }
@@ -262,20 +262,20 @@ void ExprAttrsRef::showBindings(Exprs & exprs, Values & values, const SymbolTabl
     }
     for (const auto & [from, syms] : inheritsFrom) {
         str << "inherit (";
-        (*exprs.ERtoEP(*this)->inheritFromExprs)[from].show(exprs, values, symbols, str);
+        (*inheritFromExprs(exprs))[from].show(exprs, values, symbols, str);
         str << ")";
         for (auto sym : syms)
             str << " " << symbols[sym];
         str << "; ";
     }
     for (auto & i : sorted) {
-        if (i->second.kind == ExprAttrs::AttrDef::Kind::Plain) {
+        if (i->second.kind == AttrDef::Kind::Plain) {
             str << symbols[i->first] << " = ";
             i->second.e.show(exprs, values, symbols, str);
             str << "; ";
         }
     }
-    for (auto & i : exprs.ERtoEP(*this)->dynamicAttrs) {
+    for (auto & i : dynamicAttrs(exprs)) {
         str << "\"${";
         i.nameExpr.show(exprs, values, symbols, str);
         str << "}\" = ";
@@ -286,7 +286,7 @@ void ExprAttrsRef::showBindings(Exprs & exprs, Values & values, const SymbolTabl
 
 void ExprAttrsRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    if (exprs.ERtoEP(*this)->recursive)
+    if (recursive(exprs))
         str << "rec ";
     str << "{ ";
     showBindings(exprs, values, symbols, str);
@@ -296,7 +296,7 @@ void ExprAttrsRef::show(Exprs & exprs, Values & values, const SymbolTable & symb
 void ExprListRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "[ ";
-    for (auto & i : exprs.ERtoEP(*this)->elems) {
+    for (auto & i : elems(exprs)) {
         str << "(";
         i.show(exprs, values, symbols, str);
         str << ") ";
@@ -313,7 +313,7 @@ void ExprLambdaRef::show(Exprs & exprs, Values & values, const SymbolTable & sym
         // the natural Symbol ordering is by creation time, which can lead to the
         // same expression being printed in two different ways depending on its
         // context. always use lexicographic ordering to avoid this.
-        for (auto & i : exprs.ERtoEP(*this)->formals->lexicographicOrder(symbols)) {
+        for (auto & i : formals(exprs)->lexicographicOrder(symbols)) {
             if (first)
                 first = false;
             else
@@ -324,27 +324,27 @@ void ExprLambdaRef::show(Exprs & exprs, Values & values, const SymbolTable & sym
                 i.def.show(exprs, values, symbols, str);
             }
         }
-        if (exprs.ERtoEP(*this)->formals->ellipsis) {
+        if (formals(exprs)->ellipsis) {
             if (!first)
                 str << ", ";
             str << "...";
         }
         str << " }";
-        if (exprs.ERtoEP(*this)->arg)
+        if (arg(exprs))
             str << " @ ";
     }
-    if (exprs.ERtoEP(*this)->arg)
-        str << symbols[exprs.ERtoEP(*this)->arg];
+    if (arg(exprs))
+        str << symbols[arg(exprs)];
     str << ": ";
-    exprs.ERtoEP(*this)->body.show(exprs, values, symbols, str);
+    body(exprs).show(exprs, values, symbols, str);
     str << ")";
 }
 
 void ExprCallRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << '(';
-    exprs.ERtoEP(*this)->fun.show(exprs, values, symbols, str);
-    for (auto e : exprs.ERtoEP(*this)->args) {
+    fun(exprs).show(exprs, values, symbols, str);
+    for (auto e : args(exprs)) {
         str << ' ';
         e.show(exprs, values, symbols, str);
     }
@@ -354,44 +354,44 @@ void ExprCallRef::show(Exprs & exprs, Values & values, const SymbolTable & symbo
 void ExprLetRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(let ";
-    exprs.ERtoEP(*this)->attrs.showBindings(exprs, values, symbols, str);
+    attrs(exprs).showBindings(exprs, values, symbols, str);
     str << "in ";
-    exprs.ERtoEP(*this)->body.show(exprs, values, symbols, str);
+    body(exprs).show(exprs, values, symbols, str);
     str << ")";
 }
 
 void ExprWithRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(with ";
-    exprs.ERtoEP(*this)->attrs.show(exprs, values, symbols, str);
+    attrs(exprs).show(exprs, values, symbols, str);
     str << "; ";
-    exprs.ERtoEP(*this)->body.show(exprs, values, symbols, str);
+    body(exprs).show(exprs, values, symbols, str);
     str << ")";
 }
 
 void ExprIfRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(if ";
-    exprs.ERtoEP(*this)->cond.show(exprs, values, symbols, str);
+    cond(exprs).show(exprs, values, symbols, str);
     str << " then ";
-    exprs.ERtoEP(*this)->then.show(exprs, values, symbols, str);
+    then(exprs).show(exprs, values, symbols, str);
     str << " else ";
-    exprs.ERtoEP(*this)->else_.show(exprs, values, symbols, str);
+    else_(exprs).show(exprs, values, symbols, str);
     str << ")";
 }
 
 void ExprAssertRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "assert ";
-    exprs.ERtoEP(*this)->cond.show(exprs, values, symbols, str);
+    cond(exprs).show(exprs, values, symbols, str);
     str << "; ";
-    exprs.ERtoEP(*this)->body.show(exprs, values, symbols, str);
+    body(exprs).show(exprs, values, symbols, str);
 }
 
 void ExprOpNotRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(! ";
-    exprs.ERtoEP(*this)->e.show(exprs, values, symbols, str);
+    e(exprs).show(exprs, values, symbols, str);
     str << ")";
 }
 
@@ -399,7 +399,7 @@ void ExprConcatStringsRef::show(Exprs & exprs, Values & values, const SymbolTabl
 {
     bool first = true;
     str << "(";
-    for (auto & i : *exprs.ERtoEP(*this)->es) {
+    for (auto & i : *es(exprs)) {
         if (first)
             first = false;
         else
@@ -465,7 +465,7 @@ void ExprVarRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv>
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(*this)->fromWith = ExprWithRef::null;
+    fromWith(es.exprs) = ExprWithRef::null;
 
     /* Check whether the variable appears in the environment.  If so,
        set its level and displacement. */
@@ -477,11 +477,11 @@ void ExprVarRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv>
             if (withLevel == -1)
                 withLevel = level;
         } else {
-            auto i = curEnv->find(es.exprs.ERtoEP(*this)->name);
+            auto i = curEnv->find(name(es.exprs));
             if (i != curEnv->vars.end()) {
                 // XXX [speed]: why do we store a level, that we have to trace back up to later, and not store the EnvRef directly? Because the Env hasn't been populated yet, perhaps? We're working at the AST level right now, not the Value level.
-                es.exprs.ERtoEP(*this)->level = level;
-                es.exprs.ERtoEP(*this)->displ = i->second;
+                this->level(es.exprs) = level;
+                this->displ(es.exprs) = i->second;
                 return;
             }
         }
@@ -491,10 +491,10 @@ void ExprVarRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv>
        enclosing `with'.  If there is no `with', then we can issue an
        "undefined variable" error now. */
     if (withLevel == -1)
-        es.error<UndefinedVarError>("undefined variable '%1%'", es.symbols[es.exprs.ERtoEP(*this)->name]).atPos(es.exprs.ERtoEP(*this)->pos).debugThrow();
-    for (auto * e = env.get(); e && !es.exprs.ERtoEP(*this)->fromWith; e = e->up.get())
-        es.exprs.ERtoEP(*this)->fromWith = e->isWith;
-    es.exprs.ERtoEP(*this)->level = withLevel;
+        es.error<UndefinedVarError>("undefined variable '%1%'", es.symbols[name(es.exprs)]).atPos(pos(es.exprs)).debugThrow();
+    for (auto * e = env.get(); e && !fromWith(es.exprs); e = e->up.get())
+        fromWith(es.exprs) = e->isWith;
+    this->level(es.exprs) = withLevel;
 }
 
 void ExprInheritFromRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
@@ -508,10 +508,10 @@ void ExprSelectRef::bindVars(EvalState & es, const std::shared_ptr<const StaticE
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(*this)->e.bindVars(es, env);
-    if (es.exprs.ERtoEP(*this)->def)
-        es.exprs.ERtoEP(*this)->def.bindVars(es, env);
-    for (auto & i : es.exprs.ERtoEP(*this)->attrPath)
+    e(es.exprs).bindVars(es, env);
+    if (def(es.exprs))
+        def(es.exprs).bindVars(es, env);
+    for (auto & i : attrPath(es.exprs))
         if (!i.symbol)
             i.expr.bindVars(es, env);
 }
@@ -521,8 +521,8 @@ void ExprOpHasAttrRef::bindVars(EvalState & es, const std::shared_ptr<const Stat
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(*this)->e.bindVars(es, env);
-    for (auto & i : es.exprs.ERtoEP(*this)->attrPath)
+    e(es.exprs).bindVars(es, env);
+    for (auto & i : attrPath(es.exprs))
         if (!i.symbol)
             i.expr.bindVars(es, env);
 }
@@ -530,7 +530,7 @@ void ExprOpHasAttrRef::bindVars(EvalState & es, const std::shared_ptr<const Stat
 std::shared_ptr<const StaticEnv>
 ExprAttrsRef::bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
-    if (!es.exprs.ERtoEP(*this)->inheritFromExprs)
+    if (!inheritFromExprs(es.exprs))
         return nullptr;
 
     // the inherit (from) source values are inserted into an env of its own, which
@@ -542,7 +542,7 @@ ExprAttrsRef::bindInheritSources(EvalState & es, const std::shared_ptr<const Sta
     // not even *have* an expr that grabs anything from this env since it's fully
     // invisible, but the evaluator does not allow for this yet.
     auto inner = std::make_shared<StaticEnv>(ExprWithRef::null, env, 0);
-    for (auto from : *es.exprs.ERtoEP(*this)->inheritFromExprs)
+    for (auto from : *inheritFromExprs(es.exprs))
         from.bindVars(es, env);
 
     return inner;
@@ -553,12 +553,12 @@ void ExprAttrsRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEn
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    if (es.exprs.ERtoEP(*this)->recursive) {
+    if (recursive(es.exprs)) {
         auto newEnv = [&]() -> std::shared_ptr<const StaticEnv> {
-            auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, es.exprs.ERtoEP(*this)->attrs.size());
+            auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, attrs(es.exprs).size());
 
             Displacement displ = 0;
-            for (auto & i : es.exprs.ERtoEP(*this)->attrs)
+            for (auto & i : attrs(es.exprs))
                 newEnv->vars.emplace_back(i.first, i.second.displ = displ++);
             return newEnv;
         }();
@@ -566,20 +566,20 @@ void ExprAttrsRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEn
         // No need to sort newEnv since attrs is in sorted order.
 
         auto inheritFromEnv = bindInheritSources(es, newEnv);
-        for (auto & i : es.exprs.ERtoEP(*this)->attrs)
+        for (auto & i : attrs(es.exprs))
             i.second.e.bindVars(es, i.second.chooseByKind(newEnv, env, inheritFromEnv));
 
-        for (auto & i : es.exprs.ERtoEP(*this)->dynamicAttrs) {
+        for (auto & i : dynamicAttrs(es.exprs)) {
             i.nameExpr.bindVars(es, newEnv);
             i.valueExpr.bindVars(es, newEnv);
         }
     } else {
         auto inheritFromEnv = bindInheritSources(es, env);
 
-        for (auto & i : es.exprs.ERtoEP(*this)->attrs)
+        for (auto & i : attrs(es.exprs))
             i.second.e.bindVars(es, i.second.chooseByKind(env, env, inheritFromEnv));
 
-        for (auto & i : es.exprs.ERtoEP(*this)->dynamicAttrs) {
+        for (auto & i : dynamicAttrs(es.exprs)) {
             i.nameExpr.bindVars(es, env);
             i.valueExpr.bindVars(es, env);
         }
@@ -591,7 +591,7 @@ void ExprListRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    for (auto & i : es.exprs.ERtoEP(*this)->elems)
+    for (auto & i : elems(es.exprs))
         i.bindVars(es, env);
 }
 
@@ -601,25 +601,25 @@ void ExprLambdaRef::bindVars(EvalState & es, const std::shared_ptr<const StaticE
         es.exprEnvs.insert(std::make_pair(*this, env));
 
     auto newEnv =
-        std::make_shared<StaticEnv>(ExprWithRef::null, env, (hasFormals(es.exprs) ? es.exprs.ERtoEP(*this)->formals->formals.size() : 0) + (!es.exprs.ERtoEP(*this)->arg ? 0 : 1));
+        std::make_shared<StaticEnv>(ExprWithRef::null, env, (hasFormals(es.exprs) ? formals(es.exprs)->formals.size() : 0) + (!arg(es.exprs) ? 0 : 1));
 
     Displacement displ = 0;
 
-    if (es.exprs.ERtoEP(*this)->arg)
-        newEnv->vars.emplace_back(es.exprs.ERtoEP(*this)->arg, displ++);
+    if (arg(es.exprs))
+        newEnv->vars.emplace_back(arg(es.exprs), displ++);
 
     if (hasFormals(es.exprs)) {
-        for (auto & i : es.exprs.ERtoEP(*this)->formals->formals)
+        for (auto & i : formals(es.exprs)->formals)
             newEnv->vars.emplace_back(i.name, displ++);
 
         newEnv->sort();
 
-        for (auto & i : es.exprs.ERtoEP(*this)->formals->formals)
+        for (auto & i : formals(es.exprs)->formals)
             if (i.def)
                 i.def.bindVars(es, newEnv);
     }
 
-    es.exprs.ERtoEP(*this)->body.bindVars(es, newEnv);
+    body(es.exprs).bindVars(es, newEnv);
 }
 
 void ExprCallRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
@@ -627,32 +627,32 @@ void ExprCallRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(*this)->fun.bindVars(es, env);
-    for (auto e : es.exprs.ERtoEP(*this)->args)
+    fun(es.exprs).bindVars(es, env);
+    for (auto e : args(es.exprs))
         e.bindVars(es, env);
 }
 
 void ExprLetRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     auto newEnv = [&]() -> std::shared_ptr<const StaticEnv> {
-        auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, es.exprs.ERtoEP(es.exprs.ERtoEP(*this)->attrs)->attrs.size());
+        auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, attrs(es.exprs).attrs(es.exprs).size());
 
         Displacement displ = 0;
-        for (auto & i : es.exprs.ERtoEP(es.exprs.ERtoEP(*this)->attrs)->attrs)
+        for (auto & i : attrs(es.exprs).attrs(es.exprs))
             newEnv->vars.emplace_back(i.first, i.second.displ = displ++);
         return newEnv;
     }();
 
     // No need to sort newEnv since attrs->attrs is in sorted order.
 
-    auto inheritFromEnv = es.exprs.ERtoEP(*this)->attrs.bindInheritSources(es, newEnv);
-    for (auto & i : es.exprs.ERtoEP(es.exprs.ERtoEP(*this)->attrs)->attrs)
+    auto inheritFromEnv = attrs(es.exprs).bindInheritSources(es, newEnv);
+    for (auto & i : attrs(es.exprs).attrs(es.exprs))
         i.second.e.bindVars(es, i.second.chooseByKind(newEnv, env, inheritFromEnv));
 
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, newEnv));
 
-    es.exprs.ERtoEP(*this)->body.bindVars(es, newEnv);
+    body(es.exprs).bindVars(es, newEnv);
 }
 
 void ExprWithRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
@@ -660,25 +660,25 @@ void ExprWithRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(*this)->parentWith = ExprWithRef::null;
-    for (auto * e = env.get(); e && !es.exprs.ERtoEP(*this)->parentWith; e = e->up.get())
-        es.exprs.ERtoEP(*this)->parentWith = e->isWith;
+    parentWith(es.exprs) = ExprWithRef::null;
+    for (auto * e = env.get(); e && !parentWith(es.exprs); e = e->up.get())
+        parentWith(es.exprs) = e->isWith;
 
     /* Does this `with' have an enclosing `with'?  If so, record its
        level so that `lookupVar' can look up variables in the previous
        `with' if this one doesn't contain the desired attribute. */
     const StaticEnv * curEnv;
     Level level;
-    es.exprs.ERtoEP(*this)->prevWith = 0;
+    prevWith(es.exprs) = 0;
     for (curEnv = env.get(), level = 1; curEnv; curEnv = curEnv->up.get(), level++)
         if (curEnv->isWith) {
-            es.exprs.ERtoEP(*this)->prevWith = level;
+            prevWith(es.exprs) = level;
             break;
         }
 
-    es.exprs.ERtoEP(*this)->attrs.bindVars(es, env);
+    attrs(es.exprs).bindVars(es, env);
     auto newEnv = std::make_shared<StaticEnv>(*this, env);
-    es.exprs.ERtoEP(*this)->body.bindVars(es, newEnv);
+    body(es.exprs).bindVars(es, newEnv);
 }
 
 void ExprIfRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
@@ -686,9 +686,9 @@ void ExprIfRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> 
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(*this)->cond.bindVars(es, env);
-    es.exprs.ERtoEP(*this)->then.bindVars(es, env);
-    es.exprs.ERtoEP(*this)->else_.bindVars(es, env);
+    cond(es.exprs).bindVars(es, env);
+    then(es.exprs).bindVars(es, env);
+    else_(es.exprs).bindVars(es, env);
 }
 
 void ExprAssertRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
@@ -696,8 +696,8 @@ void ExprAssertRef::bindVars(EvalState & es, const std::shared_ptr<const StaticE
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(*this)->cond.bindVars(es, env);
-    es.exprs.ERtoEP(*this)->body.bindVars(es, env);
+    cond(es.exprs).bindVars(es, env);
+    body(es.exprs).bindVars(es, env);
 }
 
 void ExprOpNotRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
@@ -705,7 +705,7 @@ void ExprOpNotRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEn
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    es.exprs.ERtoEP(*this)->e.bindVars(es, env);
+    e(es.exprs).bindVars(es, env);
 }
 
 void ExprConcatStringsRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
@@ -713,7 +713,7 @@ void ExprConcatStringsRef::bindVars(EvalState & es, const std::shared_ptr<const 
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    for (auto & i : *es.exprs.ERtoEP(*this)->es)
+    for (auto & i : *this->es(es.exprs))
         i.second.bindVars(es, env);
 }
 
@@ -738,22 +738,22 @@ void ExprRef::setDocComment(Exprs & exprs, DocComment docComment) {
 
 void ExprLambdaRef::setName(Exprs & exprs, SymbolRef name)
 {
-    exprs.ERtoEP(*this)->name = name;
-    exprs.ERtoEP(*this)->body.setName(exprs, name);
+    this->name(exprs) = name;
+    this->body(exprs).setName(exprs, name);
 }
 
 std::string ExprLambdaRef::showNamePos(EvalState & state)
 {
-    std::string id(state.exprs.ERtoEP(*this)->name ? concatStrings("'", state.symbols[state.exprs.ERtoEP(*this)->name], "'") : "anonymous function");
-    return fmt("%1% at %2%", id, state.positions[state.exprs.ERtoEP(*this)->pos]);
+    std::string id(this->name(state.exprs) ? concatStrings("'", state.symbols[this->name(state.exprs)], "'") : "anonymous function");
+    return fmt("%1% at %2%", id, state.positions[this->pos(state.exprs)]);
 }
 
 void ExprLambdaRef::setDocComment(Exprs & exprs, DocComment docComment)
 {
     // RFC 145 specifies that the innermost doc comment wins.
     // See https://github.com/NixOS/rfcs/blob/master/rfcs/0145-doc-strings.md#ambiguous-placement
-    if (!exprs.ERtoEP(*this)->docComment) {
-        exprs.ERtoEP(*this)->docComment = docComment;
+    if (!this->docComment(exprs)) {
+        this->docComment(exprs) = docComment;
 
         // Curried functions are defined by putting a function directly
         // in the body of another function. To render docs for those, we
@@ -761,7 +761,7 @@ void ExprLambdaRef::setDocComment(Exprs & exprs, DocComment docComment)
         //
         // If we have our own comment, we've already propagated it, so this
         // belongs in the same conditional.
-        exprs.ERtoEP(*this)->body.setDocComment(exprs, docComment);
+        body(exprs).setDocComment(exprs, docComment);
     }
 };
 
@@ -814,19 +814,19 @@ void ExprRef::warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const P
 
 void ExprCallRef::resetCursedOr(Exprs & exprs)
 {
-    exprs.ERtoEP(*this)->cursedOrEndPos.reset();
+    cursedOrEndPos(exprs).reset();
 }
 
 void ExprCallRef::warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions)
 {
-    if (exprs.ERtoEP(*this)->cursedOrEndPos.has_value()) {
+    if (cursedOrEndPos(exprs).has_value()) {
         std::ostringstream out;
-        out << "at " << positions[exprs.ERtoEP(*this)->pos]
+        out << "at " << positions[pos(exprs)]
             << ": "
                "This expression uses `or` as an identifier in a way that will change in a future Nix release.\n"
                "Wrap this entire expression in parentheses to preserve its current meaning:\n"
                "    ("
-            << positions[exprs.ERtoEP(*this)->pos].getSnippetUpTo(positions[*exprs.ERtoEP(*this)->cursedOrEndPos]).value_or("could not read expression")
+            << positions[pos(exprs)].getSnippetUpTo(positions[*cursedOrEndPos(exprs)]).value_or("could not read expression")
             << ")\n"
                "Give feedback at https://github.com/NixOS/nix/pull/11121";
         warn(out.str());
