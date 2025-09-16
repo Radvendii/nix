@@ -97,11 +97,6 @@ struct Expr
     }
 
     virtual ~Expr() {};
-
-    virtual PosIdx getPos(Exprs & exprs) const
-    {
-        return noPos;
-    }
 };
 
 struct ExprInt : Expr
@@ -166,11 +161,6 @@ struct ExprVar : Expr
     ExprVar(const PosIdx & pos, SymbolRef name)
         : pos(pos)
         , name(name) {};
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
 };
 
 /**
@@ -208,11 +198,6 @@ struct ExprSelect : Expr
         attrPath.push_back(AttrName(name));
     };
 
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
-
     /**
      * Evaluate the `a.b.c` part of `a.b.c.d`. This exists mostly for the purpose of :doc in the repl.
      *
@@ -232,11 +217,6 @@ struct ExprOpHasAttr : Expr
     ExprOpHasAttr(ExprRef e, AttrPath attrPath)
         : e(e)
         , attrPath(std::move(attrPath)) {};
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return exprs.ERtoEP(e)->getPos(exprs);
-    }
 };
 
 struct ExprAttrs : Expr
@@ -302,11 +282,6 @@ struct ExprAttrs : Expr
     ExprAttrs()
         : recursive(false) {};
 
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
-
     std::shared_ptr<const StaticEnv> bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     EnvRef buildInheritFromEnv(EvalState & state, EnvRef up);
     void showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
@@ -316,11 +291,6 @@ struct ExprList : Expr
 {
     std::vector<ExprRef> elems;
     ExprList() {};
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return elems.empty() ? noPos : exprs.ERtoEP(elems.front())->getPos(exprs);
-    }
 };
 
 struct Formal
@@ -385,11 +355,6 @@ struct ExprLambda : Expr
     {
         return formals != nullptr;
     }
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
 };
 
 struct ExprCall : Expr
@@ -414,14 +379,6 @@ struct ExprCall : Expr
         , cursedOrEndPos(cursedOrEndPos)
     {
     }
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
-
-    virtual void resetCursedOr() override;
-    virtual void warnIfCursedOr(const SymbolTable & symbols, const PosTable & positions) override;
 };
 
 struct ExprLet : Expr
@@ -443,11 +400,6 @@ struct ExprWith : Expr
         : pos(pos)
         , attrs(attrs)
         , body(body) {};
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
 };
 
 struct ExprIf : Expr
@@ -459,11 +411,6 @@ struct ExprIf : Expr
         , cond(cond)
         , then(then)
         , else_(else_) {};
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
 };
 
 struct ExprAssert : Expr
@@ -474,11 +421,6 @@ struct ExprAssert : Expr
         : pos(pos)
         , cond(cond)
         , body(body) {};
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
 };
 
 struct ExprOpNot : Expr
@@ -486,11 +428,6 @@ struct ExprOpNot : Expr
     ExprRef e;
     ExprOpNot(ExprRef e)
         : e(e) {};
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return exprs.ERtoEP(e)->getPos(exprs);
-    }
 };
 
 #define NIX_FOR_EACH_BINOP(MACRO) \
@@ -514,10 +451,6 @@ struct name : Expr                                                 \
         : pos(pos)                                                 \
         , e1(e1)                                                   \
         , e2(e2) {};                                               \
-    PosIdx getPos(Exprs & exprs) const override                    \
-    {                                                              \
-        return pos;                                                \
-    }                                                              \
 };
 
 NIX_FOR_EACH_BINOP(MakeBinOp)
@@ -531,11 +464,6 @@ struct ExprConcatStrings : Expr
         : pos(pos)
         , forceString(forceString)
         , es(es) {};
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
 };
 
 struct ExprPos : Expr
@@ -543,11 +471,6 @@ struct ExprPos : Expr
     PosIdx pos;
     ExprPos(const PosIdx & pos)
         : pos(pos) {};
-
-    PosIdx getPos(Exprs & exprs) const override
-    {
-        return pos;
-    }
 };
 
 /* only used to mark thunks as black holes. */

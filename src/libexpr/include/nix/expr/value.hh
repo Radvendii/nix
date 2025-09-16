@@ -458,6 +458,8 @@ struct ExprRef {
     // These are temporary methods to be used only in parser.y
     void resetCursedOr(Exprs & exprs);
     void warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions);
+
+    PosIdx getPos(Exprs & exprs) const;
 };
 
 

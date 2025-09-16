@@ -41,6 +41,54 @@ void ExprInheritFromRef::show(Exprs & exprs, Values & values, const SymbolTable 
     ExprVarRef(*this).show(exprs, values, symbols, str);
 }
 
+PosIdx ExprRef::getPos(Exprs & exprs) const
+{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch-enum"
+    switch (type()) {
+    case teInheritFrom:
+    case teVar:
+        return exprs.ERtoEP(ExprVarRef(*this))->pos;
+    case teSelect:
+        return exprs.ERtoEP(ExprSelectRef(*this))->pos;
+    case teAttrs:
+        return exprs.ERtoEP(ExprAttrsRef(*this))->pos;
+    case teLambda:
+        return exprs.ERtoEP(ExprLambdaRef(*this))->pos;
+    case teCall:
+        return exprs.ERtoEP(ExprCallRef(*this))->pos;
+    case teWith:
+        return exprs.ERtoEP(ExprWithRef(*this))->pos;
+    case teIf:
+        return exprs.ERtoEP(ExprIfRef(*this))->pos;
+    case teAssert:
+        return exprs.ERtoEP(ExprAssertRef(*this))->pos;
+    case teOpAnd:
+        return exprs.ERtoEP(ExprOpAndRef(*this))->pos;
+    case teOpOr:
+        return exprs.ERtoEP(ExprOpOrRef(*this))->pos;
+    case teOpEq:
+        return exprs.ERtoEP(ExprOpEqRef(*this))->pos;
+    case teOpNEq:
+        return exprs.ERtoEP(ExprOpNEqRef(*this))->pos;
+    case teOpImpl:
+        return exprs.ERtoEP(ExprOpImplRef(*this))->pos;
+    case teConcatStrings:
+        return exprs.ERtoEP(ExprConcatStringsRef(*this))->pos;
+    case tePos:
+        return exprs.ERtoEP(ExprPosRef(*this))->pos;
+    case teOpHasAttr:
+        return exprs.ERtoEP(ExprOpHasAttrRef(*this))->e.getPos(exprs);
+    case teOpNot:
+        return exprs.ERtoEP(ExprOpNotRef(*this))->e.getPos(exprs);
+    case teList:
+        return exprs.ERtoEP(ExprListRef(*this))->elems.empty() ? noPos : exprs.ERtoEP(ExprListRef(*this))->elems.front().getPos(exprs);
+    default:
+        return noPos;
+    }
+#pragma GCC diagnostic pop
+};
+
 void ExprBlackHoleRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     unreachable();

@@ -201,7 +201,7 @@ struct DebugTrace
                 [&](PosIdx idx) {
                     // Prefer direct pos, but if noPos then try the expr.
                     if (!idx)
-                        idx = exprs.ERtoEP(expr)->getPos(exprs);
+                        idx = expr.getPos(exprs);
                     return table[idx];
                 },
                 [&](Pos pos) { return pos; },

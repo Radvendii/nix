@@ -257,7 +257,7 @@ static SymbolRef getName(/* XXX: const */ AttrName & name, EvalState & state, En
     } else {
         Value nameValue;
         name.expr.eval(state, env, nameValue.ref(state.values));
-        state.forceStringNoCtx(nameValue.ref(state.values), state.exprs.ERtoEP(name.expr)->getPos(state.exprs), "while evaluating an attribute name");
+        state.forceStringNoCtx(nameValue.ref(state.values), name.expr.getPos(state.exprs), "while evaluating an attribute name");
         return state.symbols.create(nameValue.string_view());
     }
 }
@@ -704,19 +704,19 @@ std::optional<EvalState::Doc> EvalState::getDoc(ValueRef v)
             };
     }
     if (v.isLambda(values)) {
-        auto exprLambda = exprs.ERtoEP(v.lambda(values).fun);
+        auto exprLambda = v.lambda(values).fun;
 
         std::ostringstream s;
         std::string name;
-        auto pos = positions[exprLambda->getPos(exprs)];
+        auto pos = positions[exprs.ERtoEP(exprLambda)->pos];
         std::string docStr;
 
-        if (exprLambda->name) {
-            name = symbols[exprLambda->name];
+        if (exprs.ERtoEP(exprLambda)->name) {
+            name = symbols[exprs.ERtoEP(exprLambda)->name];
         }
 
-        if (exprLambda->docComment) {
-            docStr = exprLambda->docComment.getInnerText(positions);
+        if (exprs.ERtoEP(exprLambda)->docComment) {
+            docStr = exprs.ERtoEP(exprLambda)->docComment.getInnerText(positions);
         }
 
         if (name.empty()) {
@@ -897,7 +897,7 @@ void EvalState::runDebugRepl(const Error * error, const EnvRef env, const ExprRe
         return;
 
     auto dts = [&]() -> std::unique_ptr<DebugTraceStacker> {
-        if (error && exprs.ERtoEP(expr)->getPos(exprs)) {
+        if (error && expr.getPos(exprs)) {
             auto trace = DebugTrace{
                 .pos = [&]() -> std::variant<Pos, PosIdx> {
                     if (error->info().pos) {
@@ -905,7 +905,7 @@ void EvalState::runDebugRepl(const Error * error, const EnvRef env, const ExprRe
                             return *pos;
                         return noPos;
                     }
-                    return exprs.ERtoEP(expr)->getPos(exprs);
+                    return expr.getPos(exprs);
                 }(),
                 .expr = expr,
                 .env = env,
@@ -1458,7 +1458,7 @@ void EvalState::evalFile(const SourcePath & path, ValueRef v, bool mustBeTrivial
                                    *this,
                                    e,
                                    this->baseEnv,
-                                   exprs.ERtoEP(e)->getPos(exprs),
+                                   e.getPos(exprs),
                                    "while evaluating the file '%1%':",
                                    resolvedPath.to_string())
                              : nullptr;
@@ -1670,7 +1670,7 @@ void ExprLetRef::eval(EvalState & state, EnvRef env, ValueRef v)
     }
 
     auto dts = state.debugRepl
-                   ? makeDebugTraceStacker(state, *this, env2, state.exprs.ERtoEP(*this)->getPos(state.exprs), "while evaluating a '%1%' expression", "let")
+                   ? makeDebugTraceStacker(state, *this, env2, ExprRef(*this).getPos(state.exprs), "while evaluating a '%1%' expression", "let")
                    : nullptr;
 
     state.exprs.ERtoEP(*this)->body.eval(state, env2, v);
@@ -1725,7 +1725,7 @@ void ExprSelectRef::eval(EvalState & state, EnvRef env, ValueRef v)
                                          state,
                                          *this,
                                          env,
-                                         state.exprs.ERtoEP(*this)->getPos(state.exprs),
+                                         ExprRef(*this).getPos(state.exprs),
                                          "while evaluating the attribute '%1%'",
                                          showAttrPath(state, env, state.exprs.ERtoEP(*this)->attrPath))
                                    : nullptr;
@@ -1802,7 +1802,7 @@ void ExprOpHasAttrRef::eval(EvalState & state, EnvRef env, ValueRef v)
     state.exprs.ERtoEP(*this)->e.eval(state, env, vTmp.ref(state.values));
 
     for (auto & i : state.exprs.ERtoEP(*this)->attrPath) {
-        state.forceValue(vAttrs, state.exprs.ERtoEP(*this)->getPos(state.exprs));
+        state.forceValue(vAttrs, ExprRef(*this).getPos(state.exprs));
         const Attr * j;
         auto name = getName(i, state, env);
         if (vAttrs.type(state.values) == nAttrs && (j = vAttrs.attrs(state.values)->get(name))) {
@@ -2065,7 +2065,7 @@ void EvalState::callFunction(ValueRef fun, std::span<ValueRef> args, ValueRef vR
 void ExprCallRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     auto dts =
-        state.debugRepl ? makeDebugTraceStacker(state, *this, env, state.exprs.ERtoEP(*this)->getPos(state.exprs), "while calling a function") : nullptr;
+        state.debugRepl ? makeDebugTraceStacker(state, *this, env, ExprRef(*this).getPos(state.exprs), "while calling a function") : nullptr;
 
     Value vFun;
     state.exprs.ERtoEP(*this)->fun.eval(state, env, vFun.ref(state.values));
@@ -2187,7 +2187,7 @@ void ExprAssertRef::eval(EvalState & state, EnvRef env, ValueRef v)
 
 void ExprOpNotRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-    v.mkBool(state.values, !state.evalBool(env, state.exprs.ERtoEP(*this)->e, state.exprs.ERtoEP(*this)->getPos(state.exprs), "in the argument of the not operator")); // XXX: FIXME: !
+    v.mkBool(state.values, !state.evalBool(env, state.exprs.ERtoEP(*this)->e, ExprRef(*this).getPos(state.exprs), "in the argument of the not operator")); // XXX: FIXME: !
 }
 
 void ExprOpEqRef::eval(EvalState & state, EnvRef env, ValueRef v)

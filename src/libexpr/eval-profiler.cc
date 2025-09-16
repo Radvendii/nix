@@ -251,7 +251,7 @@ std::ostream & LambdaFrameInfo::symbolize(/*const*/ EvalState & state, std::ostr
     if (auto pos = posCache.lookup(callPos); std::holds_alternative<std::monostate>(pos.origin))
         /* HACK: To avoid dubious «none»:0 in the generated profile if the origin can't be resolved
            resort to printing the lambda location instead of the callsite position. */
-        os << posCache.lookup(state.exprs.ERtoEP(expr)->getPos(state.exprs));
+        os << posCache.lookup(state.exprs.ERtoEP(expr)->pos);
     else
         os << pos;
     if (state.exprs.ERtoEP(expr)->name)

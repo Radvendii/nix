@@ -46,7 +46,7 @@ EvalErrorBuilder<T> & EvalErrorBuilder<T>::withFrame(const EnvRef env, const Exp
     // TODO: What side-effects??
     error.state.debugTraces.push_front(
         DebugTrace{
-            .pos = error.state.exprs.ERtoEP(expr)->getPos(error.state.exprs),
+            .pos = expr.getPos(error.state.exprs),
             .expr = expr,
             .env = env,
             .hint = HintFmt("Fake frame for debugging purposes"),
