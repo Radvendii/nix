@@ -144,49 +144,6 @@ ExprBlackHole * Exprs::ERtoEP(ExprBlackHoleRef ref) {
     return &eBlackHole;
 }
 
-ExprRef Exprs::EPtoER(Expr * p) {
-    if (!p)
-        return ExprRef::null;
-    if (p == &eBlackHole) {
-        return ExprBlackHoleRef(0);
-    }
-#define NIX_EXPR_LOOK_FOR_POINTER(TYPE, DISCRIMINANT, VECTOR)         \
-if (!VECTOR.empty() && p >= &VECTOR.front() && p <= &VECTOR.back()) { \
-    return TYPE##Ref((TYPE *)p - &VECTOR.front());                    \
-}
-NIX_FOR_EACH_EXPR(NIX_EXPR_LOOK_FOR_POINTER)
-NIX_EXPR_LOOK_FOR_POINTER(ExprVar, teVar, vars)
-#undef NIX_EXPR_LOOK_FOR_POINTER
-// this would mean this is pointing to an Expr outside this struct
-unreachable();
-}
-
-#define NIX_EXPR_EPTOER(TYPE, DISCRIMINANT, VECTOR) \
-TYPE##Ref Exprs::EPtoER(TYPE * p) { \
-    if (!p) \
-        return TYPE##Ref::null; \
-    return TYPE##Ref(p - &VECTOR.front()); \
-}
-NIX_FOR_EACH_EXPR(NIX_EXPR_EPTOER)
-#undef NIX_EXPR_EPTOER
-
-ExprBlackHoleRef Exprs::EPtoER(ExprBlackHole * p) {
-    assert(p == &eBlackHole);
-    return ExprBlackHoleRef(0);
-}
-
-// ExprVar must be different because ExprInheritFrom is a subtype
-ExprVarRef Exprs::EPtoER(ExprVar * p) {
-    if (!p)
-        return ExprVarRef::null;
-    if (!vars.empty() && p >= &vars.front() && p <= &vars.back())
-        return ExprVarRef(p - &vars.front());
-    if (!inheritFroms.empty() && p >= &inheritFroms.front() && p <= &inheritFroms.back())
-        return ExprInheritFromRef((ExprInheritFrom *)p - &inheritFroms.front());
-
-    unreachable();
-}
-
 Expr * Exprs::ERtoEP(ExprRef ref) {
     if (!ref)
         return nullptr;

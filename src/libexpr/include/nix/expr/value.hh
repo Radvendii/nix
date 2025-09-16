@@ -698,14 +698,6 @@ TYPE * ERtoEP(TYPE##Ref ref);
     NIX_DECLARE_GET(ExprVar, teVar, vars)
     NIX_DECLARE_GET(ExprBlackHole, teBlackhole, )
 #undef NIX_DECLARE_GET
-#define NIX_DECLARE_EPTOER(TYPE, DISCRIMINANT, VECTOR) \
-TYPE##Ref EPtoER(TYPE * ref);
-    NIX_FOR_EACH_EXPR(NIX_DECLARE_EPTOER)
-    NIX_DECLARE_EPTOER(ExprVar, teVar, vars)
-    NIX_DECLARE_EPTOER(ExprBlackHole, teBlackHole, )
-#undef NIX_DECLARE_EPTOER
-
-    ExprRef EPtoER(Expr * p);
 
     Expr * ERtoEP(ExprRef ref);
 };
