@@ -418,6 +418,11 @@ struct ExprRef {
 
     uint32_t ref;
 
+    constexpr Type type() const noexcept
+    {
+        return (Type) (ref >> 24);
+    }
+
     constexpr explicit ExprRef(Type type, uint32_t idx)
         : ref((type << 24) | idx)
     {
@@ -600,7 +605,7 @@ struct ExprVarRef {
 case DISCRIMINANT:                                             \
     return TYPE##Ref(*this).FUN;
 #define DYNAMIC_DISPATCH(FUN)                            \
-switch((Type) (ref >> 24)) {                             \
+switch(type()) {                                         \
 NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH_CASE, FUN)            \
 DYNAMIC_DISPATCH_CASE(ExprVar, teVar, vars, FUN)         \
 DYNAMIC_DISPATCH_CASE(ExprBlackHole, teBlackHole, , FUN) \
@@ -610,18 +615,19 @@ DYNAMIC_DISPATCH_CASE(ExprBlackHole, teBlackHole, , FUN) \
 #define NIX_DYN_CAST(TYPE, DISCRIMINANT, VECTOR)      \
 template<>                                            \
 inline TYPE##Ref ExprRef::dyn_cast() const noexcept { \
-    if (Type (ref >> 24) != DISCRIMINANT)             \
+    if (type() != DISCRIMINANT)                       \
         return TYPE##Ref::null;                       \
     return TYPE##Ref(ref & 0x00FFFFFF);               \
 }
-    NIX_FOR_EACH_EXPR(NIX_DYN_CAST)
-    NIX_DYN_CAST(ExprBlackHole, teBlackHole, )
+NIX_FOR_EACH_EXPR(NIX_DYN_CAST)
+NIX_DYN_CAST(ExprBlackHole, teBlackHole, )
 #undef NIX_DYN_CAST
+
 template<>
 inline ExprVarRef ExprRef::dyn_cast() const noexcept {
-    if (Type (ref >> 24) == teVar)
+    if (type() == teVar)
         return ExprVarRef(ref & 0x00FFFFFF);
-    if (Type (ref >> 24) == teInheritFrom)
+    if (type() == teInheritFrom)
         return ExprInheritFromRef(ref & 0x00FFFFFF);
     return ExprVarRef::null;
 }

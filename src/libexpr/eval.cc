@@ -1389,31 +1389,34 @@ void EvalState::mkSingleDerivedPathString(const SingleDerivedPath & p, ValueRef 
 ValueRef ExprRef::maybeThunk(EvalState & state, EnvRef env)
 {
     ValueRef ret = ValueRef::null;
-    switch ((Type) (ref >> 24)) {
-        case teInheritFrom:
-        case teVar:
-            ret = state.lookupVar(env, ExprVarRef(*this), true);
-            break;
-        // XXX [speed]: simplify this with a .value() function that returns ValueRef::null on other types
-        case teInt:
-            ret = state.exprs.ERtoEP(ExprIntRef(*this))->v;
-            break;
-        case teFloat:
-            ret = state.exprs.ERtoEP(ExprFloatRef(*this))->v;
-            break;
-        case teString:
-            ret = state.exprs.ERtoEP(ExprStringRef(*this))->v;
-            break;
-        case tePath:
-            ret = state.exprs.ERtoEP(ExprPathRef(*this))->v;
-            break;
-        case teList:
-            if (state.exprs.ERtoEP(ExprListRef(*this))->elems.empty())
-                ret = state.vEmptyList;
-            break;
-        default:
-            break;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch-enum"
+    switch (type()) {
+    case teInheritFrom:
+    case teVar:
+        ret = state.lookupVar(env, ExprVarRef(*this), true);
+        break;
+    // XXX [speed]: simplify this with a .value() function that returns ValueRef::null on other types
+    case teInt:
+        ret = state.exprs.ERtoEP(ExprIntRef(*this))->v;
+        break;
+    case teFloat:
+        ret = state.exprs.ERtoEP(ExprFloatRef(*this))->v;
+        break;
+    case teString:
+        ret = state.exprs.ERtoEP(ExprStringRef(*this))->v;
+        break;
+    case tePath:
+        ret = state.exprs.ERtoEP(ExprPathRef(*this))->v;
+        break;
+    case teList:
+        if (state.exprs.ERtoEP(ExprListRef(*this))->elems.empty())
+            ret = state.vEmptyList;
+        break;
+    default:
+        break;
     }
+#pragma GCC diagnostic pop
 
     if (!ret) {
         ret = state.allocValue();

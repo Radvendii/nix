@@ -76,14 +76,14 @@ ExprCallRef Exprs::addExprCall(const PosIdx & pos, ExprRef fun, std::vector<Expr
 
 #define NIX_DEFINE_GET(TYPE, DISCRIMINANT, VECTOR)  \
 TYPE * Exprs::ERtoEP(TYPE##Ref ref) {               \
-    assert((Type) (ref.ref >> 24) == DISCRIMINANT); \
+    assert(ExprRef(ref).type() == DISCRIMINANT);    \
     return &VECTOR[ref.ref & 0x00FFFFFF];           \
 }
     NIX_FOR_EACH_EXPR(NIX_DEFINE_GET)
 #undef NIX_DEFINE_GET
 
 ExprVar * Exprs::ERtoEP(ExprVarRef ref) {
-    auto type = (Type) (ref.ref >> 24);
+    auto type = ExprRef(ref).type();
     if (type == teVar)
         return &vars[ref.ref & 0x00FFFFFF];
     if (type == teInheritFrom)
@@ -92,7 +92,7 @@ ExprVar * Exprs::ERtoEP(ExprVarRef ref) {
 }
 
 ExprBlackHole * Exprs::ERtoEP(ExprBlackHoleRef ref) {
-    assert((Type) (ref.ref >> 24) == teBlackHole);
+    assert(ExprRef(ref).type() == teBlackHole);
     return &eBlackHole;
 }
 
@@ -142,7 +142,7 @@ ExprVarRef Exprs::EPtoER(ExprVar * p) {
 Expr * Exprs::ERtoEP(ExprRef ref) {
     if (!ref)
         return nullptr;
-    switch ((Type) (ref.ref >> 24)) {
+    switch (ref.type()) {
 #define NIX_EXPR_SWITCH_GET_REF(TYPE, DISCRIMINANT, VECTOR) \
     case DISCRIMINANT:                                      \
         return &VECTOR[ref.ref & 0x00FFFFFF];
@@ -720,12 +720,12 @@ void ExprPosRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv>
 /* Storing function names. */
 
 void ExprRef::setName(Exprs & exprs, SymbolRef name) {
-    if ((Type) (ref >> 24) == teLambda) {
+    if (type() == teLambda) {
         ExprLambdaRef(*this).setName(exprs, name);
     }
 }
 void ExprRef::setDocComment(Exprs & exprs, DocComment docComment) {
-    if ((Type) (ref >> 24) == teLambda) {
+    if (type() == teLambda) {
         ExprLambdaRef(*this).setDocComment(exprs, docComment);
     }
 }
