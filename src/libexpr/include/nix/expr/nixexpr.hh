@@ -270,10 +270,6 @@ struct ExprAttrs : Expr
         , pos(pos) {};
     ExprAttrs()
         : recursive(false) {};
-
-    std::shared_ptr<const StaticEnv> bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
-    EnvRef buildInheritFromEnv(EvalState & state, EnvRef up);
-    void showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
 };
 
 struct ExprList : Expr

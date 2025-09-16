@@ -1543,13 +1543,13 @@ void ExprPathRef::eval(EvalState & state, EnvRef env, ValueRef v)
     v.set(state.values, state.exprs.ERtoEP(*this)->v);
 }
 
-EnvRef ExprAttrs::buildInheritFromEnv(EvalState & state, EnvRef up)
+EnvRef ExprAttrsRef::buildInheritFromEnv(EvalState & state, EnvRef up)
 {
-    EnvRef inheritEnv = state.allocEnv(inheritFromExprs->size());
+    EnvRef inheritEnv = state.allocEnv(state.exprs.ERtoEP(*this)->inheritFromExprs->size());
     inheritEnv.up(state.envs) = up;
 
     Displacement displ = 0;
-    for (auto from : *inheritFromExprs)
+    for (auto from : *state.exprs.ERtoEP(*this)->inheritFromExprs)
         inheritEnv.values(state.envs)[displ++] = from.maybeThunk(state, up);
 
     return inheritEnv;
@@ -1567,7 +1567,7 @@ void ExprAttrsRef::eval(EvalState & state, EnvRef env, ValueRef v)
         EnvRef env2(state.allocEnv(state.exprs.ERtoEP(*this)->attrs.size()));
         env2.up(state.envs) = env;
         dynamicEnv = env2;
-        EnvRef inheritEnv = state.exprs.ERtoEP(*this)->inheritFromExprs ? state.exprs.ERtoEP(*this)->buildInheritFromEnv(state, env2) : EnvRef::null;
+        EnvRef inheritEnv = state.exprs.ERtoEP(*this)->inheritFromExprs ? buildInheritFromEnv(state, env2) : EnvRef::null;
 
         ExprAttrs::AttrDefs::iterator overrides = state.exprs.ERtoEP(*this)->attrs.find(state.sOverrides);
         bool hasOverrides = overrides != state.exprs.ERtoEP(*this)->attrs.end();
@@ -1615,7 +1615,7 @@ void ExprAttrsRef::eval(EvalState & state, EnvRef env, ValueRef v)
     }
 
     else {
-        EnvRef inheritEnv = state.exprs.ERtoEP(*this)->inheritFromExprs ? state.exprs.ERtoEP(*this)->buildInheritFromEnv(state, env) : EnvRef::null;
+        EnvRef inheritEnv = state.exprs.ERtoEP(*this)->inheritFromExprs ? buildInheritFromEnv(state, env) : EnvRef::null;
         for (auto & i : state.exprs.ERtoEP(*this)->attrs)
             bindings.insert(
                 i.first, i.second.e.maybeThunk(state, i.second.chooseByKind(env, env, inheritEnv)), i.second.pos);
@@ -1659,7 +1659,7 @@ void ExprLetRef::eval(EvalState & state, EnvRef env, ValueRef v)
     EnvRef env2(state.allocEnv(state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->attrs.size()));
     env2.up(state.envs) = env;
 
-    EnvRef inheritEnv = state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->inheritFromExprs ? state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->buildInheritFromEnv(state, env2) : EnvRef::null;
+    EnvRef inheritEnv = state.exprs.ERtoEP(state.exprs.ERtoEP(*this)->attrs)->inheritFromExprs ? state.exprs.ERtoEP(*this)->attrs.buildInheritFromEnv(state, env2) : EnvRef::null;
 
     /* The recursive attributes are evaluated in the new environment,
        while the inherited attributes are evaluated in the original
