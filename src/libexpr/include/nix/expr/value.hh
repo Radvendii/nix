@@ -620,6 +620,7 @@ struct ExprInheritFromRef {
 struct ExprBlackHoleRef {
     public:
     COMMON_DEFS(ExprBlackHole, teBlackHole)
+    [[noreturn]] static void throwInfiniteRecursionError(EvalState & state, ValueRef v);
 };
 struct ExprVarRef {
     public:

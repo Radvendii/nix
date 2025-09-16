@@ -2428,10 +2428,10 @@ void ExprPosRef::eval(EvalState & state, EnvRef env, ValueRef v)
 
 void ExprBlackHoleRef::eval(EvalState & state, [[maybe_unused]] EnvRef env, ValueRef v)
 {
-    state.exprs.ERtoEP(*this)->throwInfiniteRecursionError(state, v);
+    throwInfiniteRecursionError(state, v);
 }
 
-[[gnu::noinline]] [[noreturn]] void ExprBlackHole::throwInfiniteRecursionError(EvalState & state, ValueRef v)
+[[gnu::noinline]] [[noreturn]] void ExprBlackHoleRef::throwInfiniteRecursionError(EvalState & state, ValueRef v)
 {
     state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(v.determinePos(state.exprs, state.values, noPos)).debugThrow();
 }

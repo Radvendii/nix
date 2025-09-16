@@ -38,7 +38,7 @@ void EvalState::forceValue(ValueRef v, const PosIdx pos)
             if (env) [[likely]]
                 expr.eval(*this, env, v);
             else
-                ExprBlackHole::throwInfiniteRecursionError(*this, v);
+                ExprBlackHoleRef::throwInfiniteRecursionError(*this, v);
         } catch (...) {
             v.mkThunk(exprs, values, env, expr);
             tryFixupBlackHolePos(v, pos);

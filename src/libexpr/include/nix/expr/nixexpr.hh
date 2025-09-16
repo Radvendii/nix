@@ -454,7 +454,6 @@ struct ExprPos : Expr
 /* only used to mark thunks as black holes. */
 struct ExprBlackHole : Expr
 {
-    [[noreturn]] static void throwInfiniteRecursionError(EvalState & state, ValueRef v);
 };
 
 extern ExprBlackHole eBlackHole;

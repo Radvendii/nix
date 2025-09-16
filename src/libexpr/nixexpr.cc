@@ -522,6 +522,7 @@ void ExprVarRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv>
         } else {
             auto i = curEnv->find(es.exprs.ERtoEP(*this)->name);
             if (i != curEnv->vars.end()) {
+                // XXX [speed]: why do we store a level, that we have to trace back up to later, and not store the EnvRef directly? Because the Env hasn't been populated yet, perhaps? We're working at the AST level right now, not the Value level.
                 es.exprs.ERtoEP(*this)->level = level;
                 es.exprs.ERtoEP(*this)->displ = i->second;
                 return;
