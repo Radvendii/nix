@@ -271,19 +271,19 @@ expr_op
   ;
 
 expr_app
-  : expr_app expr_select { $$ = makeCall(state->exprs, CUR_POS, $1, $2); state->exprs.ERtoEP($2)->warnIfCursedOr(state->symbols, state->positions); }
+  : expr_app expr_select { $$ = makeCall(state->exprs, CUR_POS, $1, $2); $2.warnIfCursedOr(state->exprs, state->symbols, state->positions); }
   | /* Once a ‘cursed or’ reaches this nonterminal, it is no longer cursed,
        because the uncursed parse would also produce an expr_app. But we need
        to remove the cursed status in order to prevent valid things like
        `f (g or)` from triggering the warning. */
-    expr_select { $$ = $1; state->exprs.ERtoEP($$)->resetCursedOr(); }
+    expr_select { $$ = $1; $$.resetCursedOr(state->exprs); }
   ;
 
 expr_select
   : expr_simple '.' attrpath
     { $$ = state->exprs.addExprSelect(CUR_POS, $1, std::move(*$3), ExprRef::null); delete $3; }
   | expr_simple '.' attrpath OR_KW expr_select
-    { $$ = state->exprs.addExprSelect(CUR_POS, $1, std::move(*$3), $5); delete $3; state->exprs.ERtoEP($5)->warnIfCursedOr(state->symbols, state->positions); }
+    { $$ = state->exprs.addExprSelect(CUR_POS, $1, std::move(*$3), $5); delete $3; $5.warnIfCursedOr(state->exprs, state->symbols, state->positions); }
   | /* Backwards compatibility: because Nixpkgs has a function named ‘or’,
        allow stuff like ‘map or [...]’. This production is problematic (see
        https://github.com/NixOS/nix/issues/11118) and will be refactored in the
@@ -507,7 +507,7 @@ string_attr
   ;
 
 expr_list
-  : expr_list expr_select { $$ = $1; state->exprs.ERtoEP($1)->elems.push_back($2); /* !!! dangerous */; state->exprs.ERtoEP($2)->warnIfCursedOr(state->symbols, state->positions); }
+  : expr_list expr_select { $$ = $1; state->exprs.ERtoEP($1)->elems.push_back($2); /* !!! dangerous */; $2.warnIfCursedOr(state->exprs, state->symbols, state->positions); }
   | { $$ = state->exprs.addExprList(); }
   ;
 

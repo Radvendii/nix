@@ -102,10 +102,6 @@ struct Expr
     {
         return noPos;
     }
-
-    // These are temporary methods to be used only in parser.y
-    virtual void resetCursedOr() {};
-    virtual void warnIfCursedOr(const SymbolTable & symbols, const PosTable & positions) {};
 };
 
 struct ExprInt : Expr

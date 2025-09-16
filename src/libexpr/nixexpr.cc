@@ -795,21 +795,32 @@ std::string DocComment::getInnerText(const PosTable & positions) const
  * To be removed by https://github.com/NixOS/nix/pull/11121
  */
 
-void ExprCall::resetCursedOr()
+ void ExprRef::resetCursedOr(Exprs & exprs)
+ {
+     if (type() == teCall)
+         ExprCallRef(*this).resetCursedOr(exprs);
+ }
+void ExprRef::warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions)
+ {
+     if (type() == teCall)
+         ExprCallRef(*this).warnIfCursedOr(exprs, symbols, positions);
+ }
+
+void ExprCallRef::resetCursedOr(Exprs & exprs)
 {
-    cursedOrEndPos.reset();
+    exprs.ERtoEP(*this)->cursedOrEndPos.reset();
 }
 
-void ExprCall::warnIfCursedOr(const SymbolTable & symbols, const PosTable & positions)
+void ExprCallRef::warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions)
 {
-    if (cursedOrEndPos.has_value()) {
+    if (exprs.ERtoEP(*this)->cursedOrEndPos.has_value()) {
         std::ostringstream out;
-        out << "at " << positions[pos]
+        out << "at " << positions[exprs.ERtoEP(*this)->pos]
             << ": "
                "This expression uses `or` as an identifier in a way that will change in a future Nix release.\n"
                "Wrap this entire expression in parentheses to preserve its current meaning:\n"
                "    ("
-            << positions[pos].getSnippetUpTo(positions[*cursedOrEndPos]).value_or("could not read expression")
+            << positions[exprs.ERtoEP(*this)->pos].getSnippetUpTo(positions[*exprs.ERtoEP(*this)->cursedOrEndPos]).value_or("could not read expression")
             << ")\n"
                "Give feedback at https://github.com/NixOS/nix/pull/11121";
         warn(out.str());

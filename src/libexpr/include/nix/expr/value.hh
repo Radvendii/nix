@@ -133,6 +133,7 @@ class EvalState;
 class XMLWriter;
 class Printer;
 struct DocComment;
+class PosTable;
 
 using NixInt = checked::Checked<int64_t>;
 using NixFloat = double;
@@ -453,6 +454,10 @@ struct ExprRef {
     ValueRef maybeThunk(EvalState & state, EnvRef env);
     void setName(Exprs & exprs, SymbolRef name);
     void setDocComment(Exprs & exprs, DocComment docComment);
+
+    // These are temporary methods to be used only in parser.y
+    void resetCursedOr(Exprs & exprs);
+    void warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions);
 };
 
 
@@ -504,6 +509,10 @@ struct ExprAttrsRef {
 struct ExprCallRef {
     public:
     COMMON_DEFS(ExprCall, teCall)
+
+    // These are temporary methods to be used only in parser.y
+    void resetCursedOr(Exprs & exprs);
+    void warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions);
 };
 struct ExprFloatRef {
     public:
