@@ -449,9 +449,6 @@ struct ExprPos
         : pos(pos) {};
 };
 
-/* only used to mark thunks as black holes. */
-struct ExprBlackHole { };
-
 /* Static environments are used to map variable names onto (level,
    displacement) pairs used to obtain the value of the variable at
    runtime. */

@@ -120,7 +120,6 @@ class EnvRef;
 struct ExprRef;
 struct Expr;
 struct ExprLambdaRef;
-struct ExprBlackHole;
 struct StaticEnv;
 struct PrimOp;
 class SymbolRef;
