@@ -1568,7 +1568,7 @@ extern ExprBlackHole eBlackHole;
 
 bool Value::isBlackhole(Exprs & exprs) const
 {
-    return isThunk() && exprs.ERtoEP(thunk().expr) == (Expr *) &eBlackHole;
+    return isThunk() && thunk().expr == ExprBlackHoleRef{0};
 }
 
 void Value::mkBlackhole(Exprs & exprs)
@@ -1717,7 +1717,7 @@ inline bool ValueRef::isApp(Values & values) const
 
 bool ValueRef::isBlackhole(Exprs & exprs, Values & values) const
 {
-    return isThunk(values) && exprs.ERtoEP(thunk(values).expr) == (Expr *) &eBlackHole;
+    return isThunk(values) && thunk(values).expr == ExprBlackHoleRef{0};
 }
 
 // type() == nFunction
