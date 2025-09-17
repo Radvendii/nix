@@ -16,17 +16,23 @@ unsigned long Expr::nrExprs = 0;
 
 void ExprRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
-DYNAMIC_DISPATCH(eval(state, env, v))
+    if (*this == ExprRef::null)
+        unreachable();
+    if (*this == ExprRef::blackHole)
+        state.throwInfiniteRecursionError(v);
+    DYNAMIC_DISPATCH(eval(state, env, v))
 }
 
 void ExprRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
-DYNAMIC_DISPATCH(bindVars(es, env))
+    if (*this == ExprRef::null)
+        unreachable();
+    DYNAMIC_DISPATCH(bindVars(es, env))
 }
 
 void ExprRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-DYNAMIC_DISPATCH(show(exprs, values, symbols, str))
+    DYNAMIC_DISPATCH(show(exprs, values, symbols, str))
 }
 
 void ExprInheritFromRef::eval(EvalState & state, EnvRef env, ValueRef v)
@@ -86,17 +92,6 @@ PosIdx ExprRef::getPos(Exprs & exprs) const
     }
 #pragma GCC diagnostic pop
 };
-
-void ExprBlackHoleRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
-{
-    unreachable();
-}
-
-
-void ExprBlackHoleRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
-{
-    unreachable();
-}
 
 Exprs::Exprs() {
 #define NIX_EXPR_RESERVE(TYPE, DISCRIMINANT, VECTOR) \

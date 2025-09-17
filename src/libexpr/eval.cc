@@ -1058,11 +1058,12 @@ EnvRef EnvRef::null{0};
 ValueRef ValueRef::null{0};
 SymbolRef SymbolRef::null{ValueRef::null};
 ExprRef ExprRef::null{0};
+// the important thing is just that the tag is 0
+ExprRef ExprRef::blackHole{(Type)0, 1};
 #define NIX_EXPR_REF_NULL(TYPE, DISCRIMINANT, VECTOR) \
 TYPE##Ref TYPE##Ref::null{ExprRef::null};
 NIX_FOR_EACH_EXPR(NIX_EXPR_REF_NULL)
 NIX_EXPR_REF_NULL(ExprVar, teVar, vars)
-NIX_EXPR_REF_NULL(ExprBlackHole, teBlackHole, )
 #undef NIX_EXPR_REF_NULL
 
 
@@ -2426,14 +2427,9 @@ void ExprPosRef::eval(EvalState & state, EnvRef env, ValueRef v)
     state.mkPos(v, pos(state.exprs));
 }
 
-void ExprBlackHoleRef::eval(EvalState & state, [[maybe_unused]] EnvRef env, ValueRef v)
+[[gnu::noinline]] [[noreturn]] void EvalState::throwInfiniteRecursionError(ValueRef v)
 {
-    throwInfiniteRecursionError(state, v);
-}
-
-[[gnu::noinline]] [[noreturn]] void ExprBlackHoleRef::throwInfiniteRecursionError(EvalState & state, ValueRef v)
-{
-    state.error<InfiniteRecursionError>("infinite recursion encountered").atPos(v.determinePos(state.exprs, state.values, noPos)).debugThrow();
+    error<InfiniteRecursionError>("infinite recursion encountered").atPos(v.determinePos(exprs, values, noPos)).debugThrow();
 }
 
 // always force this to be separate, otherwise forceValue may inline it and take

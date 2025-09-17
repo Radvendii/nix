@@ -348,9 +348,9 @@ inline ValueRef * EnvRef::values(Envs & envs)
 struct Exprs;
 
 // XXX [speed]: using 8 bits for the tag is convenient, but if it's too limiting (> 4 million of any one expr type), we can make do with 5 bits. We could even fine tune it even more by splitting up the address space into a sequence of intervals, one assigned to each type.
-// XXX [speed]: in particular, it's very silly to dedicate an entire section of the address space to null and teBlackHole
+// XXX [speed]: in particular, it's very silly to dedicate an entire section of the address space to null and blackHole
 enum Type : uint8_t {
-    // 0 reserved for null
+    // 0 reserved for null, blackHole
     teWith = 1,
     teLet,
     teIf,
@@ -377,7 +377,6 @@ enum Type : uint8_t {
     teOpImpl,
     teOpUpdate,
     teInheritFrom,
-    teBlackHole,
 };
 #define NIX_FOR_EACH_EXPR(MACRO, ...)                                               \
 MACRO(ExprWith, teWith, withs __VA_OPT__(,) __VA_ARGS__)                            \
@@ -407,12 +406,11 @@ MACRO(ExprOpUpdate, teOpUpdate, opUpdates __VA_OPT__(,) __VA_ARGS__)            
 MACRO(ExprInheritFrom, teInheritFrom, inheritFroms __VA_OPT__(,) __VA_ARGS__)
 // XXX [speed]: ExprVar has to be treated separately because it has its own subtype ExprInheritFrom
 // MACRO(ExprVar, teVar, vars)
-// XXX [speed]: ExprBlackHole behaves differently than all the rest and must be special-cased.
-// MACRO(ExprBlackHole, teBlackHole, blackHoles)
 
 struct ExprRef {
     public:
     static ExprRef null;
+    static ExprRef blackHole;
 
     constexpr ExprRef() = default;
 
@@ -699,11 +697,6 @@ struct ExprInheritFromRef {
     inline Displacement & displ(Exprs & exprs) const;
     COMMON_DEFS(ExprInheritFrom, teInheritFrom)
 };
-struct ExprBlackHoleRef {
-    public:
-    COMMON_DEFS(ExprBlackHole, teBlackHole)
-    [[noreturn]] static void throwInfiniteRecursionError(EvalState & state, ValueRef v);
-};
 struct ExprVarRef {
     public:
     inline PosIdx & pos(Exprs & exprs) const;
@@ -726,7 +719,6 @@ case DISCRIMINANT:                                             \
 switch(type()) {                                         \
 NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH_CASE, FUN)            \
 DYNAMIC_DISPATCH_CASE(ExprVar, teVar, vars, FUN)         \
-DYNAMIC_DISPATCH_CASE(ExprBlackHole, teBlackHole, , FUN) \
 }
 
 // XXX [speed]: return here does unnecessary conversion back and forth
@@ -738,7 +730,6 @@ inline TYPE##Ref ExprRef::dyn_cast() const noexcept { \
     return TYPE##Ref(ref & 0x00FFFFFF);               \
 }
 NIX_FOR_EACH_EXPR(NIX_DYN_CAST)
-NIX_DYN_CAST(ExprBlackHole, teBlackHole, )
 #undef NIX_DYN_CAST
 
 template<>
@@ -754,7 +745,6 @@ inline ExprVarRef ExprRef::dyn_cast() const noexcept {
 struct TYPE;
 NIX_FOR_EACH_EXPR(NIX_PREDECL_TYPE)
 NIX_PREDECL_TYPE(ExprVar, teVar, vars)
-NIX_PREDECL_TYPE(ExprlackHole, teBlackHole, )
 #undef NIX_PREDECL_TYPE
 
 struct Exprs {
@@ -765,7 +755,6 @@ struct Exprs {
 std::vector<TYPE> VECTOR;
     NIX_FOR_EACH_EXPR(NIX_DEFINE_VEC)
     NIX_DEFINE_VEC(ExprVar, teVar, vars)
-// No blackHoles vector!
 #undef NIX_DEFINE_VEC
 
 // XXX [speed]: we define addExprCall() explicitly so that the args argument can be passed in as an initializer list
@@ -777,7 +766,6 @@ TYPE##Ref add##TYPE(auto && ...args);
     NIX_FOR_EACH_EXPR(NIX_DECLARE_ADD)
     NIX_DECLARE_ADD(ExprVar, teVar, vars)
 #undef NIX_DECLARE_ADD
-// No addExprBlackHole()!
 };
 
 
@@ -1556,12 +1544,12 @@ public:
 
 bool Value::isBlackhole(Exprs & exprs) const
 {
-    return isThunk() && thunk().expr == ExprBlackHoleRef{0};
+    return isThunk() && thunk().expr == ExprRef::blackHole;
 }
 
 void Value::mkBlackhole(Exprs & exprs)
 {
-    mkThunk(exprs, EnvRef::null, ExprBlackHoleRef{0});
+    mkThunk(exprs, EnvRef::null, ExprRef::blackHole);
 }
 
 typedef std::vector<ValueRef, traceable_allocator<ValueRef>> ValueVector;
@@ -1705,7 +1693,7 @@ inline bool ValueRef::isApp(Values & values) const
 
 bool ValueRef::isBlackhole(Exprs & exprs, Values & values) const
 {
-    return isThunk(values) && thunk(values).expr == ExprBlackHoleRef{0};
+    return isThunk(values) && thunk(values).expr == ExprRef::blackHole;
 }
 
 // type() == nFunction
@@ -1830,7 +1818,7 @@ inline void ValueRef::mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLam
 
 inline void ValueRef::mkBlackhole(Exprs & exprs, Values & values)
 {
-    mkThunk(exprs, values, EnvRef::null, ExprBlackHoleRef{0});
+    mkThunk(exprs, values, EnvRef::null, ExprRef::blackHole);
 }
 
 inline void ValueRef::mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept

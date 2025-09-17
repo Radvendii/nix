@@ -507,7 +507,6 @@ TYPE##Ref Exprs::add##TYPE(auto && ...args) {                   \
 NIX_FOR_EACH_EXPR(NIX_DEFINE_ADD)
 NIX_DEFINE_ADD(ExprVar, teVar, vars)
 #undef NIX_DEFINE_ADD
-// No addExprBlackHole!
 inline bool ExprLambdaRef::hasFormals(Exprs & exprs) const
 {
     return formals(exprs) != nullptr;

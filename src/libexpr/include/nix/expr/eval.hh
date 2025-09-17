@@ -552,6 +552,8 @@ public:
 
     void tryFixupBlackHolePos(ValueRef v, PosIdx pos);
 
+    [[noreturn]] void throwInfiniteRecursionError(ValueRef v);
+
     /**
      * Force a value, then recursively force list elements and
      * attributes.
