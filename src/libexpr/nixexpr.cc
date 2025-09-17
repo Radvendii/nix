@@ -14,8 +14,6 @@ namespace nix {
 
 unsigned long Expr::nrExprs = 0;
 
-ExprBlackHole eBlackHole;
-
 void ExprRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
 DYNAMIC_DISPATCH(eval(state, env, v))

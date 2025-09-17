@@ -1555,8 +1555,6 @@ public:
     }
 };
 
-extern ExprBlackHole eBlackHole;
-
 bool Value::isBlackhole(Exprs & exprs) const
 {
     return isThunk() && thunk().expr == ExprBlackHoleRef{0};
