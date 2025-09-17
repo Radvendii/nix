@@ -90,16 +90,9 @@ struct Expr
     };
 
     static unsigned long nrExprs;
-
-    Expr()
-    {
-        nrExprs++;
-    }
-
-    virtual ~Expr() {};
 };
 
-struct ExprInt : Expr
+struct ExprInt
 {
     ValueRef v;
 
@@ -108,14 +101,14 @@ struct ExprInt : Expr
     ExprInt(Values & values, NixInt::Inner n);
 };
 
-struct ExprFloat : Expr
+struct ExprFloat
 {
     ValueRef v;
 
     ExprFloat(Values & values, NixFloat nf);
 };
 
-struct ExprString : Expr
+struct ExprString
 {
     std::string s;
     ValueRef v;
@@ -123,7 +116,7 @@ struct ExprString : Expr
     ExprString(Values & values, std::string && s);
 };
 
-struct ExprPath : Expr
+struct ExprPath
 {
     ref<SourceAccessor> accessor;
     std::string s;
@@ -135,7 +128,7 @@ struct ExprPath : Expr
 typedef uint32_t Level;
 typedef uint32_t Displacement;
 
-struct ExprVar : Expr
+struct ExprVar
 {
     PosIdx pos;
     SymbolRef name;
@@ -168,18 +161,23 @@ struct ExprVar : Expr
  * Unlike normal variable references, the displacement is set during parsing, and always refers to
  * `ExprAttrs::inheritFromExprs` (by itself or in `ExprLet`), whose values are put into their own `Env`.
  */
-struct ExprInheritFrom : ExprVar
+struct ExprInheritFrom
 {
+    PosIdx pos;
+    SymbolRef name;
+    ExprWithRef fromWith = ExprWithRef::null;
+    Level level = 0;
+    Displacement displ = 0;
+
     ExprInheritFrom(PosIdx pos, Displacement displ)
-        : ExprVar(pos, {})
-    {
-        this->level = 0;
-        this->displ = displ;
-        this->fromWith = ExprWithRef::null;
-    }
+        : pos(pos)
+        , name(SymbolRef::null)
+        , fromWith(ExprWithRef::null)
+        , level(0)
+        , displ(displ) {};
 };
 
-struct ExprSelect : Expr
+struct ExprSelect
 {
     PosIdx pos;
     ExprRef e, def;
@@ -199,7 +197,7 @@ struct ExprSelect : Expr
     };
 };
 
-struct ExprOpHasAttr : Expr
+struct ExprOpHasAttr
 {
     ExprRef e;
     AttrPath attrPath;
@@ -254,7 +252,7 @@ struct DynamicAttrDef
         , pos(pos) {};
 };
 
-struct ExprAttrs : Expr
+struct ExprAttrs
 {
     bool recursive;
     PosIdx pos;
@@ -272,7 +270,7 @@ struct ExprAttrs : Expr
         : recursive(false) {};
 };
 
-struct ExprList : Expr
+struct ExprList
 {
     std::vector<ExprRef> elems;
     ExprList() {};
@@ -312,7 +310,7 @@ struct Formals
     }
 };
 
-struct ExprLambda : Expr
+struct ExprLambda
 {
     PosIdx pos;
     SymbolRef name;
@@ -335,7 +333,7 @@ struct ExprLambda : Expr
     }
 };
 
-struct ExprCall : Expr
+struct ExprCall
 {
     ExprRef fun;
     std::vector<ExprRef> args;
@@ -359,7 +357,7 @@ struct ExprCall : Expr
     }
 };
 
-struct ExprLet : Expr
+struct ExprLet
 {
     ExprAttrsRef attrs;
     ExprRef body;
@@ -368,7 +366,7 @@ struct ExprLet : Expr
         , body(body) {};
 };
 
-struct ExprWith : Expr
+struct ExprWith
 {
     PosIdx pos;
     ExprRef attrs, body;
@@ -380,7 +378,7 @@ struct ExprWith : Expr
         , body(body) {};
 };
 
-struct ExprIf : Expr
+struct ExprIf
 {
     PosIdx pos;
     ExprRef cond, then, else_;
@@ -391,7 +389,7 @@ struct ExprIf : Expr
         , else_(else_) {};
 };
 
-struct ExprAssert : Expr
+struct ExprAssert
 {
     PosIdx pos;
     ExprRef cond, body;
@@ -401,7 +399,7 @@ struct ExprAssert : Expr
         , body(body) {};
 };
 
-struct ExprOpNot : Expr
+struct ExprOpNot
 {
     ExprRef e;
     ExprOpNot(ExprRef e)
@@ -418,7 +416,7 @@ MACRO(ExprOpUpdate, "//")         \
 MACRO(ExprOpConcatLists, "++")
 
 #define MakeBinOp(name, s)                                         \
-struct name : Expr                                                 \
+struct name                                                        \
 {                                                                  \
     PosIdx pos;                                                    \
     ExprRef e1, e2;                                                \
@@ -433,7 +431,7 @@ struct name : Expr                                                 \
 
 NIX_FOR_EACH_BINOP(MakeBinOp)
 
-struct ExprConcatStrings : Expr
+struct ExprConcatStrings
 {
     PosIdx pos;
     bool forceString;
@@ -444,7 +442,7 @@ struct ExprConcatStrings : Expr
         , es(es) {};
 };
 
-struct ExprPos : Expr
+struct ExprPos
 {
     PosIdx pos;
     ExprPos(const PosIdx & pos)
@@ -452,7 +450,7 @@ struct ExprPos : Expr
 };
 
 /* only used to mark thunks as black holes. */
-struct ExprBlackHole : Expr { };
+struct ExprBlackHole { };
 
 extern ExprBlackHole eBlackHole;
 
@@ -503,12 +501,13 @@ struct StaticEnv
         return vars.end();
     }
 };
-#define NIX_DEFINE_ADD(TYPE, DISCRIMINANT, VECTOR)          \
-TYPE##Ref Exprs::add##TYPE(auto && ...args) {               \
-VECTOR.emplace_back(std::forward<decltype(args)>(args)...); \
-if(VECTOR.size() > 999000)                                  \
-    std::cout << "we're in trouble " #TYPE "\n";            \
-return TYPE##Ref(VECTOR.size() - 1);                        \
+#define NIX_DEFINE_ADD(TYPE, DISCRIMINANT, VECTOR)              \
+TYPE##Ref Exprs::add##TYPE(auto && ...args) {                   \
+    VECTOR.emplace_back(std::forward<decltype(args)>(args)...); \
+    if(VECTOR.size() > 999000)                                  \
+        std::cout << "we're in trouble " #TYPE "\n";            \
+    Expr::nrExprs++;                                            \
+    return TYPE##Ref(VECTOR.size() - 1);                        \
 }
 NIX_FOR_EACH_EXPR(NIX_DEFINE_ADD)
 NIX_DEFINE_ADD(ExprVar, teVar, vars)

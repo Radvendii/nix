@@ -112,6 +112,7 @@ ExprCallRef Exprs::addExprCall(const PosIdx & pos, ExprRef fun, std::vector<Expr
     calls.emplace_back(pos, fun, std::move(args));
     if(calls.size() > 999000)
         std::cout << "we're in trouble ExprCall\n";
+    Expr::nrExprs++;
     return ExprCallRef(calls.size() - 1);
 }
 ExprCallRef Exprs::addExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos)
@@ -119,6 +120,7 @@ ExprCallRef Exprs::addExprCall(const PosIdx & pos, ExprRef fun, std::vector<Expr
     calls.emplace_back(pos, fun, std::move(args), std::move(cursedOrEndPos));
     if(calls.size() > 999000)
         std::cout << "we're in trouble ExprCall\n";
+    Expr::nrExprs++;
     return ExprCallRef(calls.size() - 1);
 }
 
