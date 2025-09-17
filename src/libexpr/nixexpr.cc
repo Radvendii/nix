@@ -122,44 +122,6 @@ ExprCallRef Exprs::addExprCall(const PosIdx & pos, ExprRef fun, std::vector<Expr
     return ExprCallRef(calls.size() - 1);
 }
 
-#define NIX_DEFINE_GET(TYPE, DISCRIMINANT, VECTOR)  \
-TYPE * Exprs::ERtoEP(TYPE##Ref ref) {               \
-    assert(ExprRef(ref).type() == DISCRIMINANT);    \
-    return &VECTOR[ref.ref & 0x00FFFFFF];           \
-}
-    NIX_FOR_EACH_EXPR(NIX_DEFINE_GET)
-#undef NIX_DEFINE_GET
-
-ExprVar * Exprs::ERtoEP(ExprVarRef ref) {
-    auto type = ExprRef(ref).type();
-    if (type == teVar)
-        return &vars[ref.ref & 0x00FFFFFF];
-    if (type == teInheritFrom)
-        return &inheritFroms[ref.ref & 0x00FFFFFF];
-    unreachable();
-}
-
-ExprBlackHole * Exprs::ERtoEP(ExprBlackHoleRef ref) {
-    assert(ExprRef(ref).type() == teBlackHole);
-    return &eBlackHole;
-}
-
-Expr * Exprs::ERtoEP(ExprRef ref) {
-    if (!ref)
-        return nullptr;
-    switch (ref.type()) {
-#define NIX_EXPR_SWITCH_GET_REF(TYPE, DISCRIMINANT, VECTOR) \
-    case DISCRIMINANT:                                      \
-        return &VECTOR[ref.ref & 0x00FFFFFF];
-    NIX_FOR_EACH_EXPR(NIX_EXPR_SWITCH_GET_REF)
-    NIX_EXPR_SWITCH_GET_REF(ExprVar, teVar, vars)
-#undef NIX_EXPR_SWITCH_GET_REF
-    case teBlackHole:
-        return &eBlackHole;
-    }
-    unreachable();
-}
-
 // FIXME: remove, because *symbols* are abstract and do not have a single
 //        textual representation; see printIdentifier()
 std::ostream & operator<<(std::ostream & str, const Symbol & symbol)

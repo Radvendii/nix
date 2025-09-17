@@ -483,7 +483,7 @@ constexpr explicit operator bool() const noexcept {                           \
                                                                               \
 constexpr auto operator<=>(const TYPE##Ref & other) const noexcept = default; \
                                                                               \
-operator ExprRef() noexcept                                                   \
+operator ExprRef() const noexcept                                             \
 {                                                                             \
     return ExprRef(ref);                                                      \
 }                                                                             \
@@ -779,15 +779,6 @@ TYPE##Ref add##TYPE(auto && ...args);
     NIX_DECLARE_ADD(ExprVar, teVar, vars)
 #undef NIX_DECLARE_ADD
 // No addExprBlackHole()!
-
-#define NIX_DECLARE_GET(TYPE, DISCRIMINANT, VECTOR) \
-TYPE * ERtoEP(TYPE##Ref ref);
-    NIX_FOR_EACH_EXPR(NIX_DECLARE_GET)
-    NIX_DECLARE_GET(ExprVar, teVar, vars)
-    NIX_DECLARE_GET(ExprBlackHole, teBlackhole, )
-#undef NIX_DECLARE_GET
-
-    Expr * ERtoEP(ExprRef ref);
 };
 
 

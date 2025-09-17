@@ -519,95 +519,119 @@ inline bool ExprLambdaRef::hasFormals(Exprs & exprs) const
     return formals(exprs) != nullptr;
 }
 
-#define NIX_EXPR_MEMBER_ACCESS(ExprType, MemberType, name)       \
-inline MemberType & ExprType##Ref::name(Exprs & exprs) const {   \
-    return exprs.ERtoEP(*this)->name;                            \
+#define NIX_EXPR_MEMBER_ACCESS(ExprType, DISCRIMINANT, VECTOR, MemberType, name)     \
+inline MemberType & ExprType##Ref::name(Exprs & exprs) const {                       \
+    assert(ExprRef(*this).type() == DISCRIMINANT);                                   \
+    return exprs.VECTOR[ref & 0x00FFFFFF].name;                                      \
+}
+#define NIX_EXPR_VAR_MEMBER_ACCESS(ExprType, DISCRIMINANT, VECTOR, MemberType, name) \
+inline MemberType & ExprType##Ref::name(Exprs & exprs) const {                       \
+    auto type = ExprRef(*this).type();                                               \
+    if (type == teVar)                                                               \
+        return exprs.vars[ref & 0x00FFFFFF].name;                                    \
+    if (type == teInheritFrom)                                                       \
+        return exprs.inheritFroms[ref & 0x00FFFFFF].name;                            \
+    unreachable();                                                                   \
 }
 
-NIX_EXPR_MEMBER_ACCESS(ExprWith, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprWith, ExprRef, attrs)
-NIX_EXPR_MEMBER_ACCESS(ExprWith, ExprRef, body)
-NIX_EXPR_MEMBER_ACCESS(ExprWith, size_t, prevWith)
-NIX_EXPR_MEMBER_ACCESS(ExprWith, ExprWithRef, parentWith)
+NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, ExprRef, attrs)
+NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, ExprRef, body)
+NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, size_t, prevWith)
+NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, ExprWithRef, parentWith)
 
-NIX_EXPR_MEMBER_ACCESS(ExprLet, ExprAttrsRef, attrs)
-NIX_EXPR_MEMBER_ACCESS(ExprLet, ExprRef, body)
+NIX_EXPR_MEMBER_ACCESS(ExprLet, teLet, lets, ExprAttrsRef, attrs)
+NIX_EXPR_MEMBER_ACCESS(ExprLet, teLet, lets, ExprRef, body)
 
-NIX_EXPR_MEMBER_ACCESS(ExprIf, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprIf, ExprRef, cond)
-NIX_EXPR_MEMBER_ACCESS(ExprIf, ExprRef, then)
-NIX_EXPR_MEMBER_ACCESS(ExprIf, ExprRef, else_)
+NIX_EXPR_MEMBER_ACCESS(ExprIf, teIf, ifs, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprIf, teIf, ifs, ExprRef, cond)
+NIX_EXPR_MEMBER_ACCESS(ExprIf, teIf, ifs, ExprRef, then)
+NIX_EXPR_MEMBER_ACCESS(ExprIf, teIf, ifs, ExprRef, else_)
 
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, bool, recursive)
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, AttrDefs, attrs)
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, bool, recursive)
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, AttrDefs, attrs)
 // XXX [speed]: i don't really know how to work safely with std::unique_ptr
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, std::unique_ptr<std::vector<ExprRef>>, inheritFromExprs)
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, DynamicAttrDefs, dynamicAttrs)
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, std::unique_ptr<std::vector<ExprRef>>, inheritFromExprs)
+NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, DynamicAttrDefs, dynamicAttrs)
 
-NIX_EXPR_MEMBER_ACCESS(ExprCall, ExprRef, fun)
-NIX_EXPR_MEMBER_ACCESS(ExprCall, std::vector<ExprRef>, args)
-NIX_EXPR_MEMBER_ACCESS(ExprCall, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprCall, std::optional<PosIdx>, cursedOrEndPos)
+NIX_EXPR_MEMBER_ACCESS(ExprCall, teCall, calls, ExprRef, fun)
+NIX_EXPR_MEMBER_ACCESS(ExprCall, teCall, calls, std::vector<ExprRef>, args)
+NIX_EXPR_MEMBER_ACCESS(ExprCall, teCall, calls, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprCall, teCall, calls, std::optional<PosIdx>, cursedOrEndPos)
 
 
-NIX_EXPR_MEMBER_ACCESS(ExprFloat, ValueRef, v)
+NIX_EXPR_MEMBER_ACCESS(ExprFloat, teFloat, floats, ValueRef, v)
 
-NIX_EXPR_MEMBER_ACCESS(ExprInt, ValueRef, v)
+NIX_EXPR_MEMBER_ACCESS(ExprInt, teInt, ints, ValueRef, v)
 
-NIX_EXPR_MEMBER_ACCESS(ExprPath, ValueRef, v)
-NIX_EXPR_MEMBER_ACCESS(ExprPath, std::string, s)
+NIX_EXPR_MEMBER_ACCESS(ExprPath, tePath, paths, ValueRef, v)
+NIX_EXPR_MEMBER_ACCESS(ExprPath, tePath, paths, std::string, s)
 
-NIX_EXPR_MEMBER_ACCESS(ExprSelect, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprSelect, ExprRef, e)
-NIX_EXPR_MEMBER_ACCESS(ExprSelect, ExprRef, def)
-NIX_EXPR_MEMBER_ACCESS(ExprSelect, AttrPath, attrPath)
+NIX_EXPR_MEMBER_ACCESS(ExprSelect, teSelect, selects, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprSelect, teSelect, selects, ExprRef, e)
+NIX_EXPR_MEMBER_ACCESS(ExprSelect, teSelect, selects, ExprRef, def)
+NIX_EXPR_MEMBER_ACCESS(ExprSelect, teSelect, selects, AttrPath, attrPath)
 
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, SymbolRef, name)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, SymbolRef, arg)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, Formals *, formals)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, ExprRef, body)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, DocComment, docComment)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, SymbolRef, name)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, SymbolRef, arg)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, Formals *, formals)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, ExprRef, body)
+NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, DocComment, docComment)
 
-NIX_EXPR_MEMBER_ACCESS(ExprList, std::vector<ExprRef>, elems)
+NIX_EXPR_MEMBER_ACCESS(ExprList, teList, lists, std::vector<ExprRef>, elems)
 
-NIX_EXPR_MEMBER_ACCESS(ExprString, ValueRef, v)
-NIX_EXPR_MEMBER_ACCESS(ExprString, std::string, s)
+NIX_EXPR_MEMBER_ACCESS(ExprString, teString, strings, ValueRef, v)
+NIX_EXPR_MEMBER_ACCESS(ExprString, teString, strings, std::string, s)
 
-NIX_EXPR_MEMBER_ACCESS(ExprAssert, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprAssert, ExprRef, cond)
-NIX_EXPR_MEMBER_ACCESS(ExprAssert, ExprRef, body)
+NIX_EXPR_MEMBER_ACCESS(ExprAssert, teAssert, asserts, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprAssert, teAssert, asserts, ExprRef, cond)
+NIX_EXPR_MEMBER_ACCESS(ExprAssert, teAssert, asserts, ExprRef, body)
 
-NIX_EXPR_MEMBER_ACCESS(ExprPos, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprPos, tePos, poss, PosIdx, pos)
 
-NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, bool, forceString)
+NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, teConcatStrings, concatStringss, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, teConcatStrings, concatStringss, bool, forceString)
 #define COMMA ,
-NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, std::vector<std::pair<PosIdx COMMA ExprRef>> *, es)
+NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, teConcatStrings, concatStringss, std::vector<std::pair<PosIdx COMMA ExprRef>> *, es)
 
-NIX_EXPR_MEMBER_ACCESS(ExprOpHasAttr, ExprRef, e)
-NIX_EXPR_MEMBER_ACCESS(ExprOpHasAttr, AttrPath, attrPath)
+NIX_EXPR_MEMBER_ACCESS(ExprOpHasAttr, teOpHasAttr, opHasAttrs, ExprRef, e)
+NIX_EXPR_MEMBER_ACCESS(ExprOpHasAttr, teOpHasAttr, opHasAttrs, AttrPath, attrPath)
 
-NIX_EXPR_MEMBER_ACCESS(ExprOpNot, ExprRef, e)
+NIX_EXPR_MEMBER_ACCESS(ExprOpNot, teOpNot, opNots, ExprRef, e)
 
-#define NIX_BINOP_MEMBER_ACCESS(BINOP, STR) \
-NIX_EXPR_MEMBER_ACCESS(BINOP, PosIdx, pos)  \
-NIX_EXPR_MEMBER_ACCESS(BINOP, ExprRef, e1)  \
-NIX_EXPR_MEMBER_ACCESS(BINOP, ExprRef, e2)
+NIX_EXPR_MEMBER_ACCESS(ExprOpEq, teOpEq, opEqs, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprOpEq, teOpEq, opEqs, ExprRef, e1)
+NIX_EXPR_MEMBER_ACCESS(ExprOpEq, teOpEq, opEqs, ExprRef, e2)
+NIX_EXPR_MEMBER_ACCESS(ExprOpNEq, teOpNEq, opNEqs, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprOpNEq, teOpNEq, opNEqs, ExprRef, e1)
+NIX_EXPR_MEMBER_ACCESS(ExprOpNEq, teOpNEq, opNEqs, ExprRef, e2)
+NIX_EXPR_MEMBER_ACCESS(ExprOpAnd, teOpAnd, opAnds, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprOpAnd, teOpAnd, opAnds, ExprRef, e1)
+NIX_EXPR_MEMBER_ACCESS(ExprOpAnd, teOpAnd, opAnds, ExprRef, e2)
+NIX_EXPR_MEMBER_ACCESS(ExprOpOr, teOpOr, opOrs, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprOpOr, teOpOr, opOrs, ExprRef, e1)
+NIX_EXPR_MEMBER_ACCESS(ExprOpOr, teOpOr, opOrs, ExprRef, e2)
+NIX_EXPR_MEMBER_ACCESS(ExprOpImpl, teOpImpl, opImpls, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprOpImpl, teOpImpl, opImpls, ExprRef, e1)
+NIX_EXPR_MEMBER_ACCESS(ExprOpImpl, teOpImpl, opImpls, ExprRef, e2)
+NIX_EXPR_MEMBER_ACCESS(ExprOpUpdate, teOpUpdate, opUpdates, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprOpUpdate, teOpUpdate, opUpdates, ExprRef, e1)
+NIX_EXPR_MEMBER_ACCESS(ExprOpUpdate, teOpUpdate, opUpdates, ExprRef, e2)
+NIX_EXPR_MEMBER_ACCESS(ExprOpConcatLists, teOpConcatLists, opConcatListss, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprOpConcatLists, teOpConcatLists, opConcatListss, ExprRef, e1)
+NIX_EXPR_MEMBER_ACCESS(ExprOpConcatLists, teOpConcatLists, opConcatListss, ExprRef, e2)
 
-NIX_FOR_EACH_BINOP(NIX_BINOP_MEMBER_ACCESS)
-#undef NIX_BINOP_MEMBER_ACCESS
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, PosIdx, pos)
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, SymbolRef, name)
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, ExprWithRef, fromWith)
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, Level, level)
+NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, Displacement, displ)
 
-NIX_EXPR_MEMBER_ACCESS(ExprVar, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprVar, SymbolRef, name)
-NIX_EXPR_MEMBER_ACCESS(ExprVar, ExprWithRef, fromWith)
-NIX_EXPR_MEMBER_ACCESS(ExprVar, Level, level)
-NIX_EXPR_MEMBER_ACCESS(ExprVar, Displacement, displ)
-
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, SymbolRef, name)
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, ExprWithRef, fromWith)
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, Level, level)
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, Displacement, displ)
+NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, PosIdx, pos)
+NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, SymbolRef, name)
+NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, ExprWithRef, fromWith)
+NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, Level, level)
+NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, Displacement, displ)
 } // namespace nix
