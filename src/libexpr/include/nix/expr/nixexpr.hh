@@ -156,23 +156,6 @@ struct ExprVar
         , name(name) {};
 };
 
-/**
- * A pseudo-expression for the purpose of evaluating the `from` expression in `inherit (from)` syntax.
- * Unlike normal variable references, the displacement is set during parsing, and always refers to
- * `ExprAttrs::inheritFromExprs` (by itself or in `ExprLet`), whose values are put into their own `Env`.
- */
-struct ExprInheritFrom : ExprVar
-{
-    ExprInheritFrom(PosIdx pos, Displacement displ)
-        : ExprVar(pos, SymbolRef::null)
-    {
-        this->fromWith = ExprRefOf<teWith>::null;
-        this->level = 0;
-        this->displ = displ;
-
-    }
-};
-
 struct ExprSelect
 {
     PosIdx pos;

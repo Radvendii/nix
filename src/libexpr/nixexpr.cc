@@ -87,6 +87,19 @@ ExprRefOf<teCall> Exprs::add<teCall>(const PosIdx & pos, ExprRef fun, std::vecto
     return ExprRefOf<teCall>(payloads<teCall>().size() - 1);
 }
 
+template<>
+ExprRefOf<teInheritFrom> Exprs::add<teInheritFrom>(PosIdx pos, Displacement displ) {
+    payloads<teInheritFrom>().emplace_back(pos, SymbolRef::null);
+    payloads<teInheritFrom>().back().fromWith = ExprRefOf<teWith>::null;
+    payloads<teInheritFrom>().back().level = 0;
+    payloads<teInheritFrom>().back().displ = displ;
+
+    if (payloads<teInheritFrom>().size() > 999000)
+        std::cout << "we're in trouble " << teInheritFrom << "\n";
+    Expr::nrExprs++;
+    return ExprRefOf<teInheritFrom>(payloads<teInheritFrom>().size() - 1);
+}
+
 // FIXME: remove, because *symbols* are abstract and do not have a single
 //        textual representation; see printIdentifier()
 std::ostream & operator<<(std::ostream & str, const Symbol & symbol)

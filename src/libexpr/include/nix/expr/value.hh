@@ -117,6 +117,7 @@ typedef enum {
 class Bindings;
 struct Env;
 class EnvRef;
+typedef uint32_t Displacement;
 struct ExprWith;
 struct ExprAttrs;
 struct ExprCall;
@@ -124,7 +125,6 @@ struct ExprSelect;
 struct ExprLambda;
 struct ExprString;
 struct ExprPos;
-struct ExprInheritFrom;
 struct ExprVar;
 struct ExprLet;
 struct ExprList;
@@ -191,6 +191,11 @@ enum Type : uint8_t {
     teOpOr,
     teOpImpl,
     teOpUpdate,
+    /**
+     * A pseudo-expression for the purpose of evaluating the `from` expression in `inherit (from)` syntax.
+     * Unlike normal variable references, the displacement is set during parsing, and always refers to
+     * `ExprAttrs::inheritFromExprs` (by itself or in `ExprLet`), whose values are put into their own `Env`.
+     */
     teInheritFrom,
 };
 #define NIX_FOR_EACH_EXPR(MACRO, ...)            \
@@ -247,8 +252,9 @@ template<> struct TypeToPayloadType<teOpAnd> { typedef ExprOpAnd PayloadType; };
 template<> struct TypeToPayloadType<teOpOr> { typedef ExprOpOr PayloadType; };
 template<> struct TypeToPayloadType<teOpImpl> { typedef ExprOpImpl PayloadType; };
 template<> struct TypeToPayloadType<teOpUpdate> { typedef ExprOpUpdate PayloadType; };
-template<> struct TypeToPayloadType<teInheritFrom> { typedef ExprInheritFrom PayloadType; };
 template<> struct TypeToPayloadType<teVar> { typedef ExprVar PayloadType; };
+// teInheritFrom does not have its own expr type, it's the same as teVar
+template<> struct TypeToPayloadType<teInheritFrom> { typedef ExprVar PayloadType; };
 
 template <Type ty>
 using PayloadOf = TypeToPayloadType<ty>::PayloadType;
@@ -648,16 +654,19 @@ inline std::vector<PayloadOf<DISCR>> & payloads<DISCR>() \
     ExprRefOf<ty>  add(auto && ...args);
 
     // XXX [speed]: these are just here so the ones below can look like templates
+    // XXX [speed]: we define add<teCall>() explicitly so that the args argument can be passed in as an initializer list
     template<Type ty>
-    ExprRefOf<teCall> add(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args);
-    template<Type ty>
-    ExprRefOf<teCall> add(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos);
-    // XXX [speed]: we define addExprCall() explicitly so that the args argument can be passed in as an initializer list
-    template<>
-    ExprRefOf<teCall> add<teCall>(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args);
-    template<>
-    ExprRefOf<teCall> add<teCall>(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos);
+    ExprRefOf<ty> add(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args)
+    requires (ty == teCall);
 
+    template<Type ty>
+    ExprRefOf<ty> add(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos)
+    requires (ty == teCall);
+
+    // XXX [speed]: we define add<teInheritFrom>() separately because there's no corresponding ExprInheritFrom, it just uses ExprVar
+    template<Type ty>
+    ExprRefOf<ty> add(PosIdx pos, Displacement displ)
+    requires (ty == teInheritFrom);
 };
 // XXX [speed]
 

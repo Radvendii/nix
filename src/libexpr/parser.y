@@ -433,7 +433,7 @@ binds1
       if (!$accum.payload(state->exprs).inheritFromExprs)
           $accum.payload(state->exprs).inheritFromExprs = std::make_unique<std::vector<ExprRef>>();
       $accum.payload(state->exprs).inheritFromExprs->push_back($expr);
-      auto from = state->exprs.add<teInheritFrom>(state->at(@expr), $accum.payload(state->exprs).inheritFromExprs->size() - 1);
+      auto from = state->exprs.add<teInheritFrom>(state->at(@expr), (Displacement) $accum.payload(state->exprs).inheritFromExprs->size() - 1);
       for (auto & [i, iPos] : *$attrs) {
           if ($accum.payload(state->exprs).attrs.find(i.symbol) != $accum.payload(state->exprs).attrs.end())
               state->dupAttr(i.symbol, iPos, $accum.payload(state->exprs).attrs[i.symbol].pos);
