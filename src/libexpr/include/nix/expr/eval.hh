@@ -754,15 +754,15 @@ public:
 
 private:
 
-    inline ValueRef lookupVar(EnvRef env, /* const */ ExprVarRef var, bool noEval);
+    inline ValueRef lookupVar(EnvRef env, /* const */ ExprRefOf<teVar> var, bool noEval);
 
     friend struct ExprRef;
     friend struct ExprVar;
     friend struct ExprAttrs;
     friend struct ExprLet;
-    friend struct ExprVarRef;
-    friend struct ExprAttrsRef;
-    friend struct ExprLetRef;
+    friend struct ExprRefOf<teVar>;
+    friend struct ExprRefOf<teAttrs>;
+    friend struct ExprRefOf<teLet>;
 
     ExprRef parse(
         char * text,
@@ -967,32 +967,24 @@ private:
     typedef std::map<std::string, size_t> PrimOpCalls;
     PrimOpCalls primOpCalls;
 
-    typedef std::map<ExprLambdaRef, size_t> FunctionCalls;
+    typedef std::map<ExprRefOf<teLambda>, size_t> FunctionCalls;
     FunctionCalls functionCalls;
 
     /** Evaluation/call profiler. */
     MultiEvalProfiler profiler;
 
-    void incrFunctionCall(ExprLambdaRef fun);
+    void incrFunctionCall(ExprRefOf<teLambda> fun);
 
     typedef std::map<PosIdx, size_t> AttrSelects;
     AttrSelects attrSelects;
 
-    friend struct ExprOpUpdate;
-    friend struct ExprOpUpdateRef;
-    friend struct ExprOpConcatLists;
-    friend struct ExprVar;
-    friend struct ExprString;
-    friend struct ExprInt;
-    friend struct ExprFloat;
-    friend struct ExprPath;
-    friend struct ExprSelect;
-    friend struct ExprVarRef;
-    friend struct ExprStringRef;
-    friend struct ExprIntRef;
-    friend struct ExprFloatRef;
-    friend struct ExprPathRef;
-    friend struct ExprSelectRef;
+    friend struct ExprRefOf<teOpUpdate>;
+    friend struct ExprRefOf<teVar>;
+    friend struct ExprRefOf<teString>;
+    friend struct ExprRefOf<teInt>;
+    friend struct ExprRefOf<teFloat>;
+    friend struct ExprRefOf<tePath>;
+    friend struct ExprRefOf<teSelect>;
     friend void prim_getAttr(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
     friend void prim_match(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);
     friend void prim_split(EvalState & state, const PosIdx pos, ValueRef * args, ValueRef v);

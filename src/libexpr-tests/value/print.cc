@@ -110,10 +110,10 @@ TEST_F(ValuePrintingTests, vLambda)
     env.up(state.envs) = EnvRef::null;
     PosTable::Origin origin = state.positions.addOrigin(std::monostate(), 1);
     auto posIdx = state.positions.add(origin, 0);
-    auto body = state.exprs.addExprInt(state.values, 0);
+    auto body = state.exprs.add<teInt>(state.values, 0);
     auto formals = Formals{};
 
-    ExprLambdaRef eLambda = state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, body);
+    ExprRefOf<teLambda> eLambda = state.exprs.add<teLambda>(posIdx, createSymbol("a"), &formals, body);
 
     Value vLambda;
     vLambda.mkLambda(state.exprs, env, eLambda);
@@ -463,11 +463,11 @@ TEST_F(ValuePrintingTests, ansiColorsDerivationError)
 
 TEST_F(ValuePrintingTests, ansiColorsAssert)
 {
-    ExprVarRef eFalse = state.exprs.addExprVar(state.symbols.create("false"));
+    ExprRefOf<teVar> eFalse = state.exprs.add<teVar>(state.symbols.create("false"));
     eFalse.bindVars(state, state.staticBaseEnv);
-    ExprIntRef eInt = state.exprs.addExprInt(state.values, 1);
+    ExprRefOf<teInt> eInt = state.exprs.add<teInt>(state.values, 1);
 
-    ExprAssertRef expr = state.exprs.addExprAssert(noPos, eFalse, eInt);
+    ExprRefOf<teAssert> expr = state.exprs.add<teAssert>(noPos, eFalse, eInt);
 
     Value v;
     state.mkThunk_(v.ref(state.values), expr);
@@ -501,10 +501,10 @@ TEST_F(ValuePrintingTests, ansiColorsLambda)
     env.up(state.envs) = EnvRef::null;
     PosTable::Origin origin = state.positions.addOrigin(std::monostate(), 1);
     auto posIdx = state.positions.add(origin, 0);
-    auto body = state.exprs.addExprInt(state.values, 0);
+    auto body = state.exprs.add<teInt>(state.values, 0);
     auto formals = Formals{};
 
-    ExprLambdaRef eLambda = state.exprs.addExprLambda(posIdx, createSymbol("a"), &formals, body);
+    ExprRefOf<teLambda> eLambda = state.exprs.add<teLambda>(posIdx, createSymbol("a"), &formals, body);
 
     Value vLambda;
     vLambda.mkLambda(state.exprs, env, eLambda);

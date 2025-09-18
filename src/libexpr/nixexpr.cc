@@ -14,37 +14,6 @@ namespace nix {
 
 unsigned long Expr::nrExprs = 0;
 
-void ExprRef::eval(EvalState & state, EnvRef env, ValueRef v)
-{
-    if (*this == ExprRef::null)
-        unreachable();
-    if (*this == ExprRef::blackHole)
-        state.throwInfiniteRecursionError(v);
-    DYNAMIC_DISPATCH(eval(state, env, v))
-}
-
-void ExprRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
-{
-    if (*this == ExprRef::null)
-        unreachable();
-    DYNAMIC_DISPATCH(bindVars(es, env))
-}
-
-void ExprRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
-{
-    DYNAMIC_DISPATCH(show(exprs, values, symbols, str))
-}
-
-void ExprInheritFromRef::eval(EvalState & state, EnvRef env, ValueRef v)
-{
-    ExprVarRef(*this).eval(state, env, v);
-}
-
-void ExprInheritFromRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
-{
-    ExprVarRef(*this).show(exprs, values, symbols, str);
-}
-
 PosIdx ExprRef::getPos(Exprs & exprs) const
 {
 #pragma GCC diagnostic push
@@ -52,41 +21,41 @@ PosIdx ExprRef::getPos(Exprs & exprs) const
     switch (type()) {
     case teInheritFrom:
     case teVar:
-        return ExprVarRef(*this).pos(exprs);
+        return payload<teVar>(exprs).pos;
     case teSelect:
-        return ExprSelectRef(*this).pos(exprs);
+        return payload<teSelect>(exprs).pos;
     case teAttrs:
-        return ExprAttrsRef(*this).pos(exprs);
+        return payload<teAttrs>(exprs).pos;
     case teLambda:
-        return ExprLambdaRef(*this).pos(exprs);
+        return payload<teLambda>(exprs).pos;
     case teCall:
-        return ExprCallRef(*this).pos(exprs);
+        return payload<teCall>(exprs).pos;
     case teWith:
-        return ExprWithRef(*this).pos(exprs);
+        return payload<teWith>(exprs).pos;
     case teIf:
-        return ExprIfRef(*this).pos(exprs);
+        return payload<teIf>(exprs).pos;
     case teAssert:
-        return ExprAssertRef(*this).pos(exprs);
+        return payload<teAssert>(exprs).pos;
     case teOpAnd:
-        return ExprOpAndRef(*this).pos(exprs);
+        return payload<teOpAnd>(exprs).pos;
     case teOpOr:
-        return ExprOpOrRef(*this).pos(exprs);
+        return payload<teOpOr>(exprs).pos;
     case teOpEq:
-        return ExprOpEqRef(*this).pos(exprs);
+        return payload<teOpEq>(exprs).pos;
     case teOpNEq:
-        return ExprOpNEqRef(*this).pos(exprs);
+        return payload<teOpNEq>(exprs).pos;
     case teOpImpl:
-        return ExprOpImplRef(*this).pos(exprs);
+        return payload<teOpImpl>(exprs).pos;
     case teConcatStrings:
-        return ExprConcatStringsRef(*this).pos(exprs);
+        return payload<teConcatStrings>(exprs).pos;
     case tePos:
-        return ExprPosRef(*this).pos(exprs);
+        return payload<tePos>(exprs).pos;
     case teOpHasAttr:
-        return ExprOpHasAttrRef(*this).e(exprs).getPos(exprs);
+        return payload<teOpHasAttr>(exprs).e.getPos(exprs);
     case teOpNot:
-        return ExprOpNotRef(*this).e(exprs).getPos(exprs);
+        return payload<teOpNot>(exprs).e.getPos(exprs);
     case teList:
-        return ExprListRef(*this).elems(exprs).empty() ? noPos : ExprListRef(*this).elems(exprs).front().getPos(exprs);
+        return payload<teList>(exprs).elems.empty() ? noPos : payload<teList>(exprs).elems.front().getPos(exprs);
     default:
         return noPos;
     }
@@ -100,21 +69,23 @@ VECTOR.reserve(1000000);
 NIX_EXPR_RESERVE(ExprVar, teVar, vars)
 #undef NIX_EXPR_RESERVE
 }
-ExprCallRef Exprs::addExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args)
+template<>
+ExprRefOf<teCall> Exprs::add<teCall>(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args)
 {
     calls.emplace_back(pos, fun, std::move(args));
     if(calls.size() > 999000)
         std::cout << "we're in trouble ExprCall\n";
     Expr::nrExprs++;
-    return ExprCallRef(calls.size() - 1);
+    return ExprRefOf<teCall>(calls.size() - 1);
 }
-ExprCallRef Exprs::addExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos)
+template<>
+ExprRefOf<teCall> Exprs::add<teCall>(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos)
 {
     calls.emplace_back(pos, fun, std::move(args), std::move(cursedOrEndPos));
     if(calls.size() > 999000)
         std::cout << "we're in trouble ExprCall\n";
     Expr::nrExprs++;
-    return ExprCallRef(calls.size() - 1);
+    return ExprRefOf<teCall>(calls.size() - 1);
 }
 
 // FIXME: remove, because *symbols* are abstract and do not have a single
@@ -125,68 +96,77 @@ std::ostream & operator<<(std::ostream & str, const Symbol & symbol)
     return printIdentifier(str, s);
 }
 
-#define NIX_BINOP_SHOW(TYPE, STRING)                                                                        \
-void TYPE##Ref::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const \
-{                                                                                                           \
-    str << "(";                                                                                             \
-    e1(exprs).show(exprs, values, symbols, str);                                                            \
-    str << " " STRING " ";                                                                                  \
-    e2(exprs).show(exprs, values, symbols, str);                                                            \
-    str << ")";                                                                                             \
+#define NIX_BINOP_SHOW(TYPE, DISCR, STRING)                \
+template<>                                                 \
+void ExprRefOf<DISCR>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const \
+{                                                          \
+    str << "(";                                            \
+    payload(exprs).e1.show(exprs, values, symbols, str);   \
+    str << " " STRING " ";                                 \
+    payload(exprs).e2.show(exprs, values, symbols, str);   \
+    str << ")";                                            \
 }
 
 NIX_FOR_EACH_BINOP(NIX_BINOP_SHOW)
 #undef NIX_BINOP_SHOW
 
-void ExprIntRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teInt>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << v(exprs).integer(values);
+    str << payload(exprs).v.integer(values);
 }
 
-void ExprFloatRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teFloat>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << v(exprs).fpoint(values);
+    str << payload(exprs).v.fpoint(values);
 }
 
-void ExprStringRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teString>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    printLiteralString(str, s(exprs));
+    printLiteralString(str, payload(exprs).s);
 }
 
-void ExprPathRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<tePath>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << s(exprs);
+    str << payload(exprs).s;
 }
 
-void ExprVarRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teVar>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << symbols[name(exprs)];
+    str << symbols[payload(exprs).name];
 }
 
-void ExprSelectRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teSelect>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(";
-    e(exprs).show(exprs, values, symbols, str);
-    str << ")." << showAttrPath(exprs, values, symbols, attrPath(exprs));
-    if (def(exprs)) {
+    payload(exprs).e.show(exprs, values, symbols, str);
+    str << ")." << showAttrPath(exprs, values, symbols, payload(exprs).attrPath);
+    if (payload(exprs).def) {
         str << " or (";
-        def(exprs).show(exprs, values, symbols, str);
+        payload(exprs).def.show(exprs, values, symbols, str);
         str << ")";
     }
 }
 
-void ExprOpHasAttrRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teOpHasAttr>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "((";
-    e(exprs).show(exprs, values, symbols, str);
-    str << ") ? " << showAttrPath(exprs, values, symbols, attrPath(exprs)) << ")";
+    payload(exprs).e.show(exprs, values, symbols, str);
+    str << ") ? " << showAttrPath(exprs, values, symbols, payload(exprs).attrPath) << ")";
 }
 
-void ExprAttrsRef::showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teAttrs>::showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     typedef const AttrDefs::value_type * Attr;
     std::vector<Attr> sorted;
-    for (auto & i : attrs(exprs))
+    for (auto & i : payload(exprs).attrs)
         sorted.push_back(&i);
     std::sort(sorted.begin(), sorted.end(), [&](Attr a, Attr b) {
         std::string_view sa = symbols[a->first], sb = symbols[b->first];
@@ -204,9 +184,9 @@ void ExprAttrsRef::showBindings(Exprs & exprs, Values & values, const SymbolTabl
             inherits.push_back(i->first);
             break;
         case AttrDef::Kind::InheritedFrom: {
-            auto select = i->second.e.dyn_cast<ExprSelectRef>();
-            auto from = select.e(exprs).dyn_cast<ExprInheritFromRef>();
-            inheritsFrom[from.displ(exprs)].push_back(i->first);
+            auto select = i->second.e.dyn_cast<teSelect>();
+            auto from = select.payload(exprs).e.dyn_cast<teInheritFrom>();
+            inheritsFrom[from.payload(exprs).displ].push_back(i->first);
             break;
         }
         }
@@ -219,7 +199,7 @@ void ExprAttrsRef::showBindings(Exprs & exprs, Values & values, const SymbolTabl
     }
     for (const auto & [from, syms] : inheritsFrom) {
         str << "inherit (";
-        (*inheritFromExprs(exprs))[from].show(exprs, values, symbols, str);
+        (*payload(exprs).inheritFromExprs)[from].show(exprs, values, symbols, str);
         str << ")";
         for (auto sym : syms)
             str << " " << symbols[sym];
@@ -232,7 +212,7 @@ void ExprAttrsRef::showBindings(Exprs & exprs, Values & values, const SymbolTabl
             str << "; ";
         }
     }
-    for (auto & i : dynamicAttrs(exprs)) {
+    for (auto & i : payload(exprs).dynamicAttrs) {
         str << "\"${";
         i.nameExpr.show(exprs, values, symbols, str);
         str << "}\" = ";
@@ -241,19 +221,21 @@ void ExprAttrsRef::showBindings(Exprs & exprs, Values & values, const SymbolTabl
     }
 }
 
-void ExprAttrsRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teAttrs>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    if (recursive(exprs))
+    if (payload(exprs).recursive)
         str << "rec ";
     str << "{ ";
     showBindings(exprs, values, symbols, str);
     str << "}";
 }
 
-void ExprListRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teList>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "[ ";
-    for (auto & i : elems(exprs)) {
+    for (auto & i : payload(exprs).elems) {
         str << "(";
         i.show(exprs, values, symbols, str);
         str << ") ";
@@ -261,7 +243,8 @@ void ExprListRef::show(Exprs & exprs, Values & values, const SymbolTable & symbo
     str << "]";
 }
 
-void ExprLambdaRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teLambda>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(";
     if (hasFormals(exprs)) {
@@ -270,7 +253,7 @@ void ExprLambdaRef::show(Exprs & exprs, Values & values, const SymbolTable & sym
         // the natural Symbol ordering is by creation time, which can lead to the
         // same expression being printed in two different ways depending on its
         // context. always use lexicographic ordering to avoid this.
-        for (auto & i : formals(exprs)->lexicographicOrder(symbols)) {
+        for (auto & i : payload(exprs).formals->lexicographicOrder(symbols)) {
             if (first)
                 first = false;
             else
@@ -281,82 +264,89 @@ void ExprLambdaRef::show(Exprs & exprs, Values & values, const SymbolTable & sym
                 i.def.show(exprs, values, symbols, str);
             }
         }
-        if (formals(exprs)->ellipsis) {
+        if (payload(exprs).formals->ellipsis) {
             if (!first)
                 str << ", ";
             str << "...";
         }
         str << " }";
-        if (arg(exprs))
+        if (payload(exprs).arg)
             str << " @ ";
     }
-    if (arg(exprs))
-        str << symbols[arg(exprs)];
+    if (payload(exprs).arg)
+        str << symbols[payload(exprs).arg];
     str << ": ";
-    body(exprs).show(exprs, values, symbols, str);
+    payload(exprs).body.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprCallRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teCall>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << '(';
-    fun(exprs).show(exprs, values, symbols, str);
-    for (auto e : args(exprs)) {
+    payload(exprs).fun.show(exprs, values, symbols, str);
+    for (auto e : payload(exprs).args) {
         str << ' ';
         e.show(exprs, values, symbols, str);
     }
     str << ')';
 }
 
-void ExprLetRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teLet>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(let ";
-    attrs(exprs).showBindings(exprs, values, symbols, str);
+    payload(exprs).attrs.showBindings(exprs, values, symbols, str);
     str << "in ";
-    body(exprs).show(exprs, values, symbols, str);
+    payload(exprs).body.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprWithRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teWith>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(with ";
-    attrs(exprs).show(exprs, values, symbols, str);
+    payload(exprs).attrs.show(exprs, values, symbols, str);
     str << "; ";
-    body(exprs).show(exprs, values, symbols, str);
+    payload(exprs).body.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprIfRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teIf>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(if ";
-    cond(exprs).show(exprs, values, symbols, str);
+    payload(exprs).cond.show(exprs, values, symbols, str);
     str << " then ";
-    then(exprs).show(exprs, values, symbols, str);
+    payload(exprs).then.show(exprs, values, symbols, str);
     str << " else ";
-    else_(exprs).show(exprs, values, symbols, str);
+    payload(exprs).else_.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprAssertRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teAssert>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "assert ";
-    cond(exprs).show(exprs, values, symbols, str);
+    payload(exprs).cond.show(exprs, values, symbols, str);
     str << "; ";
-    body(exprs).show(exprs, values, symbols, str);
+    payload(exprs).body.show(exprs, values, symbols, str);
 }
 
-void ExprOpNotRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teOpNot>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "(! ";
-    e(exprs).show(exprs, values, symbols, str);
+    payload(exprs).e.show(exprs, values, symbols, str);
     str << ")";
 }
 
-void ExprConcatStringsRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<teConcatStrings>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     bool first = true;
     str << "(";
-    for (auto & i : *es(exprs)) {
+    for (auto & i : *payload(exprs).es) {
         if (first)
             first = false;
         else
@@ -366,7 +356,8 @@ void ExprConcatStringsRef::show(Exprs & exprs, Values & values, const SymbolTabl
     str << ")";
 }
 
-void ExprPosRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+template<>
+void ExprRefOf<tePos>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
     str << "__curPos";
 }
@@ -393,36 +384,41 @@ std::string showAttrPath(Exprs & exprs, Values & values, const SymbolTable & sym
 
 /* Computing levels/displacements for variables. */
 
-void ExprIntRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teInt>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprFloatRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teFloat>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprStringRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teString>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprPathRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<tePath>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprVarRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teVar>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    fromWith(es.exprs) = ExprWithRef::null;
+    payload(es.exprs).fromWith = ExprRefOf<teWith>::null;
 
     /* Check whether the variable appears in the environment.  If so,
        set its level and displacement. */
@@ -434,11 +430,11 @@ void ExprVarRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv>
             if (withLevel == -1)
                 withLevel = level;
         } else {
-            auto i = curEnv->find(name(es.exprs));
+            auto i = curEnv->find(payload(es.exprs).name);
             if (i != curEnv->vars.end()) {
                 // XXX [speed]: why do we store a level, that we have to trace back up to later, and not store the EnvRef directly? Because the Env hasn't been populated yet, perhaps? We're working at the AST level right now, not the Value level.
-                this->level(es.exprs) = level;
-                this->displ(es.exprs) = i->second;
+                payload(es.exprs).level = level;
+                payload(es.exprs).displ = i->second;
                 return;
             }
         }
@@ -448,46 +444,50 @@ void ExprVarRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv>
        enclosing `with'.  If there is no `with', then we can issue an
        "undefined variable" error now. */
     if (withLevel == -1)
-        es.error<UndefinedVarError>("undefined variable '%1%'", es.symbols[name(es.exprs)]).atPos(pos(es.exprs)).debugThrow();
-    for (auto * e = env.get(); e && !fromWith(es.exprs); e = e->up.get())
-        fromWith(es.exprs) = e->isWith;
-    this->level(es.exprs) = withLevel;
+        es.error<UndefinedVarError>("undefined variable '%1%'", es.symbols[payload(es.exprs).name]).atPos(payload(es.exprs).pos).debugThrow();
+    for (auto * e = env.get(); e && !payload(es.exprs).fromWith; e = e->up.get())
+        payload(es.exprs).fromWith = e->isWith;
+    payload(es.exprs).level = withLevel;
 }
 
-void ExprInheritFromRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teInheritFrom>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 }
 
-void ExprSelectRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teSelect>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    e(es.exprs).bindVars(es, env);
-    if (def(es.exprs))
-        def(es.exprs).bindVars(es, env);
-    for (auto & i : attrPath(es.exprs))
+    payload(es.exprs).e.bindVars(es, env);
+    if (payload(es.exprs).def)
+        payload(es.exprs).def.bindVars(es, env);
+    for (auto & i : payload(es.exprs).attrPath)
         if (!i.symbol)
             i.expr.bindVars(es, env);
 }
 
-void ExprOpHasAttrRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teOpHasAttr>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    e(es.exprs).bindVars(es, env);
-    for (auto & i : attrPath(es.exprs))
+    payload(es.exprs).e.bindVars(es, env);
+    for (auto & i : payload(es.exprs).attrPath)
         if (!i.symbol)
             i.expr.bindVars(es, env);
 }
 
+template<>
 std::shared_ptr<const StaticEnv>
-ExprAttrsRef::bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+ExprRefOf<teAttrs>::bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
-    if (!inheritFromExprs(es.exprs))
+    if (!payload(es.exprs).inheritFromExprs)
         return nullptr;
 
     // the inherit (from) source values are inserted into an env of its own, which
@@ -498,24 +498,25 @@ ExprAttrsRef::bindInheritSources(EvalState & es, const std::shared_ptr<const Sta
     // and displacement, and nothing else is allowed to access it. ideally we'd
     // not even *have* an expr that grabs anything from this env since it's fully
     // invisible, but the evaluator does not allow for this yet.
-    auto inner = std::make_shared<StaticEnv>(ExprWithRef::null, env, 0);
-    for (auto from : *inheritFromExprs(es.exprs))
+    auto inner = std::make_shared<StaticEnv>(ExprRefOf<teWith>::null, env, 0);
+    for (auto from : *payload(es.exprs).inheritFromExprs)
         from.bindVars(es, env);
 
     return inner;
 }
 
-void ExprAttrsRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teAttrs>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    if (recursive(es.exprs)) {
+    if (payload(es.exprs).recursive) {
         auto newEnv = [&]() -> std::shared_ptr<const StaticEnv> {
-            auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, attrs(es.exprs).size());
+            auto newEnv = std::make_shared<StaticEnv>(ExprRefOf<teWith>::null, env, payload(es.exprs).attrs.size());
 
             Displacement displ = 0;
-            for (auto & i : attrs(es.exprs))
+            for (auto & i : payload(es.exprs).attrs)
                 newEnv->vars.emplace_back(i.first, i.second.displ = displ++);
             return newEnv;
         }();
@@ -523,158 +524,168 @@ void ExprAttrsRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEn
         // No need to sort newEnv since attrs is in sorted order.
 
         auto inheritFromEnv = bindInheritSources(es, newEnv);
-        for (auto & i : attrs(es.exprs))
+        for (auto & i : payload(es.exprs).attrs)
             i.second.e.bindVars(es, i.second.chooseByKind(newEnv, env, inheritFromEnv));
 
-        for (auto & i : dynamicAttrs(es.exprs)) {
+        for (auto & i : payload(es.exprs).dynamicAttrs) {
             i.nameExpr.bindVars(es, newEnv);
             i.valueExpr.bindVars(es, newEnv);
         }
     } else {
         auto inheritFromEnv = bindInheritSources(es, env);
 
-        for (auto & i : attrs(es.exprs))
+        for (auto & i : payload(es.exprs).attrs)
             i.second.e.bindVars(es, i.second.chooseByKind(env, env, inheritFromEnv));
 
-        for (auto & i : dynamicAttrs(es.exprs)) {
+        for (auto & i : payload(es.exprs).dynamicAttrs) {
             i.nameExpr.bindVars(es, env);
             i.valueExpr.bindVars(es, env);
         }
     }
 }
 
-void ExprListRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teList>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    for (auto & i : elems(es.exprs))
+    for (auto & i : payload(es.exprs).elems)
         i.bindVars(es, env);
 }
 
-void ExprLambdaRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teLambda>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
     auto newEnv =
-        std::make_shared<StaticEnv>(ExprWithRef::null, env, (hasFormals(es.exprs) ? formals(es.exprs)->formals.size() : 0) + (!arg(es.exprs) ? 0 : 1));
+        std::make_shared<StaticEnv>(ExprRefOf<teWith>::null, env, (hasFormals(es.exprs) ? payload(es.exprs).formals->formals.size() : 0) + (!payload(es.exprs).arg ? 0 : 1));
 
     Displacement displ = 0;
 
-    if (arg(es.exprs))
-        newEnv->vars.emplace_back(arg(es.exprs), displ++);
+    if (payload(es.exprs).arg)
+        newEnv->vars.emplace_back(payload(es.exprs).arg, displ++);
 
     if (hasFormals(es.exprs)) {
-        for (auto & i : formals(es.exprs)->formals)
+        for (auto & i : payload(es.exprs).formals->formals)
             newEnv->vars.emplace_back(i.name, displ++);
 
         newEnv->sort();
 
-        for (auto & i : formals(es.exprs)->formals)
+        for (auto & i : payload(es.exprs).formals->formals)
             if (i.def)
                 i.def.bindVars(es, newEnv);
     }
 
-    body(es.exprs).bindVars(es, newEnv);
+    payload(es.exprs).body.bindVars(es, newEnv);
 }
 
-void ExprCallRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teCall>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    fun(es.exprs).bindVars(es, env);
-    for (auto e : args(es.exprs))
+    payload(es.exprs).fun.bindVars(es, env);
+    for (auto e : payload(es.exprs).args)
         e.bindVars(es, env);
 }
 
-void ExprLetRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teLet>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     auto newEnv = [&]() -> std::shared_ptr<const StaticEnv> {
-        auto newEnv = std::make_shared<StaticEnv>(ExprWithRef::null, env, attrs(es.exprs).attrs(es.exprs).size());
+        auto newEnv = std::make_shared<StaticEnv>(ExprRefOf<teWith>::null, env, payload(es.exprs).attrs.payload(es.exprs).attrs.size());
 
         Displacement displ = 0;
-        for (auto & i : attrs(es.exprs).attrs(es.exprs))
+        for (auto & i : payload(es.exprs).attrs.payload(es.exprs).attrs)
             newEnv->vars.emplace_back(i.first, i.second.displ = displ++);
         return newEnv;
     }();
 
     // No need to sort newEnv since attrs->attrs is in sorted order.
 
-    auto inheritFromEnv = attrs(es.exprs).bindInheritSources(es, newEnv);
-    for (auto & i : attrs(es.exprs).attrs(es.exprs))
+    auto inheritFromEnv = payload(es.exprs).attrs.bindInheritSources(es, newEnv);
+    for (auto & i : payload(es.exprs).attrs.payload(es.exprs).attrs)
         i.second.e.bindVars(es, i.second.chooseByKind(newEnv, env, inheritFromEnv));
 
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, newEnv));
 
-    body(es.exprs).bindVars(es, newEnv);
+    payload(es.exprs).body.bindVars(es, newEnv);
 }
 
-void ExprWithRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teWith>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    parentWith(es.exprs) = ExprWithRef::null;
-    for (auto * e = env.get(); e && !parentWith(es.exprs); e = e->up.get())
-        parentWith(es.exprs) = e->isWith;
+    payload(es.exprs).parentWith = ExprRefOf<teWith>::null;
+    for (auto * e = env.get(); e && !payload(es.exprs).parentWith; e = e->up.get())
+        payload(es.exprs).parentWith = e->isWith;
 
     /* Does this `with' have an enclosing `with'?  If so, record its
        level so that `lookupVar' can look up variables in the previous
        `with' if this one doesn't contain the desired attribute. */
     const StaticEnv * curEnv;
     Level level;
-    prevWith(es.exprs) = 0;
+    payload(es.exprs).prevWith = 0;
     for (curEnv = env.get(), level = 1; curEnv; curEnv = curEnv->up.get(), level++)
         if (curEnv->isWith) {
-            prevWith(es.exprs) = level;
+            payload(es.exprs).prevWith = level;
             break;
         }
 
-    attrs(es.exprs).bindVars(es, env);
+    payload(es.exprs).attrs.bindVars(es, env);
     auto newEnv = std::make_shared<StaticEnv>(*this, env);
-    body(es.exprs).bindVars(es, newEnv);
+    payload(es.exprs).body.bindVars(es, newEnv);
 }
 
-void ExprIfRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teIf>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    cond(es.exprs).bindVars(es, env);
-    then(es.exprs).bindVars(es, env);
-    else_(es.exprs).bindVars(es, env);
+    payload(es.exprs).cond.bindVars(es, env);
+    payload(es.exprs).then.bindVars(es, env);
+    payload(es.exprs).else_.bindVars(es, env);
 }
 
-void ExprAssertRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teAssert>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    cond(es.exprs).bindVars(es, env);
-    body(es.exprs).bindVars(es, env);
+    payload(es.exprs).cond.bindVars(es, env);
+    payload(es.exprs).body.bindVars(es, env);
 }
 
-void ExprOpNotRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teOpNot>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    e(es.exprs).bindVars(es, env);
+    payload(es.exprs).e.bindVars(es, env);
 }
 
-void ExprConcatStringsRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<teConcatStrings>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
 
-    for (auto & i : *this->es(es.exprs))
+    for (auto & i : *payload(es.exprs).es)
         i.second.bindVars(es, env);
 }
 
-void ExprPosRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+template<>
+void ExprRefOf<tePos>::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
     if (es.debugRepl)
         es.exprEnvs.insert(std::make_pair(*this, env));
@@ -682,35 +693,20 @@ void ExprPosRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv>
 
 /* Storing function names. */
 
-void ExprRef::setName(Exprs & exprs, SymbolRef name) {
-    if (type() == teLambda) {
-        ExprLambdaRef(*this).setName(exprs, name);
-    }
-}
-void ExprRef::setDocComment(Exprs & exprs, DocComment docComment) {
-    if (type() == teLambda) {
-        ExprLambdaRef(*this).setDocComment(exprs, docComment);
-    }
-}
-
-void ExprLambdaRef::setName(Exprs & exprs, SymbolRef name)
+template<>
+void ExprRefOf<teLambda>::setName(Exprs & exprs, SymbolRef name)
 {
-    this->name(exprs) = name;
-    this->body(exprs).setName(exprs, name);
+    payload(exprs).name = name;
+    payload(exprs).body.setName(exprs, name);
 }
 
-std::string ExprLambdaRef::showNamePos(EvalState & state)
-{
-    std::string id(this->name(state.exprs) ? concatStrings("'", state.symbols[this->name(state.exprs)], "'") : "anonymous function");
-    return fmt("%1% at %2%", id, state.positions[this->pos(state.exprs)]);
-}
-
-void ExprLambdaRef::setDocComment(Exprs & exprs, DocComment docComment)
+template<>
+void ExprRefOf<teLambda>::setDocComment(Exprs & exprs, DocComment docComment)
 {
     // RFC 145 specifies that the innermost doc comment wins.
     // See https://github.com/NixOS/rfcs/blob/master/rfcs/0145-doc-strings.md#ambiguous-placement
-    if (!this->docComment(exprs)) {
-        this->docComment(exprs) = docComment;
+    if (!payload(exprs).docComment) {
+        payload(exprs).docComment = docComment;
 
         // Curried functions are defined by putting a function directly
         // in the body of another function. To render docs for those, we
@@ -718,9 +714,27 @@ void ExprLambdaRef::setDocComment(Exprs & exprs, DocComment docComment)
         //
         // If we have our own comment, we've already propagated it, so this
         // belongs in the same conditional.
-        body(exprs).setDocComment(exprs, docComment);
+        payload(exprs).body.setDocComment(exprs, docComment);
     }
 };
+
+void ExprRef::setName(Exprs & exprs, SymbolRef name) {
+    if (type() == teLambda) {
+        dyn_cast<teLambda>().setName(exprs, name);
+    }
+}
+void ExprRef::setDocComment(Exprs & exprs, DocComment docComment) {
+    if (type() == teLambda) {
+        dyn_cast<teLambda>().setDocComment(exprs, docComment);
+    }
+}
+
+template<>
+std::string ExprRefOf<teLambda>::showNamePos(EvalState & state)
+{
+    std::string id(payload(state.exprs).name ? concatStrings("'", state.symbols[payload(state.exprs).name], "'") : "anonymous function");
+    return fmt("%1% at %2%", id, state.positions[payload(state.exprs).pos]);
+}
 
 /* Symbol table. */
 
@@ -758,36 +772,71 @@ std::string DocComment::getInnerText(const PosTable & positions) const
  * To be removed by https://github.com/NixOS/nix/pull/11121
  */
 
- void ExprRef::resetCursedOr(Exprs & exprs)
- {
-     if (type() == teCall)
-         ExprCallRef(*this).resetCursedOr(exprs);
- }
-void ExprRef::warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions)
- {
-     if (type() == teCall)
-         ExprCallRef(*this).warnIfCursedOr(exprs, symbols, positions);
- }
-
-void ExprCallRef::resetCursedOr(Exprs & exprs)
+template<>
+void ExprRefOf<teCall>::resetCursedOr(Exprs & exprs)
 {
-    cursedOrEndPos(exprs).reset();
+    payload(exprs).cursedOrEndPos.reset();
 }
 
-void ExprCallRef::warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions)
+template<>
+void ExprRefOf<teCall>::warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions)
 {
-    if (cursedOrEndPos(exprs).has_value()) {
+    if (payload(exprs).cursedOrEndPos.has_value()) {
         std::ostringstream out;
-        out << "at " << positions[pos(exprs)]
+        out << "at " << positions[payload(exprs).pos]
             << ": "
                "This expression uses `or` as an identifier in a way that will change in a future Nix release.\n"
                "Wrap this entire expression in parentheses to preserve its current meaning:\n"
                "    ("
-            << positions[pos(exprs)].getSnippetUpTo(positions[*cursedOrEndPos(exprs)]).value_or("could not read expression")
+            << positions[payload(exprs).pos].getSnippetUpTo(positions[*payload(exprs).cursedOrEndPos]).value_or("could not read expression")
             << ")\n"
                "Give feedback at https://github.com/NixOS/nix/pull/11121";
         warn(out.str());
     }
+}
+
+ void ExprRef::resetCursedOr(Exprs & exprs)
+ {
+     if (type() == teCall)
+         dyn_cast<teCall>().resetCursedOr(exprs);
+ }
+void ExprRef::warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions)
+ {
+     if (type() == teCall)
+         dyn_cast<teCall>().warnIfCursedOr(exprs, symbols, positions);
+ }
+
+template<>
+void ExprRefOf<teInheritFrom>::eval(EvalState & state, EnvRef env, ValueRef v)
+{
+    ExprRefOf<teVar>(*this).eval(state, env, v);
+}
+
+template<>
+void ExprRefOf<teInheritFrom>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+{
+    ExprRefOf<teVar>(*this).show(exprs, values, symbols, str);
+}
+
+void ExprRef::eval(EvalState & state, EnvRef env, ValueRef v)
+{
+    if (*this == ExprRef::null)
+        unreachable();
+    if (*this == ExprRef::blackHole)
+        state.throwInfiniteRecursionError(v);
+    DYNAMIC_DISPATCH(eval(state, env, v))
+}
+
+void ExprRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+{
+    if (*this == ExprRef::null)
+        unreachable();
+    DYNAMIC_DISPATCH(bindVars(es, env))
+}
+
+void ExprRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+{
+    DYNAMIC_DISPATCH(show(exprs, values, symbols, str))
 }
 
 } // namespace nix

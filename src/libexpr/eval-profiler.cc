@@ -70,7 +70,7 @@ public:
 
 struct LambdaFrameInfo
 {
-    ExprLambdaRef expr;
+    ExprRefOf<teLambda> expr;
     /** Position where the lambda has been called. */
     PosIdx callPos = noPos;
     std::ostream & symbolize(/* XXX [speed] const */ EvalState & state, std::ostream & os, PosCache & posCache) /* XXX [speed] const */;
@@ -251,11 +251,11 @@ std::ostream & LambdaFrameInfo::symbolize(/*const*/ EvalState & state, std::ostr
     if (auto pos = posCache.lookup(callPos); std::holds_alternative<std::monostate>(pos.origin))
         /* HACK: To avoid dubious «none»:0 in the generated profile if the origin can't be resolved
            resort to printing the lambda location instead of the callsite position. */
-        os << posCache.lookup(expr.pos(state.exprs));
+        os << posCache.lookup(expr.payload(state.exprs).pos);
     else
         os << pos;
-    if (expr.name(state.exprs))
-        os << ":" << state.symbols[expr.name(state.exprs)];
+    if (expr.payload(state.exprs).name)
+        os << ":" << state.symbols[expr.payload(state.exprs).name];
     return os;
 }
 

@@ -138,7 +138,7 @@ struct ExprVar
 
        `nullptr`: Not from a `with`.
        Valid pointer: the nearest, innermost `with` expression to query first. */
-    ExprWithRef fromWith = ExprWithRef::null;
+    ExprRefOf<teWith> fromWith = ExprRefOf<teWith>::null;
 
     /* In the former case, the value is obtained by going `level`
        levels up from the current environment and getting the
@@ -161,20 +161,16 @@ struct ExprVar
  * Unlike normal variable references, the displacement is set during parsing, and always refers to
  * `ExprAttrs::inheritFromExprs` (by itself or in `ExprLet`), whose values are put into their own `Env`.
  */
-struct ExprInheritFrom
+struct ExprInheritFrom : ExprVar
 {
-    PosIdx pos;
-    SymbolRef name;
-    ExprWithRef fromWith = ExprWithRef::null;
-    Level level = 0;
-    Displacement displ = 0;
-
     ExprInheritFrom(PosIdx pos, Displacement displ)
-        : pos(pos)
-        , name(SymbolRef::null)
-        , fromWith(ExprWithRef::null)
-        , level(0)
-        , displ(displ) {};
+        : ExprVar(pos, SymbolRef::null)
+    {
+        this->fromWith = ExprRefOf<teWith>::null;
+        this->level = 0;
+        this->displ = displ;
+
+    }
 };
 
 struct ExprSelect
@@ -252,16 +248,17 @@ struct DynamicAttrDef
         , pos(pos) {};
 };
 
+typedef std::map<SymbolRef, AttrDef> AttrDefs;
+typedef std::vector<DynamicAttrDef> DynamicAttrDefs;
+
 struct ExprAttrs
 {
     bool recursive;
     PosIdx pos;
 
-    typedef std::map<SymbolRef, AttrDef> AttrDefs;
     AttrDefs attrs;
     std::unique_ptr<std::vector<ExprRef>> inheritFromExprs;
 
-    typedef std::vector<DynamicAttrDef> DynamicAttrDefs;
     DynamicAttrDefs dynamicAttrs;
     ExprAttrs(const PosIdx & pos)
         : recursive(false)
@@ -359,9 +356,9 @@ struct ExprCall
 
 struct ExprLet
 {
-    ExprAttrsRef attrs;
+    ExprRefOf<teAttrs> attrs;
     ExprRef body;
-    ExprLet(ExprAttrsRef attrs, ExprRef body)
+    ExprLet(ExprRefOf<teAttrs> attrs, ExprRef body)
         : attrs(attrs)
         , body(body) {};
 };
@@ -371,7 +368,7 @@ struct ExprWith
     PosIdx pos;
     ExprRef attrs, body;
     size_t prevWith;
-    ExprWithRef parentWith;
+    ExprRefOf<teWith> parentWith;
     ExprWith(const PosIdx & pos, ExprRef attrs, ExprRef body)
         : pos(pos)
         , attrs(attrs)
@@ -406,16 +403,16 @@ struct ExprOpNot
         : e(e) {};
 };
 
-#define NIX_FOR_EACH_BINOP(MACRO) \
-MACRO(ExprOpEq, "==")             \
-MACRO(ExprOpNEq, "!=")            \
-MACRO(ExprOpAnd, "&&")            \
-MACRO(ExprOpOr, "||")             \
-MACRO(ExprOpImpl, "->")           \
-MACRO(ExprOpUpdate, "//")         \
-MACRO(ExprOpConcatLists, "++")
+#define NIX_FOR_EACH_BINOP(MACRO)               \
+MACRO(ExprOpEq, teOpEq, "==")                   \
+MACRO(ExprOpNEq, teOpNEq, "!=")                 \
+MACRO(ExprOpAnd, teOpAnd, "&&")                 \
+MACRO(ExprOpOr, teOpOr, "||")                   \
+MACRO(ExprOpImpl, teOpImpl, "->")               \
+MACRO(ExprOpUpdate, teOpUpdate, "//")           \
+MACRO(ExprOpConcatLists, teOpConcatLists, "++")
 
-#define MakeBinOp(name, s)                                         \
+#define MakeBinOp(name, discr, s)                                  \
 struct name                                                        \
 {                                                                  \
     PosIdx pos;                                                    \
@@ -454,14 +451,14 @@ struct ExprPos
    runtime. */
 struct StaticEnv
 {
-    ExprWithRef isWith;
+    ExprRefOf<teWith> isWith;
     std::shared_ptr<const StaticEnv> up;
 
     // Note: these must be in sorted order.
     typedef std::vector<std::pair<SymbolRef, Displacement>> Vars;
     Vars vars;
 
-    StaticEnv(ExprWithRef isWith, std::shared_ptr<const StaticEnv> up, size_t expectedSize = 0)
+    StaticEnv(ExprRefOf<teWith> isWith, std::shared_ptr<const StaticEnv> up, size_t expectedSize = 0)
         : isWith(isWith)
         , up(std::move(up))
     {
@@ -496,135 +493,34 @@ struct StaticEnv
         return vars.end();
     }
 };
-#define NIX_DEFINE_ADD(TYPE, DISCRIMINANT, VECTOR)              \
-TYPE##Ref Exprs::add##TYPE(auto && ...args) {                   \
-    VECTOR.emplace_back(std::forward<decltype(args)>(args)...); \
-    if(VECTOR.size() > 999000)                                  \
-        std::cout << "we're in trouble " #TYPE "\n";            \
-    Expr::nrExprs++;                                            \
-    return TYPE##Ref(VECTOR.size() - 1);                        \
+
+template<Type ty>
+ExprRefOf<ty> Exprs::add(auto && ...args) {
+    payloads<ty>().emplace_back(std::forward<decltype(args)>(args)...);
+    if (payloads<ty>().size() > 999000)
+        std::cout << "we're in trouble " << ty << "\n";
+    Expr::nrExprs++;
+    return ExprRefOf<ty>(payloads<ty>().size() - 1);
 }
-NIX_FOR_EACH_EXPR(NIX_DEFINE_ADD)
-NIX_DEFINE_ADD(ExprVar, teVar, vars)
-#undef NIX_DEFINE_ADD
-inline bool ExprLambdaRef::hasFormals(Exprs & exprs) const
+
+template<Type ty>
+inline PayloadOf<ty> & ExprRefOf<ty>::payload(Exprs & exprs) const noexcept {
+    assert(ExprRef(*this).type() == ty);
+    return exprs.payloads<ty>()[ref & 0x00FFFFFF];
+}
+template<>
+inline PayloadOf<teVar> & ExprRefOf<teVar>::payload(Exprs & exprs) const noexcept {
+    auto type = ExprRef(*this).type();
+    if (type == teVar)
+        return exprs.payloads<teVar>()[ref & 0x00FFFFFF];
+    if (type == teInheritFrom)
+        return exprs.payloads<teInheritFrom>()[ref & 0x00FFFFFF];
+    unreachable();
+}
+
+template<>
+inline bool ExprRefOf<teLambda>::hasFormals(Exprs & exprs) const
 {
-    return formals(exprs) != nullptr;
+    return payload(exprs).formals != nullptr;
 }
-
-#define NIX_EXPR_MEMBER_ACCESS(ExprType, DISCRIMINANT, VECTOR, MemberType, name)     \
-inline MemberType & ExprType##Ref::name(Exprs & exprs) const {                       \
-    assert(ExprRef(*this).type() == DISCRIMINANT);                                   \
-    return exprs.VECTOR[ref & 0x00FFFFFF].name;                                      \
-}
-#define NIX_EXPR_VAR_MEMBER_ACCESS(ExprType, DISCRIMINANT, VECTOR, MemberType, name) \
-inline MemberType & ExprType##Ref::name(Exprs & exprs) const {                       \
-    auto type = ExprRef(*this).type();                                               \
-    if (type == teVar)                                                               \
-        return exprs.vars[ref & 0x00FFFFFF].name;                                    \
-    if (type == teInheritFrom)                                                       \
-        return exprs.inheritFroms[ref & 0x00FFFFFF].name;                            \
-    unreachable();                                                                   \
-}
-
-NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, ExprRef, attrs)
-NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, ExprRef, body)
-NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, size_t, prevWith)
-NIX_EXPR_MEMBER_ACCESS(ExprWith, teWith, withs, ExprWithRef, parentWith)
-
-NIX_EXPR_MEMBER_ACCESS(ExprLet, teLet, lets, ExprAttrsRef, attrs)
-NIX_EXPR_MEMBER_ACCESS(ExprLet, teLet, lets, ExprRef, body)
-
-NIX_EXPR_MEMBER_ACCESS(ExprIf, teIf, ifs, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprIf, teIf, ifs, ExprRef, cond)
-NIX_EXPR_MEMBER_ACCESS(ExprIf, teIf, ifs, ExprRef, then)
-NIX_EXPR_MEMBER_ACCESS(ExprIf, teIf, ifs, ExprRef, else_)
-
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, bool, recursive)
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, AttrDefs, attrs)
-// XXX [speed]: i don't really know how to work safely with std::unique_ptr
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, std::unique_ptr<std::vector<ExprRef>>, inheritFromExprs)
-NIX_EXPR_MEMBER_ACCESS(ExprAttrs, teAttrs, attrss, DynamicAttrDefs, dynamicAttrs)
-
-NIX_EXPR_MEMBER_ACCESS(ExprCall, teCall, calls, ExprRef, fun)
-NIX_EXPR_MEMBER_ACCESS(ExprCall, teCall, calls, std::vector<ExprRef>, args)
-NIX_EXPR_MEMBER_ACCESS(ExprCall, teCall, calls, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprCall, teCall, calls, std::optional<PosIdx>, cursedOrEndPos)
-
-
-NIX_EXPR_MEMBER_ACCESS(ExprFloat, teFloat, floats, ValueRef, v)
-
-NIX_EXPR_MEMBER_ACCESS(ExprInt, teInt, ints, ValueRef, v)
-
-NIX_EXPR_MEMBER_ACCESS(ExprPath, tePath, paths, ValueRef, v)
-NIX_EXPR_MEMBER_ACCESS(ExprPath, tePath, paths, std::string, s)
-
-NIX_EXPR_MEMBER_ACCESS(ExprSelect, teSelect, selects, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprSelect, teSelect, selects, ExprRef, e)
-NIX_EXPR_MEMBER_ACCESS(ExprSelect, teSelect, selects, ExprRef, def)
-NIX_EXPR_MEMBER_ACCESS(ExprSelect, teSelect, selects, AttrPath, attrPath)
-
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, SymbolRef, name)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, SymbolRef, arg)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, Formals *, formals)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, ExprRef, body)
-NIX_EXPR_MEMBER_ACCESS(ExprLambda, teLambda, lambdas, DocComment, docComment)
-
-NIX_EXPR_MEMBER_ACCESS(ExprList, teList, lists, std::vector<ExprRef>, elems)
-
-NIX_EXPR_MEMBER_ACCESS(ExprString, teString, strings, ValueRef, v)
-NIX_EXPR_MEMBER_ACCESS(ExprString, teString, strings, std::string, s)
-
-NIX_EXPR_MEMBER_ACCESS(ExprAssert, teAssert, asserts, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprAssert, teAssert, asserts, ExprRef, cond)
-NIX_EXPR_MEMBER_ACCESS(ExprAssert, teAssert, asserts, ExprRef, body)
-
-NIX_EXPR_MEMBER_ACCESS(ExprPos, tePos, poss, PosIdx, pos)
-
-NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, teConcatStrings, concatStringss, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, teConcatStrings, concatStringss, bool, forceString)
-#define COMMA ,
-NIX_EXPR_MEMBER_ACCESS(ExprConcatStrings, teConcatStrings, concatStringss, std::vector<std::pair<PosIdx COMMA ExprRef>> *, es)
-
-NIX_EXPR_MEMBER_ACCESS(ExprOpHasAttr, teOpHasAttr, opHasAttrs, ExprRef, e)
-NIX_EXPR_MEMBER_ACCESS(ExprOpHasAttr, teOpHasAttr, opHasAttrs, AttrPath, attrPath)
-
-NIX_EXPR_MEMBER_ACCESS(ExprOpNot, teOpNot, opNots, ExprRef, e)
-
-NIX_EXPR_MEMBER_ACCESS(ExprOpEq, teOpEq, opEqs, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprOpEq, teOpEq, opEqs, ExprRef, e1)
-NIX_EXPR_MEMBER_ACCESS(ExprOpEq, teOpEq, opEqs, ExprRef, e2)
-NIX_EXPR_MEMBER_ACCESS(ExprOpNEq, teOpNEq, opNEqs, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprOpNEq, teOpNEq, opNEqs, ExprRef, e1)
-NIX_EXPR_MEMBER_ACCESS(ExprOpNEq, teOpNEq, opNEqs, ExprRef, e2)
-NIX_EXPR_MEMBER_ACCESS(ExprOpAnd, teOpAnd, opAnds, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprOpAnd, teOpAnd, opAnds, ExprRef, e1)
-NIX_EXPR_MEMBER_ACCESS(ExprOpAnd, teOpAnd, opAnds, ExprRef, e2)
-NIX_EXPR_MEMBER_ACCESS(ExprOpOr, teOpOr, opOrs, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprOpOr, teOpOr, opOrs, ExprRef, e1)
-NIX_EXPR_MEMBER_ACCESS(ExprOpOr, teOpOr, opOrs, ExprRef, e2)
-NIX_EXPR_MEMBER_ACCESS(ExprOpImpl, teOpImpl, opImpls, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprOpImpl, teOpImpl, opImpls, ExprRef, e1)
-NIX_EXPR_MEMBER_ACCESS(ExprOpImpl, teOpImpl, opImpls, ExprRef, e2)
-NIX_EXPR_MEMBER_ACCESS(ExprOpUpdate, teOpUpdate, opUpdates, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprOpUpdate, teOpUpdate, opUpdates, ExprRef, e1)
-NIX_EXPR_MEMBER_ACCESS(ExprOpUpdate, teOpUpdate, opUpdates, ExprRef, e2)
-NIX_EXPR_MEMBER_ACCESS(ExprOpConcatLists, teOpConcatLists, opConcatListss, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprOpConcatLists, teOpConcatLists, opConcatListss, ExprRef, e1)
-NIX_EXPR_MEMBER_ACCESS(ExprOpConcatLists, teOpConcatLists, opConcatListss, ExprRef, e2)
-
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, PosIdx, pos)
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, SymbolRef, name)
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, ExprWithRef, fromWith)
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, Level, level)
-NIX_EXPR_MEMBER_ACCESS(ExprInheritFrom, teInheritFrom, inheritFroms, Displacement, displ)
-
-NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, PosIdx, pos)
-NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, SymbolRef, name)
-NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, ExprWithRef, fromWith)
-NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, Level, level)
-NIX_EXPR_VAR_MEMBER_ACCESS(ExprVar, teVar, vars, Displacement, displ)
 } // namespace nix

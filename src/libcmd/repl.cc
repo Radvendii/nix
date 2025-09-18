@@ -143,7 +143,7 @@ NixRepl::NixRepl(
     : AbstractNixRepl(state)
     , debugTraceIndex(0)
     , getValues(getValues)
-    , staticEnv(new StaticEnv(ExprWithRef::null, state->staticBaseEnv))
+    , staticEnv(new StaticEnv(ExprRefOf<teWith>::null, state->staticBaseEnv))
     , lastLoaded(state->allocValue())
     , runNixPtr{runNix}
     , interacter(make_unique<ReadlineLikeInteracter>(getDataDir() + "/repl-history"))
@@ -498,7 +498,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
                 auto path = state->coerceToPath(noPos, v.ref(state->values), context, "while evaluating the filename to edit");
                 return {path, 0};
             } else if (v.ref(state->values).isLambda(state->values)) {
-                auto pos = state->positions[v.lambda().fun.pos(state->exprs)];
+                auto pos = state->positions[v.lambda().fun.payload(state->exprs).pos];
                 if (auto path = std::get_if<SourcePath>(&pos.origin))
                     return {*path, pos.line};
                 else
@@ -622,7 +622,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         std::string fallbackName;
         PosIdx fallbackPos;
         DocComment fallbackDoc;
-        if (auto select = expr.dyn_cast<ExprSelectRef>()) {
+        if (auto select = expr.dyn_cast<teSelect>()) {
             Value vAttrs;
             auto name = select.evalExceptFinalSelect(*state, env, vAttrs.ref(state->values));
             fallbackName = state->symbols[name];

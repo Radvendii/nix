@@ -263,7 +263,7 @@ static void scopedImport(EvalState & state, const PosIdx pos, SourcePath & path,
     EnvRef env = state.allocEnv(vScope.attrs(state.values)->size());
     env.up(state.envs) = state.baseEnv;
 
-    auto staticEnv = std::make_shared<StaticEnv>(ExprWithRef::null, state.staticBaseEnv, vScope.attrs(state.values)->size());
+    auto staticEnv = std::make_shared<StaticEnv>(ExprRefOf<teWith>::null, state.staticBaseEnv, vScope.attrs(state.values)->size());
 
     unsigned int displ = 0;
     for (auto & attr : *vScope.attrs(state.values)) {
@@ -3298,7 +3298,7 @@ static void prim_functionArgs(EvalState & state, const PosIdx pos, ValueRef * ar
         return;
     }
 
-    const auto & formals = args[0].lambda(state.values).fun.formals(state.exprs)->formals;
+    const auto & formals = args[0].lambda(state.values).fun.payload(state.exprs).formals->formals;
     auto attrs = state.buildBindings(formals.size());
     for (auto & i : formals)
         attrs.insert(i.name, state.getBool((bool)i.def), i.pos);

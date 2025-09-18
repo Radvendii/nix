@@ -222,7 +222,7 @@ public:
         bindings = newBindings;
     }
 
-    friend struct ExprAttrsRef;
+    friend struct ExprRefOf<teAttrs>;
 };
 
 } // namespace nix

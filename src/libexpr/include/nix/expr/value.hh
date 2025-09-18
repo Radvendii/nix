@@ -119,7 +119,6 @@ struct Env;
 class EnvRef;
 struct ExprRef;
 struct Expr;
-struct ExprLambdaRef;
 struct StaticEnv;
 struct PrimOp;
 class SymbolRef;
@@ -136,6 +135,107 @@ class PosTable;
 
 using NixInt = checked::Checked<int64_t>;
 using NixFloat = double;
+
+// XXX [speed]: using 8 bits for the tag is convenient, but if it's too limiting (> 4 million of any one expr type), we can make do with 5 bits. We could even fine tune it even more by splitting up the address space into a sequence of intervals, one assigned to each type.
+// XXX [speed]: in particular, it's very silly to dedicate an entire section of the address space to null and blackHole
+enum Type : uint8_t {
+    // 0 reserved for null, blackHole
+    teWith = 1,
+    teLet,
+    teIf,
+    teVar,
+    teAttrs,
+    teCall,
+    teFloat,
+    teInt,
+    tePath,
+    teSelect,
+    teLambda,
+    teList,
+    teString,
+    teAssert,
+    tePos,
+    teConcatStrings,
+    teOpHasAttr,
+    teOpConcatLists,
+    teOpNot,
+    teOpEq,
+    teOpNEq,
+    teOpAnd,
+    teOpOr,
+    teOpImpl,
+    teOpUpdate,
+    teInheritFrom,
+};
+#define NIX_FOR_EACH_EXPR(MACRO, ...)                                               \
+MACRO(ExprWith, teWith, withs __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprLet, teLet, lets __VA_OPT__(,) __VA_ARGS__)                               \
+MACRO(ExprIf, teIf, ifs __VA_OPT__(,) __VA_ARGS__)                                  \
+MACRO(ExprAttrs, teAttrs, attrss __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprCall, teCall, calls __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprFloat, teFloat, floats __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprInt, teInt, ints __VA_OPT__(,) __VA_ARGS__)                               \
+MACRO(ExprPath, tePath, paths __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprSelect, teSelect, selects __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprLambda, teLambda, lambdas __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprList, teList, lists __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprString, teString, strings __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprAssert, teAssert, asserts __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprPos, tePos, poss __VA_OPT__(,) __VA_ARGS__)                               \
+MACRO(ExprConcatStrings, teConcatStrings, concatStringss __VA_OPT__(,) __VA_ARGS__) \
+MACRO(ExprOpHasAttr, teOpHasAttr, opHasAttrs __VA_OPT__(,) __VA_ARGS__)             \
+MACRO(ExprOpConcatLists, teOpConcatLists, opConcatListss __VA_OPT__(,) __VA_ARGS__) \
+MACRO(ExprOpNot, teOpNot, opNots __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprOpEq, teOpEq, opEqs __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprOpNEq, teOpNEq, opNEqs __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprOpAnd, teOpAnd, opAnds __VA_OPT__(,) __VA_ARGS__)                         \
+MACRO(ExprOpOr, teOpOr, opOrs __VA_OPT__(,) __VA_ARGS__)                            \
+MACRO(ExprOpImpl, teOpImpl, opImpls __VA_OPT__(,) __VA_ARGS__)                      \
+MACRO(ExprOpUpdate, teOpUpdate, opUpdates __VA_OPT__(,) __VA_ARGS__)                \
+MACRO(ExprInheritFrom, teInheritFrom, inheritFroms __VA_OPT__(,) __VA_ARGS__)
+// XXX [speed]: ExprVar has to be treated separately because it has its own subtype ExprInheritFrom
+// MACRO(ExprVar, teVar, vars)
+
+#define PREDECL_EXPRFOO(EXPRFOO, DISC, VEC) \
+struct EXPRFOO;
+NIX_FOR_EACH_EXPR(PREDECL_EXPRFOO)
+PREDECL_EXPRFOO(ExprVar, teVar, vars)
+#undef PREDECL_EXPRFOO
+
+template<Type ty>
+struct TypeToPayloadType;
+template<> struct TypeToPayloadType<teWith> { typedef ExprWith PayloadType; };
+template<> struct TypeToPayloadType<teLet> { typedef ExprLet PayloadType; };
+template<> struct TypeToPayloadType<teIf> { typedef ExprIf PayloadType; };
+template<> struct TypeToPayloadType<teAttrs> { typedef ExprAttrs PayloadType; };
+template<> struct TypeToPayloadType<teCall> { typedef ExprCall PayloadType; };
+template<> struct TypeToPayloadType<teFloat> { typedef ExprFloat PayloadType; };
+template<> struct TypeToPayloadType<teInt> { typedef ExprInt PayloadType; };
+template<> struct TypeToPayloadType<tePath> { typedef ExprPath PayloadType; };
+template<> struct TypeToPayloadType<teSelect> { typedef ExprSelect PayloadType; };
+template<> struct TypeToPayloadType<teLambda> { typedef ExprLambda PayloadType; };
+template<> struct TypeToPayloadType<teList> { typedef ExprList PayloadType; };
+template<> struct TypeToPayloadType<teString> { typedef ExprString PayloadType; };
+template<> struct TypeToPayloadType<teAssert> { typedef ExprAssert PayloadType; };
+template<> struct TypeToPayloadType<tePos> { typedef ExprPos PayloadType; };
+template<> struct TypeToPayloadType<teConcatStrings> { typedef ExprConcatStrings PayloadType; };
+template<> struct TypeToPayloadType<teOpHasAttr> { typedef ExprOpHasAttr PayloadType; };
+template<> struct TypeToPayloadType<teOpConcatLists> { typedef ExprOpConcatLists PayloadType; };
+template<> struct TypeToPayloadType<teOpNot> { typedef ExprOpNot PayloadType; };
+template<> struct TypeToPayloadType<teOpEq> { typedef ExprOpEq PayloadType; };
+template<> struct TypeToPayloadType<teOpNEq> { typedef ExprOpNEq PayloadType; };
+template<> struct TypeToPayloadType<teOpAnd> { typedef ExprOpAnd PayloadType; };
+template<> struct TypeToPayloadType<teOpOr> { typedef ExprOpOr PayloadType; };
+template<> struct TypeToPayloadType<teOpImpl> { typedef ExprOpImpl PayloadType; };
+template<> struct TypeToPayloadType<teOpUpdate> { typedef ExprOpUpdate PayloadType; };
+template<> struct TypeToPayloadType<teInheritFrom> { typedef ExprInheritFrom PayloadType; };
+template<> struct TypeToPayloadType<teVar> { typedef ExprVar PayloadType; };
+
+template <Type ty>
+using PayloadOf = TypeToPayloadType<ty>::PayloadType;
+
+template<Type ty>
+struct ExprRefOf;
 
 /**
  * All stored types must be distinct (not type aliases) for the purposes of
@@ -223,7 +323,7 @@ class ValueRef {
     void mkList(Values & values, const ListBuilder & builder) noexcept;
     inline void mkThunk(Exprs & exprs, Values & values, EnvRef e, ExprRef ex) noexcept;
     inline void mkApp(Values & values, ValueRef l, ValueRef r) noexcept;
-    inline void mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLambdaRef f) noexcept;
+    inline void mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprRefOf<teLambda> f) noexcept;
     inline void mkBlackhole(Exprs & exprs, Values & values);
     void mkPrimOp(Values & values, PrimOp * p);
     inline void mkPrimOpApp(Values & values, ValueRef l, ValueRef r) noexcept;
@@ -347,70 +447,11 @@ inline ValueRef * EnvRef::values(Envs & envs)
 // XXX [speed] moved Expr stuff in here
 struct Exprs;
 
-// XXX [speed]: using 8 bits for the tag is convenient, but if it's too limiting (> 4 million of any one expr type), we can make do with 5 bits. We could even fine tune it even more by splitting up the address space into a sequence of intervals, one assigned to each type.
-// XXX [speed]: in particular, it's very silly to dedicate an entire section of the address space to null and blackHole
-enum Type : uint8_t {
-    // 0 reserved for null, blackHole
-    teWith = 1,
-    teLet,
-    teIf,
-    teVar,
-    teAttrs,
-    teCall,
-    teFloat,
-    teInt,
-    tePath,
-    teSelect,
-    teLambda,
-    teList,
-    teString,
-    teAssert,
-    tePos,
-    teConcatStrings,
-    teOpHasAttr,
-    teOpConcatLists,
-    teOpNot,
-    teOpEq,
-    teOpNEq,
-    teOpAnd,
-    teOpOr,
-    teOpImpl,
-    teOpUpdate,
-    teInheritFrom,
-};
-#define NIX_FOR_EACH_EXPR(MACRO, ...)                                               \
-MACRO(ExprWith, teWith, withs __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprLet, teLet, lets __VA_OPT__(,) __VA_ARGS__)                               \
-MACRO(ExprIf, teIf, ifs __VA_OPT__(,) __VA_ARGS__)                                  \
-MACRO(ExprAttrs, teAttrs, attrss __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprCall, teCall, calls __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprFloat, teFloat, floats __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprInt, teInt, ints __VA_OPT__(,) __VA_ARGS__)                               \
-MACRO(ExprPath, tePath, paths __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprSelect, teSelect, selects __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprLambda, teLambda, lambdas __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprList, teList, lists __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprString, teString, strings __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprAssert, teAssert, asserts __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprPos, tePos, poss __VA_OPT__(,) __VA_ARGS__)                               \
-MACRO(ExprConcatStrings, teConcatStrings, concatStringss __VA_OPT__(,) __VA_ARGS__) \
-MACRO(ExprOpHasAttr, teOpHasAttr, opHasAttrs __VA_OPT__(,) __VA_ARGS__)             \
-MACRO(ExprOpConcatLists, teOpConcatLists, opConcatListss __VA_OPT__(,) __VA_ARGS__) \
-MACRO(ExprOpNot, teOpNot, opNots __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprOpEq, teOpEq, opEqs __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprOpNEq, teOpNEq, opNEqs __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprOpAnd, teOpAnd, opAnds __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprOpOr, teOpOr, opOrs __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprOpImpl, teOpImpl, opImpls __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprOpUpdate, teOpUpdate, opUpdates __VA_OPT__(,) __VA_ARGS__)                \
-MACRO(ExprInheritFrom, teInheritFrom, inheritFroms __VA_OPT__(,) __VA_ARGS__)
-// XXX [speed]: ExprVar has to be treated separately because it has its own subtype ExprInheritFrom
-// MACRO(ExprVar, teVar, vars)
 
 struct ExprRef {
     public:
-    static ExprRef null;
-    static ExprRef blackHole;
+    static const ExprRef null;
+    static const ExprRef blackHole;
 
     constexpr ExprRef() = default;
 
@@ -441,8 +482,11 @@ struct ExprRef {
 
     constexpr auto operator<=>(const ExprRef & other) const noexcept = default;
 
-    template<typename T>
-    inline T dyn_cast() const noexcept;
+    template<Type ty>
+    inline ExprRefOf<ty> dyn_cast() const noexcept;
+
+    template<Type ty>
+    inline PayloadOf<ty> & payload(Exprs & exprs) const noexcept;
 
     void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
     void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
@@ -459,114 +503,53 @@ struct ExprRef {
     PosIdx getPos(Exprs & exprs) const;
 };
 
+inline constexpr ExprRef ExprRef::null = ExprRef{0};
+// the important thing is just that the tag is 0
+inline constexpr ExprRef ExprRef::blackHole = ExprRef{(Type) 0, 1};
 
-// XXX [speed]: should this be defined using templates e.g. ExprRef<ExprWith> or ExprRef<teWith>?
-// XXX [speed]: the ExprRef constructor should not be publicly accessible
-#define COMMON_DEFS(TYPE, DISCRIMINANT)                                       \
-TYPE##Ref() = default;                                                        \
-static TYPE##Ref null;                                                        \
-uint32_t ref;                                                                 \
-                                                                              \
-constexpr explicit TYPE##Ref(uint32_t idx)                                    \
-    : TYPE##Ref(ExprRef(DISCRIMINANT, idx)) {}                                \
-                                                                              \
-constexpr explicit TYPE##Ref(ExprRef ref)                                     \
-    : ref(ref.ref) {}                                                         \
-                                                                              \
-[[gnu::always_inline]]                                                        \
-constexpr explicit operator bool() const noexcept {                           \
-    return ref;                                                               \
-}                                                                             \
-                                                                              \
-constexpr auto operator<=>(const TYPE##Ref & other) const noexcept = default; \
-                                                                              \
-operator ExprRef() const noexcept                                             \
-{                                                                             \
-    return ExprRef(ref);                                                      \
-}                                                                             \
-                                                                              \
-void eval(EvalState & state, EnvRef env, ValueRef v);                         \
-void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);  \
-void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
+// XXX [speed]: the ExprRef constructor should not be publicly accessible. that's what dyn_cast() is for
+template<Type ty>
+struct ExprRefOf {
+    public:
+    static const ExprRefOf<ty> null;
+    uint32_t ref;
+    constexpr explicit ExprRefOf<ty>() = default;
+    constexpr explicit ExprRefOf<ty>(uint32_t idx)
+        :ExprRefOf<ty>(ExprRef(ty, idx)) {}
+    constexpr explicit ExprRefOf<ty>(ExprRef ref)
+        :ref(ref.ref) {}
+    constexpr operator ExprRef() const {
+        return ExprRef(ref);
+    }
 
-struct ExprWithRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & attrs(Exprs & exprs) const;
-    inline ExprRef & body(Exprs & exprs) const;
-    inline size_t & prevWith(Exprs & exprs) const;
-    inline ExprWithRef & parentWith(Exprs & exprs) const;
-    COMMON_DEFS(ExprWith, teWith)
-};
-struct ExprAttrsRef;
-struct ExprLetRef {
-    public:
-    inline ExprAttrsRef & attrs(Exprs & exprs) const;
-    inline ExprRef & body(Exprs & exprs) const;
-    COMMON_DEFS(ExprLet, teLet)
-};
-struct ExprIfRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & cond(Exprs & exprs) const;
-    inline ExprRef & then(Exprs & exprs) const;
-    inline ExprRef & else_(Exprs & exprs) const;
-    COMMON_DEFS(ExprIf, teIf)
-};
-struct AttrDef;
-typedef std::map<SymbolRef, AttrDef> AttrDefs;
-struct DynamicAttrDef;
-typedef std::vector<DynamicAttrDef> DynamicAttrDefs;
-struct ExprAttrsRef {
-    public:
-    inline bool & recursive(Exprs & exprs) const;
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline AttrDefs & attrs(Exprs & exprs) const;
-    inline std::unique_ptr<std::vector<ExprRef>> & inheritFromExprs(Exprs & exprs) const;
-    inline DynamicAttrDefs & dynamicAttrs(Exprs & exprs) const;
-    COMMON_DEFS(ExprAttrs, teAttrs)
+    [[gnu::always_inline]]
+    constexpr explicit operator bool() const noexcept {
+        return ref;
+    }
 
-    std::shared_ptr<const StaticEnv> bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
-    EnvRef buildInheritFromEnv(EvalState & state, EnvRef up);
-    void showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
-};
-struct ExprCallRef {
-    public:
-    inline ExprRef & fun(Exprs & exprs) const;
-    inline std::vector<ExprRef> & args(Exprs & exprs) const;
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline std::optional<PosIdx> & cursedOrEndPos(Exprs & exprs) const; // used during parsing to warn about https://github.com/NixOS/nix/issues/11118
-    COMMON_DEFS(ExprCall, teCall)
+    constexpr auto operator<=>(const ExprRefOf<ty> & other) const noexcept = default;
+
+    inline PayloadOf<ty> & payload(Exprs & exprs) const noexcept;
+
+    void eval(EvalState & state, EnvRef env, ValueRef v);
+    void bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env);
+    void show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const;
+
+    /* methods for specific types of ExprRef */
+    // XXX [speed]: is there no way to specify the requries for multiple functions at once?
+
+    std::shared_ptr<const StaticEnv> bindInheritSources(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
+    requires (ty == teAttrs);
+    EnvRef buildInheritFromEnv(EvalState & state, EnvRef up)
+    requires (ty == teAttrs);
+    void showBindings(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
+    requires (ty == teAttrs);
 
     // These are temporary methods to be used only in parser.y
-    void resetCursedOr(Exprs & exprs);
-    void warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions);
-};
-struct ExprFloatRef {
-    public:
-    inline ValueRef & v(Exprs & exprs) const;
-    COMMON_DEFS(ExprFloat, teFloat)
-};
-struct ExprIntRef {
-    public:
-    inline ValueRef & v(Exprs & exprs) const;
-    COMMON_DEFS(ExprInt, teInt)
-};
-struct ExprPathRef {
-    public:
-    inline std::string & s(Exprs & exprs) const;
-    inline ValueRef & v(Exprs & exprs) const;
-    COMMON_DEFS(ExprPath, tePath)
-};
-struct AttrName;
-typedef std::vector<AttrName> AttrPath;
-struct ExprSelectRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & e(Exprs & exprs) const;
-    inline ExprRef & def(Exprs & exprs) const;
-    inline AttrPath & attrPath(Exprs & exprs) const;
-    COMMON_DEFS(ExprSelect, teSelect)
+    void resetCursedOr(Exprs & exprs)
+    requires (ty == teCall);
+    void warnIfCursedOr(Exprs & exprs, const SymbolTable & symbols, const PosTable & positions)
+    requires (ty == teCall);
 
     /**
      * Evaluate the `a.b.c` part of `a.b.c.d`. This exists mostly for the purpose of :doc in the repl.
@@ -577,198 +560,92 @@ struct ExprSelectRef {
      * @note This does *not* evaluate the final attribute, and does not fail if that's the only attribute that does not
      * exist.
      */
-    SymbolRef evalExceptFinalSelect(EvalState & state, EnvRef env, ValueRef attrs);
-};
-struct Formals;
-struct ExprLambdaRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline SymbolRef & name(Exprs & exprs) const;
-    inline SymbolRef & arg(Exprs & exprs) const;
-    inline Formals * & formals(Exprs & exprs) const;
-    inline ExprRef & body(Exprs & exprs) const;
-    inline DocComment & docComment(Exprs & exprs) const;
-    COMMON_DEFS(ExprLambda, teLambda)
-    void setName(Exprs & exprs, SymbolRef name);
-    void setDocComment(Exprs & exprs, DocComment docComment);
+    SymbolRef evalExceptFinalSelect(EvalState & state, EnvRef env, ValueRef attrs)
+    requires (ty == teSelect);
+
+    void setName(Exprs & exprs, SymbolRef name)
+    requires (ty == teLambda);
+    void setDocComment(Exprs & exprs, DocComment docComment)
+    requires (ty == teLambda);
 
     // XXX [speed]: not used?
-    std::string showNamePos(/* XXX [speed] const */ EvalState & state) /* XXX [speed] const */;
-    inline bool hasFormals(Exprs & exprs) const;
-};
-struct ExprListRef {
-    public:
-    inline std::vector<ExprRef> & elems(Exprs & exprs) const;
-    COMMON_DEFS(ExprList, teList)
-};
-struct ExprStringRef {
-    public:
-    inline ValueRef & v(Exprs & exprs) const;
-    inline std::string & s(Exprs & exprs) const;
-    COMMON_DEFS(ExprString, teString)
-};
-struct ExprAssertRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & cond(Exprs & exprs) const;
-    inline ExprRef & body(Exprs & exprs) const;
-    COMMON_DEFS(ExprAssert, teAssert)
-};
-struct ExprPosRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    COMMON_DEFS(ExprPos, tePos)
-};
-struct ExprConcatStringsRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline bool & forceString(Exprs & exprs) const;
-    inline std::vector<std::pair<PosIdx, ExprRef>> * & es(Exprs & exprs) const;
-    COMMON_DEFS(ExprConcatStrings, teConcatStrings)
-};
-struct ExprOpHasAttrRef {
-    inline ExprRef & e(Exprs & exprs) const;
-    inline AttrPath & attrPath(Exprs & exprs) const;
-    public:
-    COMMON_DEFS(ExprOpHasAttr, teOpHasAttr)
-};
-struct ExprOpConcatListsRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & e1(Exprs & exprs) const;
-    inline ExprRef & e2(Exprs & exprs) const;
-    COMMON_DEFS(ExprOpConcatLists, teOpConcatLists)
-};
-struct ExprOpNotRef {
-    public:
-    inline ExprRef & e(Exprs & exprs) const;
-    COMMON_DEFS(ExprOpNot, teOpNot)
-};
-struct ExprOpEqRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & e1(Exprs & exprs) const;
-    inline ExprRef & e2(Exprs & exprs) const;
-    COMMON_DEFS(ExprOpEq, teOpEq)
-};
-struct ExprOpNEqRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & e1(Exprs & exprs) const;
-    inline ExprRef & e2(Exprs & exprs) const;
-    COMMON_DEFS(ExprOpNEq, teOpNEq)
-};
-struct ExprOpAndRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & e1(Exprs & exprs) const;
-    inline ExprRef & e2(Exprs & exprs) const;
-    COMMON_DEFS(ExprOpAnd, teOpAnd)
-};
-struct ExprOpOrRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & e1(Exprs & exprs) const;
-    inline ExprRef & e2(Exprs & exprs) const;
-    COMMON_DEFS(ExprOpOr, teOpOr)
-};
-struct ExprOpImplRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & e1(Exprs & exprs) const;
-    inline ExprRef & e2(Exprs & exprs) const;
-    COMMON_DEFS(ExprOpImpl, teOpImpl)
-};
-struct ExprOpUpdateRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline ExprRef & e1(Exprs & exprs) const;
-    inline ExprRef & e2(Exprs & exprs) const;
-    COMMON_DEFS(ExprOpUpdate, teOpUpdate)
-};
-typedef uint32_t Level;
-typedef uint32_t Displacement;
-struct ExprInheritFromRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline SymbolRef & name(Exprs & exprs) const;
-    inline ExprWithRef & fromWith(Exprs & exprs) const;
-    inline Level & level(Exprs & exprs) const;
-    inline Displacement & displ(Exprs & exprs) const;
-    COMMON_DEFS(ExprInheritFrom, teInheritFrom)
-};
-struct ExprVarRef {
-    public:
-    inline PosIdx & pos(Exprs & exprs) const;
-    inline SymbolRef & name(Exprs & exprs) const;
-    inline ExprWithRef & fromWith(Exprs & exprs) const;
-    inline Level & level(Exprs & exprs) const;
-    inline Displacement & displ(Exprs & exprs) const;
-    COMMON_DEFS(ExprVar, teVar)
-    constexpr ExprVarRef(ExprInheritFromRef ref)
-        :ref(ref.ref)
+    std::string showNamePos(/* XXX [speed] const */ EvalState & state) /* XXX [speed] const */
+    requires (ty == teLambda);
+    inline bool hasFormals(Exprs & exprs) const
+    requires (ty == teLambda);
+
+    constexpr ExprRefOf<teVar>(ExprRefOf<teInheritFrom> ref)
+    requires (ty == teVar)
+        : ref(ref.ref)
     {
     }
 };
-#undef COMMON_DEFS
+
+template<Type ty>
+inline constexpr ExprRefOf<ty> ExprRefOf<ty>::null = ExprRefOf<ty>{ExprRef::null};
 
 #define DYNAMIC_DISPATCH_CASE(TYPE, DISCRIMINANT, VECTOR, FUN) \
 case DISCRIMINANT:                                             \
-    return TYPE##Ref(*this).FUN;
+    return ExprRefOf<DISCRIMINANT>(*this).FUN;
 #define DYNAMIC_DISPATCH(FUN)                            \
 switch(type()) {                                         \
 NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH_CASE, FUN)            \
 DYNAMIC_DISPATCH_CASE(ExprVar, teVar, vars, FUN)         \
 }
 
-// XXX [speed]: return here does unnecessary conversion back and forth
-#define NIX_DYN_CAST(TYPE, DISCRIMINANT, VECTOR)      \
-template<>                                            \
-inline TYPE##Ref ExprRef::dyn_cast() const noexcept { \
-    if (type() != DISCRIMINANT)                       \
-        return TYPE##Ref::null;                       \
-    return TYPE##Ref(ref & 0x00FFFFFF);               \
+template<Type ty>
+inline ExprRefOf<ty> ExprRef::dyn_cast() const noexcept {
+    if (type() != ty)
+        return ExprRefOf<ty>::null;
+    return ExprRefOf<ty>(*this);
 }
-NIX_FOR_EACH_EXPR(NIX_DYN_CAST)
-#undef NIX_DYN_CAST
+
+template<Type ty>
+inline PayloadOf<ty> & ExprRef::payload(Exprs & exprs) const noexcept {
+    if (type() != ty)
+        unreachable();
+    return dyn_cast<ty>().payload(exprs);
+}
 
 template<>
-inline ExprVarRef ExprRef::dyn_cast() const noexcept {
-    if (type() == teVar)
-        return ExprVarRef(ref & 0x00FFFFFF);
-    if (type() == teInheritFrom)
-        return ExprInheritFromRef(ref & 0x00FFFFFF);
-    return ExprVarRef::null;
+inline ExprRefOf<teVar> ExprRef::dyn_cast() const noexcept {
+    if (type() == teVar || type() == teInheritFrom)
+        return ExprRefOf<teVar>(*this);
+    return ExprRefOf<teVar>::null;
 }
-
-#define NIX_PREDECL_TYPE(TYPE, DISCRIMINANT, VECTOR) \
-struct TYPE;
-NIX_FOR_EACH_EXPR(NIX_PREDECL_TYPE)
-NIX_PREDECL_TYPE(ExprVar, teVar, vars)
-#undef NIX_PREDECL_TYPE
 
 struct Exprs {
 
     Exprs();
 
+    template<Type ty>
+    inline std::vector<PayloadOf<ty>> & payloads();
+
 #define NIX_DEFINE_VEC(TYPE, DISCRIMINANT, VECTOR) \
-std::vector<TYPE> VECTOR;
+std::vector<TYPE> VECTOR;                          \
+template<>                                         \
+inline std::vector<PayloadOf<DISCRIMINANT>> & payloads<DISCRIMINANT>() { return VECTOR; }
+
     NIX_FOR_EACH_EXPR(NIX_DEFINE_VEC)
     NIX_DEFINE_VEC(ExprVar, teVar, vars)
 #undef NIX_DEFINE_VEC
 
-// XXX [speed]: we define addExprCall() explicitly so that the args argument can be passed in as an initializer list
-ExprCallRef addExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args);
-ExprCallRef addExprCall(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos);
 
-#define NIX_DECLARE_ADD(TYPE, DISCRIMINANT, VECTOR) \
-TYPE##Ref add##TYPE(auto && ...args);
-    NIX_FOR_EACH_EXPR(NIX_DECLARE_ADD)
-    NIX_DECLARE_ADD(ExprVar, teVar, vars)
-#undef NIX_DECLARE_ADD
+    template<Type ty>
+    ExprRefOf<ty>  add(auto && ...args);
+
+    // XXX [speed]: these are just here so the ones below can look like templates
+    template<Type ty>
+    ExprRefOf<teCall> add(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args);
+    template<Type ty>
+    ExprRefOf<teCall> add(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos);
+    // XXX [speed]: we define addExprCall() explicitly so that the args argument can be passed in as an initializer list
+    template<>
+    ExprRefOf<teCall> add<teCall>(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args);
+    template<>
+    ExprRefOf<teCall> add<teCall>(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos);
+
 };
-
-
 // XXX [speed]
 
 /**
@@ -940,7 +817,7 @@ struct PrimOpApplicationThunk
 struct Lambda
 {
     EnvRef env;
-    ExprLambdaRef fun;
+    ExprRefOf<teLambda> fun;
 };
 
 using SmallList = std::array<ValueRef, 2>;
@@ -1403,7 +1280,7 @@ public:
     }
 
 
-    inline void mkLambda(Exprs & exprs, EnvRef e, ExprLambdaRef f) noexcept
+    inline void mkLambda(Exprs & exprs, EnvRef e, ExprRefOf<teLambda> f) noexcept
     {
         setStorage(detail::Lambda{.env = e, .fun = f});
         nrLambda++;
@@ -1810,7 +1687,7 @@ inline void ValueRef::mkApp(Values & values, ValueRef l, ValueRef r) noexcept
 }
 
 
-inline void ValueRef::mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprLambdaRef f) noexcept
+inline void ValueRef::mkLambda(Exprs & exprs, Values & values, EnvRef e, ExprRefOf<teLambda> f) noexcept
 {
     setStorage(values, detail::Lambda{.env = e, .fun = f});
     nrLambda++;
