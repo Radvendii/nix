@@ -117,6 +117,32 @@ typedef enum {
 class Bindings;
 struct Env;
 class EnvRef;
+struct ExprWith;
+struct ExprAttrs;
+struct ExprCall;
+struct ExprSelect;
+struct ExprLambda;
+struct ExprString;
+struct ExprPos;
+struct ExprInheritFrom;
+struct ExprVar;
+struct ExprLet;
+struct ExprList;
+struct ExprPath;
+struct ExprInt;
+struct ExprFloat;
+struct ExprAssert;
+struct ExprIf;
+struct ExprOpAnd;
+struct ExprOpOr;
+struct ExprOpImpl;
+struct ExprOpConcatLists;
+struct ExprOpEq;
+struct ExprOpNEq;
+struct ExprOpNot;
+struct ExprOpUpdate;
+struct ExprOpHasAttr;
+struct ExprConcatStrings;
 struct ExprRef;
 struct Expr;
 struct StaticEnv;
@@ -167,40 +193,33 @@ enum Type : uint8_t {
     teOpUpdate,
     teInheritFrom,
 };
-#define NIX_FOR_EACH_EXPR(MACRO, ...)                                               \
-MACRO(ExprWith, teWith, withs __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprLet, teLet, lets __VA_OPT__(,) __VA_ARGS__)                               \
-MACRO(ExprIf, teIf, ifs __VA_OPT__(,) __VA_ARGS__)                                  \
-MACRO(ExprAttrs, teAttrs, attrss __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprCall, teCall, calls __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprFloat, teFloat, floats __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprInt, teInt, ints __VA_OPT__(,) __VA_ARGS__)                               \
-MACRO(ExprPath, tePath, paths __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprSelect, teSelect, selects __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprLambda, teLambda, lambdas __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprList, teList, lists __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprString, teString, strings __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprAssert, teAssert, asserts __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprPos, tePos, poss __VA_OPT__(,) __VA_ARGS__)                               \
-MACRO(ExprConcatStrings, teConcatStrings, concatStringss __VA_OPT__(,) __VA_ARGS__) \
-MACRO(ExprOpHasAttr, teOpHasAttr, opHasAttrs __VA_OPT__(,) __VA_ARGS__)             \
-MACRO(ExprOpConcatLists, teOpConcatLists, opConcatListss __VA_OPT__(,) __VA_ARGS__) \
-MACRO(ExprOpNot, teOpNot, opNots __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprOpEq, teOpEq, opEqs __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprOpNEq, teOpNEq, opNEqs __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprOpAnd, teOpAnd, opAnds __VA_OPT__(,) __VA_ARGS__)                         \
-MACRO(ExprOpOr, teOpOr, opOrs __VA_OPT__(,) __VA_ARGS__)                            \
-MACRO(ExprOpImpl, teOpImpl, opImpls __VA_OPT__(,) __VA_ARGS__)                      \
-MACRO(ExprOpUpdate, teOpUpdate, opUpdates __VA_OPT__(,) __VA_ARGS__)                \
-MACRO(ExprInheritFrom, teInheritFrom, inheritFroms __VA_OPT__(,) __VA_ARGS__)
-// XXX [speed]: ExprVar has to be treated separately because it has its own subtype ExprInheritFrom
-// MACRO(ExprVar, teVar, vars)
-
-#define PREDECL_EXPRFOO(EXPRFOO, DISC, VEC) \
-struct EXPRFOO;
-NIX_FOR_EACH_EXPR(PREDECL_EXPRFOO)
-PREDECL_EXPRFOO(ExprVar, teVar, vars)
-#undef PREDECL_EXPRFOO
+#define NIX_FOR_EACH_EXPR(MACRO, ...)            \
+MACRO(teWith __VA_OPT__(,) __VA_ARGS__)          \
+MACRO(teLet __VA_OPT__(,) __VA_ARGS__)           \
+MACRO(teIf __VA_OPT__(,) __VA_ARGS__)            \
+MACRO(teAttrs __VA_OPT__(,) __VA_ARGS__)         \
+MACRO(teCall __VA_OPT__(,) __VA_ARGS__)          \
+MACRO(teFloat __VA_OPT__(,) __VA_ARGS__)         \
+MACRO(teInt __VA_OPT__(,) __VA_ARGS__)           \
+MACRO(tePath __VA_OPT__(,) __VA_ARGS__)          \
+MACRO(teSelect __VA_OPT__(,) __VA_ARGS__)        \
+MACRO(teLambda __VA_OPT__(,) __VA_ARGS__)        \
+MACRO(teList __VA_OPT__(,) __VA_ARGS__)          \
+MACRO(teString __VA_OPT__(,) __VA_ARGS__)        \
+MACRO(teAssert __VA_OPT__(,) __VA_ARGS__)        \
+MACRO(tePos __VA_OPT__(,) __VA_ARGS__)           \
+MACRO(teConcatStrings __VA_OPT__(,) __VA_ARGS__) \
+MACRO(teOpHasAttr __VA_OPT__(,) __VA_ARGS__)     \
+MACRO(teOpConcatLists __VA_OPT__(,) __VA_ARGS__) \
+MACRO(teOpNot __VA_OPT__(,) __VA_ARGS__)         \
+MACRO(teOpEq __VA_OPT__(,) __VA_ARGS__)          \
+MACRO(teOpNEq __VA_OPT__(,) __VA_ARGS__)         \
+MACRO(teOpAnd __VA_OPT__(,) __VA_ARGS__)         \
+MACRO(teOpOr __VA_OPT__(,) __VA_ARGS__)          \
+MACRO(teOpImpl __VA_OPT__(,) __VA_ARGS__)        \
+MACRO(teOpUpdate __VA_OPT__(,) __VA_ARGS__)      \
+MACRO(teInheritFrom __VA_OPT__(,) __VA_ARGS__)   \
+MACRO(teVar __VA_OPT__(,) __VA_ARGS__)
 
 template<Type ty>
 struct TypeToPayloadType;
@@ -584,15 +603,6 @@ struct ExprRefOf {
 template<Type ty>
 inline constexpr ExprRefOf<ty> ExprRefOf<ty>::null = ExprRefOf<ty>{ExprRef::null};
 
-#define DYNAMIC_DISPATCH_CASE(TYPE, DISCRIMINANT, VECTOR, FUN) \
-case DISCRIMINANT:                                             \
-    return ExprRefOf<DISCRIMINANT>(*this).FUN;
-#define DYNAMIC_DISPATCH(FUN)                            \
-switch(type()) {                                         \
-NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH_CASE, FUN)            \
-DYNAMIC_DISPATCH_CASE(ExprVar, teVar, vars, FUN)         \
-}
-
 template<Type ty>
 inline ExprRefOf<ty> ExprRef::dyn_cast() const noexcept {
     if (type() != ty)
@@ -621,13 +631,16 @@ struct Exprs {
     template<Type ty>
     inline std::vector<PayloadOf<ty>> & payloads();
 
-#define NIX_DEFINE_VEC(TYPE, DISCRIMINANT, VECTOR) \
-std::vector<TYPE> VECTOR;                          \
-template<>                                         \
-inline std::vector<PayloadOf<DISCRIMINANT>> & payloads<DISCRIMINANT>() { return VECTOR; }
+#define NIX_DEFINE_VEC(DISCR)                            \
+std::vector<PayloadOf<DISCR>> DISCR##_payloads;          \
+                                                         \
+template<>                                               \
+inline std::vector<PayloadOf<DISCR>> & payloads<DISCR>() \
+{                                                        \
+    return DISCR##_payloads;                             \
+}
 
     NIX_FOR_EACH_EXPR(NIX_DEFINE_VEC)
-    NIX_DEFINE_VEC(ExprVar, teVar, vars)
 #undef NIX_DEFINE_VEC
 
 

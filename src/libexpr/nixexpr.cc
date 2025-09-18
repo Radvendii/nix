@@ -63,29 +63,28 @@ PosIdx ExprRef::getPos(Exprs & exprs) const
 };
 
 Exprs::Exprs() {
-#define NIX_EXPR_RESERVE(TYPE, DISCRIMINANT, VECTOR) \
-VECTOR.reserve(1000000);
+#define NIX_EXPR_RESERVE(DISCR) \
+payloads<DISCR>().reserve(1000000);
     NIX_FOR_EACH_EXPR(NIX_EXPR_RESERVE)
-NIX_EXPR_RESERVE(ExprVar, teVar, vars)
 #undef NIX_EXPR_RESERVE
 }
 template<>
 ExprRefOf<teCall> Exprs::add<teCall>(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args)
 {
-    calls.emplace_back(pos, fun, std::move(args));
-    if(calls.size() > 999000)
+    payloads<teCall>().emplace_back(pos, fun, std::move(args));
+    if(payloads<teCall>().size() > 999000)
         std::cout << "we're in trouble ExprCall\n";
     Expr::nrExprs++;
-    return ExprRefOf<teCall>(calls.size() - 1);
+    return ExprRefOf<teCall>(payloads<teCall>().size() - 1);
 }
 template<>
 ExprRefOf<teCall> Exprs::add<teCall>(const PosIdx & pos, ExprRef fun, std::vector<ExprRef> && args, PosIdx && cursedOrEndPos)
 {
-    calls.emplace_back(pos, fun, std::move(args), std::move(cursedOrEndPos));
-    if(calls.size() > 999000)
+    payloads<teCall>().emplace_back(pos, fun, std::move(args), std::move(cursedOrEndPos));
+    if(payloads<teCall>().size() > 999000)
         std::cout << "we're in trouble ExprCall\n";
     Expr::nrExprs++;
-    return ExprRefOf<teCall>(calls.size() - 1);
+    return ExprRefOf<teCall>(payloads<teCall>().size() - 1);
 }
 
 // FIXME: remove, because *symbols* are abstract and do not have a single
@@ -818,6 +817,14 @@ void ExprRefOf<teInheritFrom>::show(Exprs & exprs, Values & values, const Symbol
     ExprRefOf<teVar>(*this).show(exprs, values, symbols, str);
 }
 
+#define DYNAMIC_DISPATCH_CASE(DISCR, FUN)     \
+case DISCR:                                   \
+    return dyn_cast<DISCR>().FUN;
+#define DYNAMIC_DISPATCH(FUN)                 \
+switch(type()) {                              \
+NIX_FOR_EACH_EXPR(DYNAMIC_DISPATCH_CASE, FUN) \
+}
+
 void ExprRef::eval(EvalState & state, EnvRef env, ValueRef v)
 {
     if (*this == ExprRef::null)
@@ -829,13 +836,15 @@ void ExprRef::eval(EvalState & state, EnvRef env, ValueRef v)
 
 void ExprRef::bindVars(EvalState & es, const std::shared_ptr<const StaticEnv> & env)
 {
-    if (*this == ExprRef::null)
+    if (*this == ExprRef::null || *this == ExprRef::blackHole)
         unreachable();
     DYNAMIC_DISPATCH(bindVars(es, env))
 }
 
 void ExprRef::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
+    if (*this == ExprRef::null || *this == ExprRef::blackHole)
+        unreachable();
     DYNAMIC_DISPATCH(show(exprs, values, symbols, str))
 }
 
