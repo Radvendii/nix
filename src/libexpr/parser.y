@@ -460,8 +460,7 @@ attrs
       ExprRefOf<teString> str = $2.dyn_cast<teString>();
       if (str) {
           $$->emplace_back(AttrName(state->symbols.create(str.payload(state->exprs).s)), state->at(@2));
-          // XXX [speed]: we're leaking more memory
-          // delete str;
+          state->exprs.remove(str);
       } else
           throw ParseError({
               .msg = HintFmt("dynamic attributes not allowed in inherit"),
@@ -478,8 +477,7 @@ attrpath
       ExprRefOf<teString> str = $3.dyn_cast<teString>();
       if (str) {
           $$->push_back(AttrName(state->symbols.create(str.payload(state->exprs).s)));
-          // XXX [speed]: we're leaking more memory
-          // delete str;
+          state->exprs.remove(str);
       } else
           $$->push_back(AttrName($3));
     }
@@ -489,8 +487,7 @@ attrpath
       ExprRefOf<teString> str = $1.dyn_cast<teString>();
       if (str) {
           $$->push_back(AttrName(state->symbols.create(str.payload(state->exprs).s)));
-          // XXX [speed]: we're leaking more memory
-          // delete str;
+          state->exprs.remove(str);
       } else
           $$->push_back(AttrName($1));
     }

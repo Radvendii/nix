@@ -500,6 +500,10 @@ struct ExprRef {
     {
     }
 
+    uint32_t idx() const {
+        return ref & 0x00FFFFFF;
+    }
+
     [[gnu::always_inline]]
     constexpr explicit operator bool() const noexcept {
         return ref;
@@ -545,6 +549,10 @@ struct ExprRefOf {
         :ref(ref.ref) {}
     constexpr operator ExprRef() const {
         return ExprRef(ref);
+    }
+
+    uint32_t idx() const {
+        return ref & 0x00FFFFFF;
     }
 
     [[gnu::always_inline]]
@@ -667,6 +675,9 @@ inline std::vector<PayloadOf<DISCR>> & payloads<DISCR>() \
     template<Type ty>
     ExprRefOf<ty> add(PosIdx pos, Displacement displ)
     requires (ty == teInheritFrom);
+
+    template<Type ty>
+    void remove(ExprRefOf<ty> ref);
 };
 // XXX [speed]
 

@@ -487,17 +487,26 @@ ExprRefOf<ty> Exprs::add(auto && ...args) {
 }
 
 template<Type ty>
+void Exprs::remove(ExprRefOf<ty> ref) {
+    // In theory this can be implemented for any index using a free list or
+    // something, but at the moment we only need it in the simple case where it
+    // was the last thing allocated.
+    assert(payloads<ty>().size() - 1 == ref.idx());
+    payloads<ty>().pop_back();
+}
+
+template<Type ty>
 inline PayloadOf<ty> & ExprRefOf<ty>::payload(Exprs & exprs) const noexcept {
     assert(ExprRef(*this).type() == ty);
-    return exprs.payloads<ty>()[ref & 0x00FFFFFF];
+    return exprs.payloads<ty>()[idx()];
 }
 template<>
 inline PayloadOf<teVar> & ExprRefOf<teVar>::payload(Exprs & exprs) const noexcept {
     auto type = ExprRef(*this).type();
     if (type == teVar)
-        return exprs.payloads<teVar>()[ref & 0x00FFFFFF];
+        return exprs.payloads<teVar>()[idx()];
     if (type == teInheritFrom)
-        return exprs.payloads<teInheritFrom>()[ref & 0x00FFFFFF];
+        return exprs.payloads<teInheritFrom>()[idx()];
     unreachable();
 }
 
