@@ -64,7 +64,7 @@ PosIdx ExprRef::getPos(Exprs & exprs) const
 
 Exprs::Exprs() {
 #define NIX_EXPR_RESERVE(DISCR) \
-payloads<DISCR>().reserve(1000000);
+// payloads<DISCR>().reserve(1000000);
     NIX_FOR_EACH_EXPR(NIX_EXPR_RESERVE)
 #undef NIX_EXPR_RESERVE
 }
