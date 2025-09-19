@@ -459,8 +459,9 @@ attrs
     { $$ = $1;
       ExprRefOf<teString> str = $2.dyn_cast<teString>();
       if (str) {
-          $$->emplace_back(AttrName(state->symbols.create(str.payload(state->exprs).s)), state->at(@2));
-          state->exprs.remove(str);
+          ValueRef val = str.payload(state->exprs).v;
+          $$->emplace_back(AttrName(state->symbols.create(val.string_view(state->values))), state->at(@2));
+          state->exprs.remove(state->values, str);
       } else
           throw ParseError({
               .msg = HintFmt("dynamic attributes not allowed in inherit"),
@@ -476,8 +477,9 @@ attrpath
     { $$ = $1;
       ExprRefOf<teString> str = $3.dyn_cast<teString>();
       if (str) {
-          $$->push_back(AttrName(state->symbols.create(str.payload(state->exprs).s)));
-          state->exprs.remove(str);
+          ValueRef val = str.payload(state->exprs).v;
+          $$->push_back(AttrName(state->symbols.create(val.string_view(state->values))));
+          state->exprs.remove(state->values, str);
       } else
           $$->push_back(AttrName($3));
     }
@@ -486,8 +488,9 @@ attrpath
     { $$ = new std::vector<AttrName>;
       ExprRefOf<teString> str = $1.dyn_cast<teString>();
       if (str) {
-          $$->push_back(AttrName(state->symbols.create(str.payload(state->exprs).s)));
-          state->exprs.remove(str);
+          ValueRef val = str.payload(state->exprs).v;
+          $$->push_back(AttrName(state->symbols.create(val.string_view(state->values))));
+          state->exprs.remove(state->values, str);
       } else
           $$->push_back(AttrName($1));
     }

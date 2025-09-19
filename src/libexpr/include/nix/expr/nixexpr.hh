@@ -2,6 +2,7 @@
 ///@file
 
 #include <map>
+#include <memory>
 #include <vector>
 
 #include "nix/expr/value.hh"
@@ -110,18 +111,18 @@ struct ExprFloat
 
 struct ExprString
 {
-    std::string s;
     ValueRef v;
 
+    // XXX [speed]: the allocated string never gets freed. we can't access it from a destructor because we don't have Values
     ExprString(Values & values, std::string && s);
 };
 
 struct ExprPath
 {
     ref<SourceAccessor> accessor;
-    std::string s;
     ValueRef v;
 
+    // XXX [speed]: the allocated string never gets freed. we can't access it from a destructor because we don't have Values
     ExprPath(Values & values, ref<SourceAccessor> accessor, std::string && s);
 };
 
@@ -487,7 +488,7 @@ ExprRefOf<ty> Exprs::add(auto && ...args) {
 }
 
 template<Type ty>
-void Exprs::remove(ExprRefOf<ty> ref) {
+void Exprs::remove(Values & values, ExprRefOf<ty> ref) {
     // In theory this can be implemented for any index using a free list or
     // something, but at the moment we only need it in the simple case where it
     // was the last thing allocated.

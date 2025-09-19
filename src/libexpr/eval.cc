@@ -1042,17 +1042,23 @@ ExprFloat::ExprFloat(Values & values, NixFloat nf)
     v.mkFloat(values, nf);
 };
 ExprString::ExprString(Values & values, std::string && s)
-    : s(std::move(s))
 {
+    auto size = s.size();
+    char * str = (char *) allocBytes(size + 1);
+    memcpy(str, s.c_str(), size);
+    str[size] = '\0';
     v = values.create();
-    v.mkString(values, this->s.c_str());
+    v.mkString(values, str);
 };
 ExprPath::ExprPath(Values & values, ref<SourceAccessor> accessor, std::string && s)
     : accessor(accessor)
-    , s(std::move(s))
 {
+    auto size = s.size();
+    char * str = (char *) allocBytes(size + 1);
+    memcpy(str, s.c_str(), size);
+    str[size] = '\0';
     v = values.create();
-    v.mkPath(values, &*accessor, this->s.c_str());
+    v.mkPath(values, &*accessor, str);
 }
 EnvRef EnvRef::null{0};
 ValueRef ValueRef::null{0};

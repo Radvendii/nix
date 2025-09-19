@@ -638,6 +638,8 @@ inline ExprRefOf<teVar> ExprRef::dyn_cast() const noexcept {
     return ExprRefOf<teVar>::null;
 }
 
+// XXX [speed]: with this design, you can easily trip on invalid behaviour.
+// foo.payload(exprs).some_member.emplace_back(Foo(exprs.add<teFoo>(...)))
 struct Exprs {
 
     Exprs();
@@ -677,7 +679,7 @@ inline std::vector<PayloadOf<DISCR>> & payloads<DISCR>() \
     requires (ty == teInheritFrom);
 
     template<Type ty>
-    void remove(ExprRefOf<ty> ref);
+    void remove(Values & values, ExprRefOf<ty> ref);
 };
 // XXX [speed]
 

@@ -100,6 +100,27 @@ ExprRefOf<teInheritFrom> Exprs::add<teInheritFrom>(PosIdx pos, Displacement disp
     return ExprRefOf<teInheritFrom>(payloads<teInheritFrom>().size() - 1);
 }
 
+template<>
+void Exprs::remove(Values & values, ExprRefOf<teString> ref) {
+    // In theory this can be implemented for any index using a free list or
+    // something, but at the moment we only need it in the simple case where it
+    // was the last thing allocated.
+    assert(payloads<teString>().size() - 1 == ref.idx());
+    // we can't free this string in the destructor of ExprString, because it can't take values as an argument
+    free(const_cast<char *>(ref.payload(*this).v.c_str(values)));
+    payloads<teString>().pop_back();
+}
+template<>
+void Exprs::remove(Values & values, ExprRefOf<tePath> ref) {
+    // In theory this can be implemented for any index using a free list or
+    // something, but at the moment we only need it in the simple case where it
+    // was the last thing allocated.
+    assert(payloads<tePath>().size() - 1 == ref.idx());
+    // we can't free this string in the destructor of ExprString, because it can't take values as an argument
+    free(const_cast<char *>(ref.payload(*this).v.c_str(values)));
+    payloads<tePath>().pop_back();
+}
+
 // FIXME: remove, because *symbols* are abstract and do not have a single
 //        textual representation; see printIdentifier()
 std::ostream & operator<<(std::ostream & str, const Symbol & symbol)
@@ -137,13 +158,13 @@ void ExprRefOf<teFloat>::show(Exprs & exprs, Values & values, const SymbolTable 
 template<>
 void ExprRefOf<teString>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    printLiteralString(str, payload(exprs).s);
+    printLiteralString(str, payload(exprs).v.string_view(values));
 }
 
 template<>
 void ExprRefOf<tePath>::show(Exprs & exprs, Values & values, const SymbolTable & symbols, std::ostream & str) const
 {
-    str << payload(exprs).s;
+    str << payload(exprs).v.pathStr(values);
 }
 
 template<>
